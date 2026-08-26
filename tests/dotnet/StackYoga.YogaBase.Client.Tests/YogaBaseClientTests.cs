@@ -262,11 +262,11 @@ public sealed class YogaBaseClientTests
         var session = await client.Auth.SignInWithPkceAsync(
             new YogaBasePkceOptions
             {
-                RedirectUri = new Uri("com.stackyoga.game:/oauth/callback"),
+                RedirectUri = new Uri("com.stackyoga.app:/oauth/callback"),
                 OpenBrowserAsync = (authorize, _) =>
                 {
                     var state = ParseQuery(authorize.Query)["state"];
-                    return Task.FromResult(new Uri($"com.stackyoga.game:/oauth/callback?code=code-1&state={state}"));
+                    return Task.FromResult(new Uri($"com.stackyoga.app:/oauth/callback?code=code-1&state={state}"));
                 },
             },
             TestContext.Current.CancellationToken);
@@ -276,9 +276,9 @@ public sealed class YogaBaseClientTests
         var forged = await Assert.ThrowsAsync<YogaBaseApiException>(() => client.Auth.SignInWithPkceAsync(
             new YogaBasePkceOptions
             {
-                RedirectUri = new Uri("com.stackyoga.game:/oauth/callback"),
+                RedirectUri = new Uri("com.stackyoga.app:/oauth/callback"),
                 OpenBrowserAsync = (_, _) => Task.FromResult(
-                    new Uri("com.stackyoga.game:/oauth/callback?error=access_denied")),
+                    new Uri("com.stackyoga.app:/oauth/callback?error=access_denied")),
             },
             TestContext.Current.CancellationToken));
         Assert.Equal("authorization_response_invalid", forged.Code);
@@ -398,11 +398,11 @@ public sealed class YogaBaseClientTests
         var signIn = client.Auth.SignInWithPkceAsync(
             new YogaBasePkceOptions
             {
-                RedirectUri = new Uri("com.stackyoga.game:/oauth/callback"),
+                RedirectUri = new Uri("com.stackyoga.app:/oauth/callback"),
                 OpenBrowserAsync = (authorize, _) =>
                 {
                     var state = ParseQuery(authorize.Query)["state"];
-                    return Task.FromResult(new Uri($"com.stackyoga.game:/oauth/callback?code=new-user-code&state={state}"));
+                    return Task.FromResult(new Uri($"com.stackyoga.app:/oauth/callback?code=new-user-code&state={state}"));
                 },
             },
             TestContext.Current.CancellationToken);
@@ -453,13 +453,13 @@ public sealed class YogaBaseClientTests
         var signIn = client.Auth.SignInWithPkceAsync(
             new YogaBasePkceOptions
             {
-                RedirectUri = new Uri("com.stackyoga.game:/oauth/callback"),
+                RedirectUri = new Uri("com.stackyoga.app:/oauth/callback"),
                 OpenBrowserAsync = async (authorize, cancellationToken) =>
                 {
                     browserStarted.TrySetResult();
                     await releaseBrowser.Task.WaitAsync(cancellationToken);
                     var state = ParseQuery(authorize.Query)["state"];
-                    return new Uri($"com.stackyoga.game:/oauth/callback?code=stale-code&state={state}");
+                    return new Uri($"com.stackyoga.app:/oauth/callback?code=stale-code&state={state}");
                 },
             },
             TestContext.Current.CancellationToken);
@@ -534,7 +534,7 @@ public sealed class YogaBaseClientTests
             OidcDiscoveryEndpoint = "http://localhost/.well-known/openid-configuration",
             OidcPublicClientId = "stackyoga-native-preview",
             OidcScopes = scopes ?? ["openid", "offline_access"],
-            OidcRedirectUris = ["com.stackyoga.game:/oauth/callback"],
+            OidcRedirectUris = ["com.stackyoga.app:/oauth/callback"],
             RealtimePath = "/v1/realtime",
             Capabilities = capabilities ?? Capabilities(),
             IssuedAt = DateTimeOffset.Parse("2026-08-26T00:00:00+00:00", System.Globalization.CultureInfo.InvariantCulture),
