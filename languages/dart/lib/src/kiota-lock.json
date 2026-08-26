@@ -1,6 +1,6 @@
 {
-  "descriptionHash": "51BEFBE965F8A1832E1D4963FAC236E42F7600989CE0BF07B5B0293622D65AC83CC2D7237D90E9AA3771F9B5FE1D30D5EA72E9B3E88C13B0BF4A342EBCBE5BA0",
-  "descriptionLocation": "../../../../../StackYoga/docs/api/yogabase-client-v1.openapi.json",
+  "descriptionHash": "9F5359DEEED3C571BE00CB523F4DF1D180D022FBB514BCCDD62ACAE39BFB560EA325A170A99140D3E7F121788D65F3E185898A513CC4107BCFCA1829EAC011D5",
+  "descriptionLocation": "../../../../contracts/yogabase-client-v1.openapi.json",
   "lockFileVersion": "1.0.0",
   "kiotaVersion": "1.34.1",
   "clientClassName": "YogaBaseApiClient",

@@ -21,7 +21,7 @@
   "contract": {
     "path": "contracts/yogabase-client-v1.openapi.json",
     "sourcePath": "StackYoga product repository: docs/api/yogabase-client-v1.openapi.json",
-    "sha256": "711e3d6a5badbf0d1e0bd8c269fc46c5db880f31fd191be262071a722bef8149"
+    "sha256": "7b4f28b19f17610f4b2c82a7e97d355ee01405204b84138b2553c9c275183d3e"
   },
   "generator": {
     "package": "Microsoft.OpenApi.Kiota",

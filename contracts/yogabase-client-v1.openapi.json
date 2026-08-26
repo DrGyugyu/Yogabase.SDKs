@@ -358,7 +358,13 @@
             "minItems": 1,
             "maxItems": 64,
             "uniqueItems": true,
-            "items": { "type": "string", "format": "uri", "maxLength": 2048 }
+            "description": "Exact OAuth redirect allowlist. Entries are public HTTPS URLs, loopback HTTP URLs, or lowercase reverse-domain private-use native schemes such as com.example.app:/oauth/callback. Userinfo, query strings, and fragments are forbidden.",
+            "items": {
+              "type": "string",
+              "format": "uri",
+              "maxLength": 2048,
+              "pattern": "^(?!.*[@?#])(?:https://|http://(?:localhost|127\\.0\\.0\\.1|\\[::1\\])(?::[0-9]+)?/|[a-z][a-z0-9]*(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}:/).+$"
+            }
           },
           "realtimePath": { "type": "string", "const": "/v1/realtime" },
           "capabilities": {
