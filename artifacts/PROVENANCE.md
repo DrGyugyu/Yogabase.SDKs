@@ -1,11 +1,12 @@
 # Artifact provenance
 
-The `imported` directory preserves the distributable preview artifacts assembled in
-`/Users/drgyugyu/Documents/ChatGPT/StackYoga.sdk-output` on 2026-08-26, together with the original
-manifest and README. The structured source packages were copied separately into `languages` so
+The `imported` directory preserves the distributable preview artifacts assembled in an external
+temporary generation workspace on 2026-08-26, together with its normalized manifest and README.
+The structured source packages were copied separately into `languages` so
 that dependency trees, tools, caches, and build intermediates could be excluded. The nested
-`MANIFEST.json` is unchanged and contains the original SHA-256 values, generator version,
-generator source commit, and source-contract digest. Its artifact paths are interpreted relative
+`MANIFEST.json` retains the original artifact SHA-256 values, generator version, generator source
+commit, and source-contract digest while replacing developer-local absolute paths with logical
+provenance. Its artifact paths are interpreted relative
 to `artifacts/imported`; its source-package paths identify the original output layout, while this
 repository uses `languages/<language>`.
 

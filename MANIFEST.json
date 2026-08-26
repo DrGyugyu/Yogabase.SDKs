@@ -3,24 +3,24 @@
   "generatedAt": "2026-08-26T00:00:00Z",
   "status": "local-unpublished-preview",
   "repository": {
-    "path": "/Users/drgyugyu/Documents/ChatGPT/StackYoga.SDKs",
+    "path": ".",
     "gitInitialized": true,
     "committed": true,
     "remoteConfigured": false
   },
   "sourceProvenance": {
-    "authoredDotNetSource": "/Users/drgyugyu/Documents/ChatGPT/StackYoga/clients/StackYoga.YogaBase.Client",
-    "authoredDotNetTests": "/Users/drgyugyu/Documents/ChatGPT/StackYoga/tests/YogaBase.Tests/YogaBaseClientTests.cs",
-    "generatedSdkOutput": "/Users/drgyugyu/Documents/ChatGPT/StackYoga.sdk-output",
+    "authoredDotNetSource": "StackYoga product-repository history: clients/StackYoga.YogaBase.Client",
+    "authoredDotNetTests": "StackYoga product-repository history: tests/YogaBase.Tests/YogaBaseClientTests.cs",
+    "generatedSdkOutput": "external temporary generation workspace; not retained",
     "importedArtifactManifest": {
       "path": "artifacts/imported/MANIFEST.json",
-      "sha256": "c409d318aad1a88c161a968fbca758a5c6d6417750152dbb26e884d45bcaab13",
+      "sha256": "61f62ecffd0905c2fb72e7308cb3ed6dbc0f62ff3cee91c6ea03a64e12d8f989",
       "allRecordedArtifactDigestsVerified": true
     }
   },
   "contract": {
     "path": "contracts/yogabase-client-v1.openapi.json",
-    "sourcePath": "/Users/drgyugyu/Documents/ChatGPT/StackYoga/docs/api/yogabase-client-v1.openapi.json",
+    "sourcePath": "StackYoga product repository: docs/api/yogabase-client-v1.openapi.json",
     "sha256": "711e3d6a5badbf0d1e0bd8c269fc46c5db880f31fd191be262071a722bef8149"
   },
   "generator": {
