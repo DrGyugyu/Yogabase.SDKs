@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stackyoga-yogabase-client-preview"
+version = "0.1.0.dev1"
+description = "Unpublished generated preview client for StackYoga YogaBase"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE.md"]
+dependencies = ["microsoft-kiota-bundle==1.9.10"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["stackyoga_yogabase*"]
+namespaces = true

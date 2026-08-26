@@ -1,0 +1,19 @@
+{
+  "name": "@stackyoga/yogabase-client-preview",
+  "version": "0.1.0-preview.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "README.md", "LICENSE.md", "src/kiota-lock.json"],
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "test": "npm run build && node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@microsoft/kiota-bundle": "1.0.0-preview.103"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}

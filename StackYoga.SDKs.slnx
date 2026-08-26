@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/dotnet/StackYoga.YogaBase.Client/StackYoga.YogaBase.Client.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/dotnet/StackYoga.YogaBase.Client.Tests/StackYoga.YogaBase.Client.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,74 @@
+{
+  "schema": "stackyoga-sdk-project.v1",
+  "generatedAt": "2026-08-26T00:00:00Z",
+  "status": "local-unpublished-preview",
+  "repository": {
+    "path": "/Users/drgyugyu/Documents/ChatGPT/StackYoga.SDKs",
+    "gitInitialized": true,
+    "committed": true,
+    "remoteConfigured": false
+  },
+  "sourceProvenance": {
+    "authoredDotNetSource": "/Users/drgyugyu/Documents/ChatGPT/StackYoga/clients/StackYoga.YogaBase.Client",
+    "authoredDotNetTests": "/Users/drgyugyu/Documents/ChatGPT/StackYoga/tests/YogaBase.Tests/YogaBaseClientTests.cs",
+    "generatedSdkOutput": "/Users/drgyugyu/Documents/ChatGPT/StackYoga.sdk-output",
+    "importedArtifactManifest": {
+      "path": "artifacts/imported/MANIFEST.json",
+      "sha256": "c409d318aad1a88c161a968fbca758a5c6d6417750152dbb26e884d45bcaab13",
+      "allRecordedArtifactDigestsVerified": true
+    }
+  },
+  "contract": {
+    "path": "contracts/yogabase-client-v1.openapi.json",
+    "sourcePath": "/Users/drgyugyu/Documents/ChatGPT/StackYoga/docs/api/yogabase-client-v1.openapi.json",
+    "sha256": "711e3d6a5badbf0d1e0bd8c269fc46c5db880f31fd191be262071a722bef8149"
+  },
+  "generator": {
+    "package": "Microsoft.OpenApi.Kiota",
+    "version": "1.34.1",
+    "sourceCommit": "9f9cfb3b1cb9b5311a214ea6ce0f69943c523005",
+    "nugetSha256": "4aa14f12d573d5644eb167b837c4fa10d7d7b7ec4a6634b8bc4026269f9a7671"
+  },
+  "packages": [
+    {
+      "language": "CSharp",
+      "source": "src/dotnet/StackYoga.YogaBase.Client",
+      "packageId": "StackYoga.YogaBase.Client",
+      "version": "0.1.0-preview.1",
+      "localArtifact": {
+        "path": "artifacts/local/StackYoga.YogaBase.Client.0.1.0-preview.1.nupkg",
+        "sha256": "8a427712b03a41f6d1698530149bc4fc7cf3ca69b56d5903b9edbd9f95a72b76"
+      },
+      "qualification": "locked-restore-dual-target-build-19-tests-and-clean-package-consumer-passed"
+    },
+    {
+      "language": "TypeScript",
+      "source": "languages/typescript",
+      "packageId": "@stackyoga/yogabase-client-preview",
+      "version": "0.1.0-preview.1",
+      "qualification": "npm-clean-install-build-and-three-tests-passed"
+    },
+    {
+      "language": "Python",
+      "source": "languages/python",
+      "packageId": "stackyoga-yogabase-client-preview",
+      "version": "0.1.0.dev1",
+      "qualification": "isolated-python-3.12-runtime-install-and-three-tests-passed"
+    },
+    {
+      "language": "Java",
+      "source": "languages/java",
+      "packageId": "io.stackyoga:yogabase-client-preview",
+      "version": "0.1.0-preview.1",
+      "qualification": "maven-compile-and-executable-logical-key-conformance-passed"
+    },
+    {
+      "language": "Dart",
+      "source": "languages/dart",
+      "packageId": "stackyoga_yogabase_client_preview",
+      "version": "0.1.0-dev.1",
+      "qualification": "source-snapshot-only-no-local-dart-or-flutter-toolchain"
+    }
+  ],
+  "publicationAuthorized": false
+}

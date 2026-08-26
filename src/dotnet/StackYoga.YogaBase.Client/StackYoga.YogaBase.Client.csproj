@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework />
+    <TargetFrameworks>netstandard2.1;net10.0</TargetFrameworks>
+    <RootNamespace>StackYoga.YogaBase</RootNamespace>
+    <AssemblyName>StackYoga.YogaBase.Client</AssemblyName>
+    <PackageId>StackYoga.YogaBase.Client</PackageId>
+    <Version>0.1.0-preview.1</Version>
+    <Authors>StackYoga</Authors>
+    <Company>StackYoga</Company>
+    <Description>Preview first-party .NET client for the StackYoga YogaBase application gateway.</Description>
+    <PackageTags>stackyoga;yogabase;baas;signalr</PackageTags>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+    <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsPackable>true</IsPackable>
+    <PublishRepositoryUrl>false</PublishRepositoryUrl>
+    <!-- These APIs have newer static/char alternatives only on the net10 target. Keep one
+         source-compatible implementation for the netstandard2.1/Unity build. -->
+    <NoWarn>$(NoWarn);CS1591;CA1510;CA1512;CA1847;CA1850;CA1865</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
+    <PackageReference Include="System.Text.Json" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../../../LICENSE.md" Pack="true" PackagePath="/" />
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <!-- A local preview may contain reviewed working-tree changes beyond HEAD. Do not stamp the
+       resulting package with an older commit and imply that it is reproducible from that commit. -->
+  <Target Name="ClearLocalPreviewRepositoryMetadata" BeforeTargets="GenerateNuspec">
+    <PropertyGroup>
+      <RepositoryUrl />
+      <RepositoryType />
+      <RepositoryBranch />
+      <RepositoryCommit />
+    </PropertyGroup>
+  </Target>
+</Project>

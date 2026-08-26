@@ -1,0 +1,4 @@
+languages/typescript/src/** linguist-generated=true whitespace=-blank-at-eol,-blank-at-eof
+languages/python/src/** linguist-generated=true whitespace=-blank-at-eol,-blank-at-eof
+languages/java/src/** linguist-generated=true whitespace=-blank-at-eol,-blank-at-eof
+languages/dart/lib/src/** linguist-generated=true whitespace=-blank-at-eol,-blank-at-eof

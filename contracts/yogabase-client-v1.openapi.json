@@ -1,0 +1,542 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "StackYoga YogaBase Application API",
+    "version": "v1-preview",
+    "description": "Target-local YogaBase application-plane API. This contract excludes StackYoga management, delivery, provisioning, CRDs, raw SQL, provider coordinates, and GameSessions."
+  },
+  "servers": [
+    {
+      "url": "https://{gatewayHost}",
+      "variables": {
+        "gatewayHost": {
+          "default": "yogabase.stackyoga.invalid",
+          "description": "The exact TLS gateway origin returned by the client bootstrap document."
+        }
+      }
+    }
+  ],
+  "x-stackyoga-realtime": {
+    "transport": "SignalR",
+    "path": "/v1/realtime",
+    "clientMethods": ["Subscribe", "Unsubscribe"],
+    "events": [],
+    "status": "unavailable-until-outbound-event-contract"
+  },
+  "paths": {
+    "/v1/client-config/{publishableKey}": {
+      "get": {
+        "operationId": "getYogaBaseClientConfiguration",
+        "description": "Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request.",
+        "security": [],
+        "parameters": [
+          { "$ref": "#/components/parameters/PublishableKey" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/ClientConfiguration" },
+          "404": { "$ref": "#/components/responses/ClientConfigurationNotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/auth/signup": {
+      "post": {
+        "operationId": "signUpYogaBaseUser",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SignUpRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "$ref": "#/components/responses/NoContent" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/data/{resource}/select": {
+      "post": {
+        "operationId": "selectYogaBaseData",
+        "parameters": [{ "$ref": "#/components/parameters/Resource" }],
+        "requestBody": { "$ref": "#/components/requestBodies/DataSelect" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/DataResult" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/data/{resource}/insert": {
+      "post": {
+        "operationId": "insertYogaBaseData",
+        "parameters": [{ "$ref": "#/components/parameters/Resource" }],
+        "requestBody": { "$ref": "#/components/requestBodies/DataMutation" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/DataResult" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/data/{resource}/update": {
+      "post": {
+        "operationId": "updateYogaBaseData",
+        "parameters": [{ "$ref": "#/components/parameters/Resource" }],
+        "requestBody": { "$ref": "#/components/requestBodies/DataMutation" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/DataResult" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/data/{resource}/delete": {
+      "post": {
+        "operationId": "deleteYogaBaseData",
+        "parameters": [{ "$ref": "#/components/parameters/Resource" }],
+        "requestBody": { "$ref": "#/components/requestBodies/DataMutation" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/DataResult" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/storage/objects/{key}": {
+      "put": {
+        "operationId": "putYogaBaseObject",
+        "parameters": [
+          { "$ref": "#/components/parameters/ObjectKey" },
+          { "$ref": "#/components/parameters/ContentDigest" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": { "type": "string", "contentEncoding": "binary" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/ObjectWrite" },
+          "201": { "$ref": "#/components/responses/ObjectWrite" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      },
+      "get": {
+        "operationId": "getYogaBaseObject",
+        "parameters": [{ "$ref": "#/components/parameters/ObjectKey" }],
+        "responses": {
+          "200": {
+            "description": "Object bytes. No digest response header exists in v1, so download integrity verification is not claimed.",
+            "content": {
+              "application/octet-stream": {
+                "schema": { "type": "string", "contentEncoding": "binary" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/projects/{projectId}/functions/{functionId}/versions/{functionVersion}/invoke": {
+      "post": {
+        "operationId": "invokeYogaBaseFunction",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/FunctionId" },
+          { "$ref": "#/components/parameters/FunctionVersion" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/InvocationRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/InvocationResult" },
+          "202": { "$ref": "#/components/responses/InvocationResult" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/InvocationResult" },
+          "408": { "$ref": "#/components/responses/InvocationResult" },
+          "409": { "$ref": "#/components/responses/InvocationResult" },
+          "422": { "$ref": "#/components/responses/InvocationResult" },
+          "503": { "$ref": "#/components/responses/InvocationResult" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "projectOAuth": {
+        "type": "oauth2",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "/connect/authorize",
+            "tokenUrl": "/connect/token",
+            "scopes": {
+              "openid": "Identify the local project user.",
+              "offline_access": "Request a rotating refresh-token family.",
+              "lambda.invoke": "Invoke admitted project Functions."
+            }
+          }
+        }
+      }
+    },
+    "parameters": {
+      "PublishableKey": {
+        "name": "publishableKey",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "pattern": "^sy_pub_[!-~]{9,153}$", "maxLength": 160 }
+      },
+      "Resource": {
+        "name": "resource",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "minLength": 1, "maxLength": 256 }
+      },
+      "ObjectKey": {
+        "name": "key",
+        "in": "path",
+        "required": true,
+        "description": "Project-local logical key. The live route is a catch-all path tail; SDKs must validate the key and percent-encode each segment separately while preserving literal slash separators.",
+        "x-stackyoga-catch-all-path-tail": true,
+        "schema": { "type": "string", "minLength": 1, "maxLength": 1024 }
+      },
+      "ContentDigest": {
+        "name": "X-StackYoga-Content-Sha256",
+        "in": "header",
+        "required": true,
+        "schema": { "$ref": "#/components/schemas/Sha256Digest" }
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": { "type": "string", "minLength": 1, "maxLength": 128 }
+      },
+      "ProjectId": {
+        "name": "projectId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "FunctionId": {
+        "name": "functionId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "minLength": 1, "maxLength": 256 }
+      },
+      "FunctionVersion": {
+        "name": "functionVersion",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "minLength": 1, "maxLength": 64 }
+      }
+    },
+    "requestBodies": {
+      "DataSelect": {
+        "required": true,
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/DataSelectRequest" } }
+        }
+      },
+      "DataMutation": {
+        "required": true,
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/DataMutationRequest" } }
+        }
+      }
+    },
+    "responses": {
+      "ClientConfiguration": {
+        "description": "Secret-free configuration and capability facts.",
+        "headers": {
+          "Cache-Control": { "schema": { "type": "string", "const": "no-store" } }
+        },
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/ClientConfiguration" } }
+        }
+      },
+      "ClientConfigurationNotFound": {
+        "description": "The same response is used for disabled, malformed, and unknown keys.",
+        "headers": {
+          "Cache-Control": { "schema": { "type": "string", "const": "no-store" } }
+        },
+        "content": {
+          "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } }
+        }
+      },
+      "DataResult": {
+        "description": "Bounded rows or mutation count.",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/DataResult" } }
+        }
+      },
+      "ObjectWrite": {
+        "description": "Integrity-bound storage receipt.",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/ObjectWriteResult" } }
+        }
+      },
+      "InvocationResult": {
+        "description": "Typed invocation outcome. Expected domain failures retain this shape on non-2xx statuses.",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/InvocationResult" } }
+        }
+      },
+      "NoContent": { "description": "Request accepted without secret-bearing output." },
+      "Unauthorized": {
+        "description": "A valid canonical project bearer subject is required.",
+        "content": {
+          "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } }
+        }
+      },
+      "Problem": {
+        "description": "Bounded problem response.",
+        "content": {
+          "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } }
+        }
+      },
+      "RateLimited": {
+        "description": "The fixed-window request limit was exceeded.",
+        "content": {
+          "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } }
+        }
+      }
+    },
+    "schemas": {
+      "ClientConfiguration": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["schema", "projectId", "environmentId", "gatewayEndpoint", "oidcAuthority", "oidcDiscoveryEndpoint", "oidcPublicClientId", "oidcScopes", "oidcRedirectUris", "realtimePath", "capabilities", "issuedAt"],
+        "properties": {
+          "schema": { "type": "string", "const": "yogabase-client-config.v1" },
+          "projectId": { "type": "string", "format": "uuid" },
+          "environmentId": { "type": "string", "format": "uuid" },
+          "gatewayEndpoint": { "type": "string", "format": "uri" },
+          "oidcAuthority": { "type": "string", "format": "uri" },
+          "oidcDiscoveryEndpoint": { "type": "string", "format": "uri" },
+          "oidcPublicClientId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "oidcScopes": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 64,
+            "uniqueItems": true,
+            "items": { "type": "string", "maxLength": 128 }
+          },
+          "oidcRedirectUris": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 64,
+            "uniqueItems": true,
+            "items": { "type": "string", "format": "uri", "maxLength": 2048 }
+          },
+          "realtimePath": { "type": "string", "const": "/v1/realtime" },
+          "capabilities": {
+            "type": "array",
+            "minItems": 5,
+            "maxItems": 5,
+            "items": { "$ref": "#/components/schemas/Capability" }
+          },
+          "issuedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Capability": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "available"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": ["auth", "data-rest", "storage", "functions-rest", "realtime-subscribe"]
+          },
+          "available": { "type": "boolean" },
+          "unavailableReason": { "type": ["string", "null"], "maxLength": 256 }
+        }
+      },
+      "SignUpRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string", "format": "password" },
+          "invitationToken": { "type": ["string", "null"] }
+        }
+      },
+      "DataValue": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "value"],
+        "properties": {
+          "type": { "type": "string", "enum": ["null", "string", "bool", "int64", "decimal", "double", "guid", "timestamp", "json"] },
+          "value": {}
+        }
+      },
+      "DataFilter": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["column", "operator", "values"],
+        "properties": {
+          "column": { "type": "string" },
+          "operator": { "type": "string" },
+          "values": { "type": "array", "items": { "$ref": "#/components/schemas/DataValue" } }
+        }
+      },
+      "DataOrdering": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["column", "descending"],
+        "properties": {
+          "column": { "type": "string" },
+          "descending": { "type": "boolean" }
+        }
+      },
+      "DataCursor": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["column", "lastValue", "descending"],
+        "properties": {
+          "column": { "type": "string" },
+          "lastValue": { "$ref": "#/components/schemas/DataValue" },
+          "descending": { "type": "boolean" }
+        }
+      },
+      "DataSelectRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["columns", "filters", "ordering", "pageSize", "queryDepth"],
+        "properties": {
+          "columns": { "type": "array", "maxItems": 256, "items": { "type": "string" } },
+          "filters": { "type": "array", "maxItems": 64, "items": { "$ref": "#/components/schemas/DataFilter" } },
+          "ordering": { "type": "array", "maxItems": 8, "items": { "$ref": "#/components/schemas/DataOrdering" } },
+          "pageSize": { "type": "integer", "format": "int32", "minimum": 0, "maximum": 1000 },
+          "queryDepth": { "type": "integer", "format": "int32", "minimum": 1, "maximum": 5 },
+          "cursor": { "oneOf": [{ "$ref": "#/components/schemas/DataCursor" }, { "type": "null" }] }
+        }
+      },
+      "DataMutationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["values", "filters", "returningColumns"],
+        "properties": {
+          "values": { "type": "object", "additionalProperties": { "$ref": "#/components/schemas/DataValue" } },
+          "filters": { "type": "array", "maxItems": 64, "items": { "$ref": "#/components/schemas/DataFilter" } },
+          "returningColumns": { "type": "array", "maxItems": 256, "items": { "type": "string" } }
+        }
+      },
+      "DataResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rows", "affectedRows"],
+        "properties": {
+          "rows": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+          "affectedRows": { "type": "integer", "format": "int32", "minimum": 0 }
+        }
+      },
+      "ObjectWriteResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "digest", "sizeBytes", "encryption", "alreadyExisted"],
+        "properties": {
+          "key": { "type": "string" },
+          "digest": { "$ref": "#/components/schemas/Sha256Digest" },
+          "sizeBytes": { "type": "integer", "format": "int64", "minimum": 1 },
+          "encryption": { "type": "string", "minLength": 1 },
+          "alreadyExisted": { "type": "boolean" }
+        }
+      },
+      "InvocationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["idempotencyKey", "correlationId", "deadline", "mode", "payloadDigest"],
+        "properties": {
+          "idempotencyKey": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "correlationId": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "deadline": { "type": "string", "format": "date-time" },
+          "mode": { "type": "integer", "format": "int32", "enum": [0, 1] },
+          "payloadDigest": { "$ref": "#/components/schemas/Sha256Digest" },
+          "inlinePayloadBase64": { "type": ["string", "null"], "contentEncoding": "base64", "maxLength": 1398104 },
+          "objectReference": {
+            "oneOf": [{ "$ref": "#/components/schemas/ObjectReference" }, { "type": "null" }]
+          }
+        },
+        "oneOf": [
+          { "required": ["inlinePayloadBase64"] },
+          { "required": ["objectReference"] }
+        ]
+      },
+      "ObjectReference": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["uri", "version"],
+        "properties": {
+          "uri": { "type": "string", "pattern": "^object://", "maxLength": 2048 },
+          "version": { "type": "string", "minLength": 1, "maxLength": 256 }
+        }
+      },
+      "InvocationResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["outcome", "invocationId", "correlationId"],
+        "properties": {
+          "outcome": { "type": "integer", "format": "int32", "enum": [0, 1, 2, 3, 4, 5, 6, 7, 8] },
+          "invocationId": { "type": "string", "format": "uuid" },
+          "correlationId": { "type": "string", "maxLength": 128 },
+          "inlineResultBase64": { "type": ["string", "null"], "contentEncoding": "base64", "maxLength": 1398104 },
+          "resultReference": { "type": ["string", "null"], "pattern": "^object://", "maxLength": 2048 },
+          "failureCode": { "type": ["string", "null"], "pattern": "^[a-z0-9_]{1,128}$" }
+        }
+      },
+      "Sha256Digest": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      },
+      "Problem": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "type": { "type": "string" },
+          "title": { "type": "string" },
+          "status": { "type": "integer", "format": "int32" },
+          "detail": { "type": "string" },
+          "traceId": { "type": "string" },
+          "code": { "type": "string" },
+          "extensions": { "type": "object", "additionalProperties": true }
+        }
+      }
+    }
+  },
+  "security": [
+    { "projectOAuth": [] }
+  ]
+}

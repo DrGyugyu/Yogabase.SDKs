@@ -1,0 +1,87 @@
+{
+  "schema": "stackyoga-sdk-artifacts.v1",
+  "generatedAt": "2026-08-26T00:00:00Z",
+  "status": "local-unpublished-preview",
+  "contract": {
+    "path": "/Users/drgyugyu/Documents/ChatGPT/StackYoga/docs/api/yogabase-client-v1.openapi.json",
+    "sha256": "711e3d6a5badbf0d1e0bd8c269fc46c5db880f31fd191be262071a722bef8149"
+  },
+  "generator": {
+    "package": "Microsoft.OpenApi.Kiota",
+    "version": "1.34.1",
+    "sourceCommit": "9f9cfb3b1cb9b5311a214ea6ce0f69943c523005",
+    "nugetSha256": "4aa14f12d573d5644eb167b837c4fa10d7d7b7ec4a6634b8bc4026269f9a7671"
+  },
+  "artifacts": [
+    {
+      "language": "CSharp",
+      "path": "StackYoga.YogaBase.Client.0.1.0-preview.1.nupkg",
+      "sha256": "4dd1a263cf1ce7a8e09ef99721ae083d920685d26c63a4c915e73a447657ca5f",
+      "qualification": "dual-target-build-and-clean-consumer-tested-preview"
+    },
+    {
+      "language": "TypeScript",
+      "path": "packages/typescript",
+      "qualification": "build-and-logical-key-helper-tested-preview",
+      "logicalKeyAdapter": {
+        "path": "packages/typescript/src/storageLogicalKey.ts",
+        "qualification": "three-executable-tests-passed"
+      },
+      "sourceArchive": {
+        "path": "StackYoga.YogaBase.Client.TypeScript.0.1.0-preview.1.zip",
+        "sha256": "add5ae5ce9e3d80a21e178b37998e8dcdc80475ca4e439d83e05e16d97282246"
+      },
+      "packagedArtifact": {
+        "path": "stackyoga-yogabase-client-preview-0.1.0-preview.1.tgz",
+        "sha256": "b4416c302a67954b1fb9c33b42d446a6b20d72512f21819df817560cf137fb3c"
+      }
+    },
+    {
+      "language": "Python",
+      "path": "packages/python",
+      "qualification": "wheel-install-import-and-logical-key-helper-tested-preview",
+      "logicalKeyAdapter": {
+        "path": "packages/python/src/stackyoga_yogabase/storage_logical_key.py",
+        "qualification": "three-executable-tests-passed"
+      },
+      "sourceArchive": {
+        "path": "StackYoga.YogaBase.Client.Python.0.1.0.dev1.zip",
+        "sha256": "48ce2373a058638d049059a852176fdb5e8c736799decbe88ef4f9451540b2a8"
+      },
+      "packagedArtifact": {
+        "path": "packages/python/dist/stackyoga_yogabase_client_preview-0.1.0.dev1-py3-none-any.whl",
+        "sha256": "15e9fd2a1a8baa2f245de000d8286214a8fab79fd492fbdfa136910982c59a8a"
+      }
+    },
+    {
+      "language": "Java",
+      "path": "packages/java",
+      "qualification": "maven-package-and-logical-key-helper-tested-preview-kotlin-jvm-interop",
+      "logicalKeyAdapter": {
+        "path": "packages/java/src/main/java/io/stackyoga/yogabase/StackYogaStorageLogicalKey.java",
+        "qualification": "executable-conformance-main-passed"
+      },
+      "sourceArchive": {
+        "path": "StackYoga.YogaBase.Client.Java.0.1.0-preview.1.zip",
+        "sha256": "a6d51f5fe52356263cb94c7866a9edb7f98071a5a9a5f1552b676ccb586b17ef"
+      },
+      "packagedArtifact": {
+        "path": "packages/java/target/yogabase-client-preview-0.1.0-preview.1.jar",
+        "sha256": "84eb291f68519d6a93d632ca5934ae95cfcb3aa08910b4ddc09b779fb8ce41a5"
+      }
+    },
+    {
+      "language": "Dart",
+      "path": "packages/dart",
+      "qualification": "generated-plus-authored-helper-source-inspected-experimental-no-local-dart-sdk",
+      "logicalKeyAdapter": {
+        "path": "packages/dart/lib/src/stackyoga_storage_logical_key.dart",
+        "qualification": "source-inspected-no-local-dart-sdk"
+      },
+      "sourceArchive": {
+        "path": "StackYoga.YogaBase.Client.Dart.0.1.0-dev.1.zip",
+        "sha256": "143da2584403264099765ae9cadedeb9a5807f521f9b9df49087c5b31f063a20"
+      }
+    }
+  ]
+}

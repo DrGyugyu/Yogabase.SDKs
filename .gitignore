@@ -1,0 +1,14 @@
+.DS_Store
+**/bin/
+**/obj/
+languages/typescript/node_modules/
+languages/typescript/dist/
+languages/python/.venv/
+languages/python/build/
+languages/python/dist/
+languages/python/src/*.egg-info/
+languages/python/**/__pycache__/
+languages/python/**/*.pyc
+languages/java/target/
+languages/dart/.dart_tool/
+languages/dart/build/
