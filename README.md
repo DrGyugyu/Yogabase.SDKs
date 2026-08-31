@@ -27,23 +27,7 @@ _Illustrative Console concept, not a live environment or status display. It uses
 
 ## How the architecture works
 
-```mermaid
-flowchart LR
-    operator[Platform operator] -->|Uses| console[Console and REST API]
-
-    subgraph controlPlaneInstall ["Control Plane installation"]
-        console -->|Previews and submissions| controlPlane[Authoritative Control Plane]
-        controlPlane -->|Operations and audit| catalog[YSQL catalog]
-        controlPlane -->|Provisioning requests| provisioner[Provisioner]
-    end
-
-    subgraph memberTarget ["Managed member target"]
-        agent[Outbound fleet agent] -->|Persists signed intent| actuator[Local actuator]
-        actuator -->|Reconciles| workloads[YugabyteDB and approved runtime roles]
-    end
-
-    agent <-->|"Agent-initiated mTLS gRPC"| controlPlane
-```
+![Yogabase Control Plane and member architecture](assets/yogabase-architecture.svg)
 
 The local actuator is intentionally subordinate. It is the only component that writes Yogabase-owned Kubernetes workloads, but it can translate only Control Plane-signed, allowlisted intent into deterministic resources. It does not read arbitrary Secrets, execute commands in Pods, or originate management policy.
 
@@ -66,26 +50,7 @@ Yogabase does not expose arbitrary SQL, engine-internal topology as a client con
 
 ### What happens during an operation
 
-```mermaid
-sequenceDiagram
-    actor operator as Platform operator
-    participant controlPlane as Yogabase Control Plane
-    participant agent as Member agent
-    participant actuator as Local actuator
-    participant cluster as Kubernetes target
-
-    operator->>controlPlane: Preview requested change
-    controlPlane->>controlPlane: Check revision, policy, and risk
-    operator->>controlPlane: Submit with idempotency key
-    controlPlane->>controlPlane: Create durable audited operation
-    controlPlane->>agent: Send signed target-bound intent
-    agent->>actuator: Persist admitted desired state
-    actuator->>cluster: Reconcile allowlisted workloads
-    cluster-->>actuator: Resource observations
-    actuator-->>agent: Local status
-    agent-->>controlPlane: Signed status report
-    controlPlane-->>operator: Operation outcome and audit history
-```
+![Yogabase durable operation flow](assets/yogabase-operation-flow.svg)
 
 ### Security boundaries
 

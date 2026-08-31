@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="560" viewBox="0 0 1600 560" role="img" aria-labelledby="title description">
+  <title id="title">Yogabase durable operation flow</title>
+  <desc id="description">A requested change moves through preview, validation, submission and approval, signed dispatch, deterministic reconciliation, and signed observation with audit history.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#eef4f6"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#0f2342" flood-opacity=".10"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#466785"/>
+    </marker>
+    <style>
+      .title { font: 700 35px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; fill: #102a43; }
+      .subtitle { font: 400 18px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; fill: #5c7185; }
+      .number { font: 700 16px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; fill: #ffffff; }
+      .stage { font: 700 20px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; fill: #102a43; }
+      .detail { font: 400 15px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; fill: #4e6478; }
+      .caption { font: 600 15px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; fill: #466785; }
+      .line { fill: none; stroke: #466785; stroke-width: 3; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1600" height="560" fill="url(#background)"/>
+  <text x="64" y="72" class="title">How a Yogabase operation moves</text>
+  <text x="64" y="106" class="subtitle">Every meaningful change is previewed, concurrency-checked, idempotent, auditable, and approval-gated when risky.</text>
+
+  <path d="M180 296 H1416" class="line"/>
+
+  <g filter="url(#shadow)">
+    <rect x="58" y="204" width="206" height="184" rx="18" fill="#ffffff"/>
+    <rect x="314" y="204" width="206" height="184" rx="18" fill="#ffffff"/>
+    <rect x="570" y="204" width="206" height="184" rx="18" fill="#ffffff"/>
+    <rect x="826" y="204" width="206" height="184" rx="18" fill="#ffffff"/>
+    <rect x="1082" y="204" width="206" height="184" rx="18" fill="#ffffff"/>
+    <rect x="1338" y="204" width="206" height="184" rx="18" fill="#ffffff"/>
+  </g>
+
+  <g>
+    <circle cx="92" cy="238" r="18" fill="#138b8d"/><text x="87" y="244" class="number">1</text>
+    <text x="88" y="288" class="stage">Preview</text>
+    <text x="88" y="318" class="detail">Exact proposed change</text>
+    <text x="88" y="343" class="detail">before any mutation</text>
+
+    <circle cx="348" cy="238" r="18" fill="#138b8d"/><text x="343" y="244" class="number">2</text>
+    <text x="344" y="288" class="stage">Validate</text>
+    <text x="344" y="318" class="detail">Revision, policy,</text>
+    <text x="344" y="343" class="detail">and risk checks</text>
+
+    <circle cx="604" cy="238" r="18" fill="#138b8d"/><text x="599" y="244" class="number">3</text>
+    <text x="600" y="288" class="stage">Submit</text>
+    <text x="600" y="318" class="detail">Idempotency key and</text>
+    <text x="600" y="343" class="detail">approval when needed</text>
+
+    <circle cx="860" cy="238" r="18" fill="#138b8d"/><text x="855" y="244" class="number">4</text>
+    <text x="856" y="288" class="stage">Dispatch</text>
+    <text x="856" y="318" class="detail">Signed, target-bound</text>
+    <text x="856" y="343" class="detail">intent to the member</text>
+
+    <circle cx="1116" cy="238" r="18" fill="#138b8d"/><text x="1111" y="244" class="number">5</text>
+    <text x="1112" y="288" class="stage">Reconcile</text>
+    <text x="1112" y="318" class="detail">Allowlisted workload</text>
+    <text x="1112" y="343" class="detail">changes only</text>
+
+    <circle cx="1372" cy="238" r="18" fill="#138b8d"/><text x="1367" y="244" class="number">6</text>
+    <text x="1368" y="288" class="stage">Observe</text>
+    <text x="1368" y="318" class="detail">Signed status and</text>
+    <text x="1368" y="343" class="detail">durable audit history</text>
+  </g>
+
+  <text x="64" y="474" class="caption">The Control Plane accepts intent. Member services carry out only admitted, signed work and return bounded observations.</text>
+  <text x="64" y="510" class="subtitle">If the Console is disconnected, durable operations continue independently; the UI becomes stale rather than inventing state.</text>
+</svg>
