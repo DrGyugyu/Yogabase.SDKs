@@ -19,26 +19,30 @@ It is one Kubernetes Marketplace product delivered through one Helm chart and on
 
 The Control Plane is Yogabase's sole source of accepted management intent. A member never exposes an inbound management API, never decides product policy, and never becomes a peer control plane. Members connect **outbound** to the Control Plane over mutually authenticated gRPC, persist signed target-bound intent, and keep reconciling already accepted local work while the Control Plane is unavailable.
 
+## Console experience
+
+![Illustrative Yogabase Blazor Console concept](assets/yogabase-console-concept.png)
+
+_Illustrative Console concept, not a live environment or status display. It uses empty states intentionally and does not represent customer data, metrics, or enabled capabilities._
+
 ## How the architecture works
 
-```text
-Yogabase Console / REST API
-            |
-            v
-Authoritative Control Plane
-  preview · approval · audit · durable operations · billing
-            |
-     signed, target-bound intent
-            |
-            v
-  outbound mTLS fleet connection
-            |
-            v
-Member agent + local actuator
-            |
-            v
-Yogabase-owned Kubernetes workloads
-  YugabyteDB / approved application runtime roles
+```mermaid
+flowchart LR
+    operator[Platform operator] -->|Uses| console[Console and REST API]
+
+    subgraph controlPlaneInstall ["Control Plane installation"]
+        console -->|Previews and submissions| controlPlane[Authoritative Control Plane]
+        controlPlane -->|Operations and audit| catalog[YSQL catalog]
+        controlPlane -->|Provisioning requests| provisioner[Provisioner]
+    end
+
+    subgraph memberTarget ["Managed member target"]
+        agent[Outbound fleet agent] -->|Persists signed intent| actuator[Local actuator]
+        actuator -->|Reconciles| workloads[YugabyteDB and approved runtime roles]
+    end
+
+    agent <-->|"Agent-initiated mTLS gRPC"| controlPlane
 ```
 
 The local actuator is intentionally subordinate. It is the only component that writes Yogabase-owned Kubernetes workloads, but it can translate only Control Plane-signed, allowlisted intent into deterministic resources. It does not read arbitrary Secrets, execute commands in Pods, or originate management policy.
@@ -59,6 +63,29 @@ Every change is designed as a durable operation:
 4. Accepted work is auditable, recoverable, and reports bounded observed facts rather than fabricated status.
 
 Yogabase does not expose arbitrary SQL, engine-internal topology as a client contract, remote shell access, `pods/exec` workflows, peer gossip, or an alternate control plane. YCQL, automatic scale-in, PITR, downgrade, and cross-cluster database deployments are outside the current Core scope.
+
+### What happens during an operation
+
+```mermaid
+sequenceDiagram
+    actor operator as Platform operator
+    participant controlPlane as Yogabase Control Plane
+    participant agent as Member agent
+    participant actuator as Local actuator
+    participant cluster as Kubernetes target
+
+    operator->>controlPlane: Preview requested change
+    controlPlane->>controlPlane: Check revision, policy, and risk
+    operator->>controlPlane: Submit with idempotency key
+    controlPlane->>controlPlane: Create durable audited operation
+    controlPlane->>agent: Send signed target-bound intent
+    agent->>actuator: Persist admitted desired state
+    actuator->>cluster: Reconcile allowlisted workloads
+    cluster-->>actuator: Resource observations
+    actuator-->>agent: Local status
+    agent-->>controlPlane: Signed status report
+    controlPlane-->>operator: Operation outcome and audit history
+```
 
 ### Security boundaries
 
