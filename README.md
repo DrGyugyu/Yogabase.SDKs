@@ -1,5 +1,7 @@
 # Yogabase SDKs
 
+English | [한국어](README.ko.md)
+
 Client SDK previews for applications built on **Yogabase**.
 
 Yogabase is a .NET 10 control plane for operating data services across Kubernetes. This repository is deliberately independent of the private Yogabase product repository, its Helm chart, images, Control Plane, and Marketplace delivery graph. It contains application-facing client libraries and their contract fixtures only; it is not a Kubernetes operator, a cloud-provisioning tool, or a management SDK.
@@ -21,9 +23,9 @@ The Control Plane is Yogabase's sole source of accepted management intent. A mem
 
 ## Console experience
 
-![Illustrative Yogabase Blazor Console concept](assets/yogabase-console-concept.png)
+![Illustrative Yogabase Blazor Console concept](assets/yogabase-console-concept-v2.png)
 
-_Illustrative Console concept, not a live environment or status display. It uses empty states intentionally and does not represent customer data, metrics, or enabled capabilities._
+_Source-informed Console concept, not a live environment or status display. It intentionally uses empty states and does not represent customer data, metrics, or enabled capabilities._
 
 ## How the architecture works
 
