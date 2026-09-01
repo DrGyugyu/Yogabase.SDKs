@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="760" viewBox="0 0 1400 760" role="img" aria-labelledby="title desc">
+  <title id="title">Yogabase custom build delivery and runtime flow</title>
+  <desc id="desc">A customer build workflow uses the Yogabase Delivery SDK to submit an immutable artifact to the Control Plane. The Control Plane admits and releases it through the outbound fleet channel and member actuator into Kubernetes. The running workload uses the target-local application gateway and never receives Kubernetes or cloud credentials.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8fbfa"/>
+      <stop offset="1" stop-color="#eef7f3"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0f2d25" flood-opacity="0.11"/>
+    </filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#287c66"/>
+    </marker>
+    <marker id="arrowMuted" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#70847d"/>
+    </marker>
+    <style>
+      .title { font: 700 28px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #173c32; }
+      .subtitle { font: 400 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #527068; }
+      .lane { font: 700 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 1.2px; fill: #287c66; }
+      .box-title { font: 700 17px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #173c32; }
+      .box-text { font: 400 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #4c655e; }
+      .small { font: 500 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #5b716b; }
+      .note-title { font: 700 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #694b17; }
+      .note-text { font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #755c2f; }
+      .box { fill: #ffffff; stroke: #bcd5cd; stroke-width: 1.5; rx: 14; filter: url(#shadow); }
+      .box-accent { fill: #edf8f4; stroke: #76b9a7; stroke-width: 1.5; rx: 14; filter: url(#shadow); }
+      .box-runtime { fill: #f4f7f6; stroke: #b8c8c3; stroke-width: 1.5; rx: 14; filter: url(#shadow); }
+      .arrow { fill: none; stroke: #287c66; stroke-width: 2.5; marker-end: url(#arrow); }
+      .arrow-muted { fill: none; stroke: #70847d; stroke-width: 2; marker-end: url(#arrowMuted); }
+      .dashed { stroke-dasharray: 7 6; }
+    </style>
+  </defs>
+
+  <rect width="1400" height="760" fill="url(#background)"/>
+  <text x="54" y="54" class="title">Custom build → Control Plane → Kubernetes</text>
+  <text x="54" y="80" class="subtitle">Agones, PlayFlow, Nakama, Firebase, and Supabase inform SDK ergonomics only; Yogabase contracts remain authoritative.</text>
+
+  <text x="54" y="122" class="lane">BUILD AND DELIVERY</text>
+
+  <rect x="54" y="142" width="280" height="132" class="box"/>
+  <circle cx="84" cy="172" r="13" fill="#dff2ec"/>
+  <path d="M78 172h12M84 166v12" stroke="#287c66" stroke-width="2" stroke-linecap="round"/>
+  <text x="108" y="178" class="box-title">Customer build / CI</text>
+  <text x="78" y="210" class="box-text">Immutable bundle and manifest</text>
+  <text x="78" y="232" class="box-text">Digest, SBOM, and scan evidence</text>
+  <text x="78" y="254" class="box-text">No cloud or cluster credential</text>
+
+  <rect x="400" y="142" width="300" height="132" class="box-accent"/>
+  <circle cx="430" cy="172" r="13" fill="#cceade"/>
+  <path d="M423 172h14M433 167l5 5-5 5" stroke="#287c66" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="454" y="178" class="box-title">Yogabase Delivery SDK</text>
+  <text x="424" y="210" class="box-text">Short-lived OIDC bearer token</text>
+  <text x="424" y="232" class="box-text">Preview + ETag + idempotency</text>
+  <text x="424" y="254" class="box-text">Bounded polling / event stream</text>
+
+  <rect x="766" y="142" width="320" height="132" class="box-accent"/>
+  <circle cx="796" cy="172" r="13" fill="#cceade"/>
+  <path d="M790 175h12M792 170h8M794 165h4" stroke="#287c66" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <text x="820" y="178" class="box-title">Yogabase Control Plane</text>
+  <text x="790" y="210" class="box-text">Durable admission and operation</text>
+  <text x="790" y="232" class="box-text">Approval-gated release intent</text>
+  <text x="790" y="254" class="box-text">Sole source of management policy</text>
+
+  <path d="M334 208H390" class="arrow"/>
+  <text x="342" y="190" class="small">artifact facts</text>
+  <path d="M700 208H756" class="arrow"/>
+  <text x="712" y="190" class="small">HTTPS</text>
+
+  <rect x="1120" y="142" width="226" height="132" class="box"/>
+  <text x="1144" y="177" class="box-title">Admission</text>
+  <text x="1144" y="205" class="box-text">Isolated verification job</text>
+  <text x="1144" y="227" class="box-text">Digest and evidence check</text>
+  <text x="1144" y="249" class="box-text">Signed immutable result</text>
+  <path d="M1086 208H1110" class="arrow-muted"/>
+
+  <text x="54" y="338" class="lane">AUTHORITATIVE ACTUATION</text>
+
+  <rect x="500" y="358" width="430" height="82" class="box"/>
+  <text x="524" y="388" class="box-title">Outbound mutually authenticated fleet channel</text>
+  <text x="524" y="412" class="box-text">Signed intent and durable operation state</text>
+  <text x="524" y="432" class="box-text">Member never becomes a peer Control Plane</text>
+  <path d="M926 274C926 322 858 324 858 348" class="arrow"/>
+
+  <rect x="500" y="478" width="430" height="92" class="box-accent"/>
+  <text x="524" y="509" class="box-title">Member agent + subordinate local actuator</text>
+  <text x="524" y="533" class="box-text">Validates signed intent and deterministically reconciles</text>
+  <text x="524" y="554" class="box-text">the allowlisted Yogabase workload graph</text>
+  <path d="M715 440V468" class="arrow"/>
+
+  <rect x="980" y="478" width="366" height="92" class="box-runtime"/>
+  <text x="1004" y="509" class="box-title">Kubernetes runs the custom build</text>
+  <text x="1004" y="533" class="box-text">No direct SDK mutation of Pods, Services, Secrets,</text>
+  <text x="1004" y="554" class="box-text">StatefulSets, CRDs, or provider infrastructure</text>
+  <path d="M930 524H970" class="arrow"/>
+
+  <text x="54" y="626" class="lane">APPLICATION RUNTIME</text>
+  <rect x="500" y="644" width="430" height="62" class="box"/>
+  <text x="524" y="670" class="box-title">Target-local application gateway</text>
+  <text x="524" y="691" class="box-text">Auth, typed data, storage, Functions, Actors, Workflows, Realtime</text>
+  <path d="M1163 570C1163 676 974 676 940 676" class="arrow-muted dashed"/>
+
+  <rect x="54" y="358" width="390" height="212" rx="14" fill="#fff8e8" stroke="#e0bf78" stroke-width="1.5"/>
+  <text x="78" y="392" class="note-title">Current runtime-host boundary</text>
+  <text x="78" y="422" class="note-text">The implemented Delivery API covers build admission,</text>
+  <text x="78" y="442" class="note-text">release, durable operations, polling, and events.</text>
+  <text x="78" y="474" class="note-text">There is currently no customer-build API for health,</text>
+  <text x="78" y="494" class="note-text">ready, allocation, reservation, or shutdown signals.</text>
+  <text x="78" y="526" class="note-text">The SDK does not fabricate those server operations.</text>
+
+  <text x="54" y="742" class="small">Reference patterns improve lifecycle handling; they never grant Kubernetes authority or imply Agones, PlayFlow, Nakama, Firebase, or Supabase compatibility.</text>
+</svg>

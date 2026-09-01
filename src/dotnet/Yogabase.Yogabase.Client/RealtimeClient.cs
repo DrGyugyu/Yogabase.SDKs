@@ -13,7 +13,11 @@ internal sealed class YogabaseRealtimeClient : IYogabaseRealtime, IAsyncDisposab
     private readonly Func<CancellationToken, Task<string?>> accessToken;
     private readonly SemaphoreSlim connectionGate = new(1, 1);
     private readonly object subscriptionGate = new();
+    // A subscription remains desired until its owner is disposed. This lets transient SignalR
+    // reconnects restore the server-side subscription without requiring application code to
+    // recreate every listener.
     private readonly HashSet<string> subscriptions = new(StringComparer.Ordinal);
+    private readonly HashSet<string> activeSubscriptions = new(StringComparer.Ordinal);
     private readonly object eventGate = new();
     private readonly HashSet<string> deliveredEventIds = new(StringComparer.Ordinal);
     private readonly Queue<string> deliveredEventOrder = new();
@@ -54,6 +58,13 @@ internal sealed class YogabaseRealtimeClient : IYogabaseRealtime, IAsyncDisposab
                     {
                         httpOptions.AccessTokenProvider = () => accessToken(CancellationToken.None);
                     })
+                    .WithAutomaticReconnect(new[]
+                    {
+                        TimeSpan.Zero,
+                        TimeSpan.FromSeconds(2),
+                        TimeSpan.FromSeconds(10),
+                        TimeSpan.FromSeconds(30),
+                    })
                     .Build();
                 messageRegistration = connection.On<YogabaseRealtimeEvent>(
                     "message",
@@ -62,13 +73,23 @@ internal sealed class YogabaseRealtimeClient : IYogabaseRealtime, IAsyncDisposab
                 {
                     lock (subscriptionGate)
                     {
-                        subscriptions.Clear();
+                        activeSubscriptions.Clear();
                     }
                     return Task.CompletedTask;
                 };
+                connection.Reconnecting += _ =>
+                {
+                    lock (subscriptionGate)
+                    {
+                        activeSubscriptions.Clear();
+                    }
+                    return Task.CompletedTask;
+                };
+                connection.Reconnected += _ => RestoreSubscriptionsAsync();
             }
 
             await connection.StartAsync(cancellationToken).ConfigureAwait(false);
+            await RestoreSubscriptionsAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -83,6 +104,7 @@ internal sealed class YogabaseRealtimeClient : IYogabaseRealtime, IAsyncDisposab
             lock (subscriptionGate)
             {
                 subscriptions.Clear();
+                activeSubscriptions.Clear();
             }
             await connection.StopAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -107,6 +129,13 @@ internal sealed class YogabaseRealtimeClient : IYogabaseRealtime, IAsyncDisposab
         try
         {
             await activeConnection.SendAsync("Subscribe", topic, cancellationToken).ConfigureAwait(false);
+            lock (subscriptionGate)
+            {
+                if (subscriptions.Contains(topic))
+                {
+                    activeSubscriptions.Add(topic);
+                }
+            }
             return new Subscription(this, topic);
         }
         catch
@@ -114,6 +143,7 @@ internal sealed class YogabaseRealtimeClient : IYogabaseRealtime, IAsyncDisposab
             lock (subscriptionGate)
             {
                 subscriptions.Remove(topic);
+                activeSubscriptions.Remove(topic);
             }
             throw;
         }
@@ -258,16 +288,54 @@ internal sealed class YogabaseRealtimeClient : IYogabaseRealtime, IAsyncDisposab
 
     private async ValueTask UnsubscribeAsync(string topic)
     {
+        var shouldSend = false;
         lock (subscriptionGate)
         {
             if (!subscriptions.Remove(topic))
             {
                 return;
             }
+            shouldSend = activeSubscriptions.Remove(topic);
         }
-        if (connection?.State == HubConnectionState.Connected)
+        if (shouldSend && connection?.State == HubConnectionState.Connected)
         {
             await connection.SendAsync("Unsubscribe", topic).ConfigureAwait(false);
+        }
+    }
+
+    private async Task RestoreSubscriptionsAsync(CancellationToken cancellationToken = default)
+    {
+        var activeConnection = connection;
+        if (activeConnection?.State != HubConnectionState.Connected)
+        {
+            return;
+        }
+
+        string[] topics;
+        lock (subscriptionGate)
+        {
+            activeSubscriptions.Clear();
+            topics = subscriptions.ToArray();
+        }
+
+        foreach (var topic in topics)
+        {
+            await activeConnection.SendAsync("Subscribe", topic, cancellationToken).ConfigureAwait(false);
+            var stillDesired = false;
+            lock (subscriptionGate)
+            {
+                if (subscriptions.Contains(topic))
+                {
+                    activeSubscriptions.Add(topic);
+                    stillDesired = true;
+                }
+            }
+            if (!stillDesired && activeConnection.State == HubConnectionState.Connected)
+            {
+                // An owner can dispose while a reconnect subscription is in flight. Undo the
+                // server-side subscription rather than leaving a topic active with no local owner.
+                await activeConnection.SendAsync("Unsubscribe", topic, cancellationToken).ConfigureAwait(false);
+            }
         }
     }
 

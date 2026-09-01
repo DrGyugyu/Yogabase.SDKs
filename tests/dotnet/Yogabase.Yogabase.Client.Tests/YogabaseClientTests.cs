@@ -521,6 +521,272 @@ public sealed class YogabaseClientTests
     }
 
     [Fact]
+    public async Task InitializeReturnsAPersistedUsableSessionWithoutSendingAGatewayRequest()
+    {
+        var calls = 0;
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            calls++;
+            return Task.FromResult(Json(HttpStatusCode.OK, "{}"));
+        });
+        var store = await AuthenticatedStoreAsync();
+        await using var client = Client(handler, store);
+
+        var session = await client.InitializeAsync(TestContext.Current.CancellationToken);
+
+        Assert.NotNull(session);
+        Assert.Equal("access-token", session.AccessToken);
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
+    public async Task ValidSessionReturnsNullForAnExpiredSessionWithoutARefreshToken()
+    {
+        var calls = 0;
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            calls++;
+            return Task.FromResult(Json(HttpStatusCode.OK, "{}"));
+        });
+        var store = new InMemoryYogabaseSessionStore();
+        await store.SaveAsync(new YogabaseTokenSet
+        {
+            AccessToken = "expired",
+            ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1),
+        }, TestContext.Current.CancellationToken);
+        await using var client = Client(handler, store);
+
+        var session = await client.Auth.GetValidSessionAsync(TestContext.Current.CancellationToken);
+
+        Assert.Null(session);
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
+    public async Task LogoutClearsThePersistedSessionOnlyAfterTheServerAcceptsIt()
+    {
+        var store = await AuthenticatedStoreAsync();
+        var handler = new ScriptedHandler((request, _) => Task.FromResult(
+            request.RequestUri!.AbsolutePath == "/auth/logout"
+                ? new HttpResponseMessage(HttpStatusCode.NoContent)
+                : Json(HttpStatusCode.OK, "{}")));
+        await using var client = Client(handler, store);
+
+        await client.Auth.LogoutAsync(TestContext.Current.CancellationToken);
+
+        Assert.Null(await store.LoadAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task FailedLogoutPreservesThePersistedSessionForRecovery()
+    {
+        var store = await AuthenticatedStoreAsync();
+        var handler = new ScriptedHandler((_, _) => Task.FromResult(
+            new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)));
+        await using var client = Client(handler, store);
+
+        await Assert.ThrowsAsync<YogabaseApiException>(() => client.Auth.LogoutAsync(
+            TestContext.Current.CancellationToken));
+
+        var remaining = await store.LoadAsync(TestContext.Current.CancellationToken);
+        Assert.NotNull(remaining);
+        Assert.Equal("access-token", remaining.AccessToken);
+    }
+
+    [Fact]
+    public async Task DeliveryUsesItsOwnOriginDeliveryBearerAndConcurrencyHeaders()
+    {
+        HttpRequestMessage? observed = null;
+        var handler = new ScriptedHandler((request, _) =>
+        {
+            observed = CloneRequest(request);
+            return Task.FromResult(Json(HttpStatusCode.OK, JsonSerializer.Serialize(new
+            {
+                previewId = "77777777-7777-4777-8777-777777777777",
+                previewDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                action = "CreateEnvironment",
+                expectedRevision = 4,
+                approvalRequired = false,
+                expiresAt = "2026-09-01T00:10:00Z",
+            })));
+        });
+        using var delivery = Delivery(handler);
+
+        var preview = await delivery.PreviewEnvironmentAsync(
+            Guid.Parse("11111111-1111-4111-8111-111111111111"),
+            new YogabaseDeliveryEnvironmentPreviewRequest
+            {
+                Name = "staging",
+                TemplateId = Guid.Parse("22222222-2222-4222-8222-222222222222"),
+                TemplateVersion = 1,
+            },
+            "W/\"4\"",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("http://localhost:7000/api/v1/delivery/projects/11111111-1111-4111-8111-111111111111/environments/previews", observed!.RequestUri!.AbsoluteUri);
+        Assert.Equal(new AuthenticationHeaderValue("Bearer", "delivery-token"), observed.Headers.Authorization);
+        Assert.Equal("W/\"4\"", observed.Headers.GetValues("If-Match").Single());
+        Assert.Equal("CreateEnvironment", preview.Action);
+    }
+
+    [Fact]
+    public async Task DeliverySubmitPreservesPreviewBindingAndReturnsPollingHints()
+    {
+        HttpRequestMessage? observed = null;
+        var handler = new ScriptedHandler((request, _) =>
+        {
+            observed = CloneRequest(request);
+            var response = Json(HttpStatusCode.Accepted, "{\"operationId\":\"88888888-8888-4888-8888-888888888888\",\"state\":\"Queued\",\"kind\":\"CreateEnvironment\",\"revision\":1,\"updatedAt\":\"2026-09-01T00:00:00Z\"}");
+            response.Headers.TryAddWithoutValidation("Location", "/api/v1/delivery/projects/11111111-1111-4111-8111-111111111111/operations/88888888-8888-4888-8888-888888888888");
+            response.Headers.TryAddWithoutValidation("Retry-After", "2");
+            return Task.FromResult(response);
+        });
+        using var delivery = Delivery(handler);
+
+        var accepted = await delivery.SubmitEnvironmentAsync(
+            Guid.Parse("11111111-1111-4111-8111-111111111111"),
+            new YogabaseDeliveryPreviewRequest
+            {
+                PreviewId = Guid.Parse("99999999-9999-4999-8999-999999999999"),
+                PreviewDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            },
+            "submission-1",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("submission-1", observed!.Headers.GetValues("Idempotency-Key").Single());
+        Assert.Equal(TimeSpan.FromSeconds(2), accepted.RetryAfter);
+        Assert.Equal("http://localhost:7000/api/v1/delivery/projects/11111111-1111-4111-8111-111111111111/operations/88888888-8888-4888-8888-888888888888", accepted.Location.AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task DeliveryPollingUsesBoundedBackoffUntilATerminalOperationState()
+    {
+        var calls = 0;
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            calls++;
+            var state = calls == 1 ? "Queued" : "Succeeded";
+            var response = Json(HttpStatusCode.OK, $"{{\"operationId\":\"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\"state\":\"{state}\",\"kind\":\"CreateEnvironment\",\"revision\":{calls},\"updatedAt\":\"2026-09-01T00:00:00Z\"}}");
+            response.Headers.TryAddWithoutValidation("ETag", $"W/\"{calls}\"");
+            return Task.FromResult(response);
+        });
+        using var delivery = Delivery(handler);
+
+        var operation = await delivery.WaitForOperationAsync(
+            Guid.Parse("11111111-1111-4111-8111-111111111111"),
+            Guid.Parse("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+            new YogabaseDeliveryPollingOptions
+            {
+                Timeout = TimeSpan.FromSeconds(1),
+                InitialDelay = TimeSpan.FromMilliseconds(1),
+                MaximumDelay = TimeSpan.FromMilliseconds(2),
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("Succeeded", operation.State);
+        Assert.Equal(2, calls);
+    }
+
+    [Theory]
+    [InlineData("Failed")]
+    [InlineData("Abandoned")]
+    [InlineData("Cancelled")]
+    [InlineData("Blocked")]
+    public async Task DeliveryPollingRecognizesEveryNonSuccessTerminalState(string terminalState)
+    {
+        var calls = 0;
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            calls++;
+            var response = Json(HttpStatusCode.OK,
+                $"{{\"operationId\":\"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\"state\":\"{terminalState}\",\"kind\":\"Release\",\"revision\":1,\"updatedAt\":\"2026-09-01T00:00:00Z\"}}");
+            response.Headers.TryAddWithoutValidation("ETag", "W/\"1\"");
+            return Task.FromResult(response);
+        });
+        using var delivery = Delivery(handler);
+
+        var operation = await delivery.WaitForOperationAsync(
+            Guid.Parse("11111111-1111-4111-8111-111111111111"),
+            Guid.Parse("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+            new YogabaseDeliveryPollingOptions
+            {
+                Timeout = TimeSpan.FromSeconds(1),
+                InitialDelay = TimeSpan.FromMilliseconds(1),
+                MaximumDelay = TimeSpan.FromMilliseconds(2),
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(terminalState, operation.State);
+        Assert.Equal(1, calls);
+    }
+
+    [Fact]
+    public async Task DeliveryPollingTimeoutCancelsAnInFlightRequest()
+    {
+        var requestCancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handler = new ScriptedHandler(async (_, cancellationToken) =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromMinutes(1), cancellationToken);
+                throw new InvalidOperationException("The delivery request should have been cancelled.");
+            }
+            catch (OperationCanceledException)
+            {
+                requestCancelled.TrySetResult();
+                throw;
+            }
+        });
+        using var delivery = Delivery(handler);
+
+        await Assert.ThrowsAsync<TimeoutException>(() => delivery.WaitForOperationAsync(
+            Guid.Parse("11111111-1111-4111-8111-111111111111"),
+            Guid.Parse("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+            new YogabaseDeliveryPollingOptions
+            {
+                Timeout = TimeSpan.FromMilliseconds(25),
+                InitialDelay = TimeSpan.FromMilliseconds(1),
+                MaximumDelay = TimeSpan.FromMilliseconds(2),
+            },
+            TestContext.Current.CancellationToken));
+
+        await requestCancelled.Task.WaitAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task DeliveryEventStreamUsesDeliveryBearerAndParsesServerSentEvents()
+    {
+        HttpRequestMessage? observed = null;
+        var handler = new ScriptedHandler((request, _) =>
+        {
+            observed = CloneRequest(request);
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    "id: resume-2\nevent: delivery-operation\ndata: {\"operationId\":\"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\"state\":\"Running\",\"detail\":\"dispatched\",\"occurredAt\":\"2026-09-01T00:00:00Z\"}\n\n",
+                    Encoding.UTF8,
+                    "text/event-stream"),
+            };
+            return Task.FromResult(response);
+        });
+        using var delivery = Delivery(handler);
+
+        await foreach (var item in delivery.StreamOperationEventsAsync(
+            Guid.Parse("11111111-1111-4111-8111-111111111111"),
+            lastEventId: "resume-1",
+            cancellationToken: TestContext.Current.CancellationToken))
+        {
+            Assert.Equal("Running", item.State);
+            Assert.Equal("resume-2", item.ResumeToken);
+            break;
+        }
+
+        Assert.Equal(new AuthenticationHeaderValue("Bearer", "delivery-token"), observed!.Headers.Authorization);
+        Assert.Equal("resume-1", observed.Headers.GetValues("Last-Event-ID").Single());
+        Assert.Equal("text/event-stream", observed.Headers.Accept.Single().MediaType);
+    }
+
+    [Fact]
     public async Task ClearWaitsForAnInFlightRefreshAndRemainsFinal()
     {
         var refreshStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -698,6 +964,15 @@ public sealed class YogabaseClientTests
                 SessionStore = store,
                 TransportHandler = handler,
             });
+
+    private static YogabaseDeliveryClient Delivery(HttpMessageHandler handler) => new(
+        new Uri("http://localhost:7000/"),
+        _ => Task.FromResult<string?>("delivery-token"),
+        new YogabaseDeliveryClientOptions
+        {
+            AllowInsecureLoopback = true,
+            TransportHandler = handler,
+        });
 
     private static async Task<InMemoryYogabaseSessionStore> AuthenticatedStoreAsync()
     {

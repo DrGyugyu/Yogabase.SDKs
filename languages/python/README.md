@@ -30,3 +30,42 @@ The adapter module is authored Yogabase code, not Kiota output.
 For `PUT`, add both required contract headers to the Kiota request configuration's
 `HeadersCollection`: `X-Yogabase-Content-Sha256: sha256:<64 lowercase hex>` and a bounded
 `Idempotency-Key`. Kiota does not emit dedicated Python method arguments for these headers.
+
+## Workload delivery
+
+`AsyncDeliveryClient` is a separate client for the release-configured Delivery API host. It uses
+bearer authentication, returns ETag/Location/Retry-After metadata, and exposes the contract's
+preview/submit workflow for environments, artifact admissions, releases, promotions, rollbacks,
+decommissions, and operation abandonment:
+
+```python
+from stackyoga_yogabase import AsyncDeliveryClient
+
+async with AsyncDeliveryClient(
+    delivery_host="https://delivery.example.test",
+    access_token=lambda: token,
+) as delivery:
+    preview = await delivery.preview_environment(
+        project_id,
+        {"name": "staging", "templateId": template_id, "templateVersion": 1},
+        if_match='W/"7"',
+    )
+    accepted = await delivery.submit_environment(
+        project_id,
+        {"previewId": preview.data["previewId"], "previewDigest": preview.data["previewDigest"]},
+        idempotency_key="request-1",
+    )
+    operation = await delivery.wait_for_operation(
+        project_id,
+        accepted.data["operationId"],
+        terminal_states=("Succeeded", "Failed", "Abandoned", "Cancelled", "Blocked"),
+    )
+```
+
+Polling has explicit attempt/time bounds and supports an `asyncio.Event` cancellation gate.
+`stream_operation_events` parses the contract's `text/event-stream` response using `httpx`'s
+async streaming runtime and yields `{id, event, data}`. The `id` is an opaque resume token that
+callers may explicitly pass back as `last_event_id`; heartbeat comment frames are ignored and
+resume tokens are never persisted or parsed by the client. Artifact admission submits immutable
+source and evidence metadata plus digests; it does not upload bundle bytes and this client adds no
+custom-build, Kubernetes, Agones, PlayFlow, or other compatibility operations.

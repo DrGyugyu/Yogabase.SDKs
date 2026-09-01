@@ -173,6 +173,11 @@ public sealed class YogabaseApiException : Exception
 public interface IYogabaseAuth
 {
     Task<YogabaseSession?> GetSessionAsync(CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Returns the current session only when it has a usable access token. Expired sessions are
+    /// refreshed through the configured OIDC authority when a refresh token is available.
+    /// </summary>
+    Task<YogabaseSession?> GetValidSessionAsync(CancellationToken cancellationToken = default);
     Task SignUpAsync(string email, string password, string? invitationToken = null, CancellationToken cancellationToken = default);
     Task<YogabaseInteractiveSignInOutcome> LoginAsync(string email, string password, CancellationToken cancellationToken = default);
     Task LogoutAsync(CancellationToken cancellationToken = default);

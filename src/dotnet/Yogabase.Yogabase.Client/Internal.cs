@@ -160,7 +160,9 @@ internal sealed class YogabaseHttpTransport : IDisposable
             _ => "request_failed",
         };
         var message = $"Yogabase returned HTTP {(int)response.StatusCode}.";
-        string? traceId = null;
+        string? traceId = response.Headers.TryGetValues("X-Yogabase-Correlation-Id", out var correlationIds)
+            ? correlationIds.FirstOrDefault()
+            : null;
         try
         {
             var text = await YogabaseHttpContent.ReadBoundedStringAsync(
@@ -196,6 +198,11 @@ internal sealed class YogabaseHttpTransport : IDisposable
                 if (root.TryGetProperty("traceId", out var trace) && trace.ValueKind == JsonValueKind.String)
                 {
                     traceId = trace.GetString();
+                }
+                else if (root.TryGetProperty("correlationId", out var correlation)
+                    && correlation.ValueKind == JsonValueKind.String)
+                {
+                    traceId = correlation.GetString();
                 }
             }
         }

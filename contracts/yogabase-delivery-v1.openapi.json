@@ -1,0 +1,567 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Yogabase Delivery API",
+    "version": "v1",
+    "description": "Workload-only delivery API. Human delivery administration is deliberately outside this host and contract."
+  },
+  "servers": [
+    {
+      "url": "https://{deliveryHost}",
+      "variables": {
+        "deliveryHost": {
+          "description": "The release-configured, TLS-only workload delivery host.",
+          "default": "delivery.yogabase.invalid"
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "deliveryBearer": []
+    }
+  ],
+  "paths": {
+    "/api/v1/delivery/projects/{projectId}/templates": {
+      "get": {
+        "operationId": "listDeliveryTemplates",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Cursor" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Templates" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/delivery/projects/{projectId}/templates/{templateId}": {
+      "get": {
+        "operationId": "getDeliveryTemplate",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/TemplateId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Template" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/delivery/projects/{projectId}/environments": {
+      "get": {
+        "operationId": "listDeliveryEnvironments",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Cursor" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Environments" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      },
+      "post": {
+        "operationId": "submitDeliveryEnvironment",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/DeliverySubmit" },
+        "responses": {
+          "202": { "$ref": "#/components/responses/OperationAccepted" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "422": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/delivery/projects/{projectId}/environments/previews": {
+      "post": {
+        "operationId": "previewDeliveryEnvironment",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/EnvironmentPreview" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Preview" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "412": { "$ref": "#/components/responses/Problem" },
+          "422": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/delivery/projects/{projectId}/environments/{environmentId}": {
+      "get": {
+        "operationId": "getDeliveryEnvironment",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/EnvironmentId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Environment" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/delivery/projects/{projectId}/environments/{environmentId}/artifacts": {
+      "get": {
+        "operationId": "listDeliveryArtifacts",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/EnvironmentId" },
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Cursor" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Artifacts" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      },
+      "post": {
+        "operationId": "submitArtifactAdmission",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/EnvironmentId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/DeliverySubmit" },
+        "responses": {
+          "202": { "$ref": "#/components/responses/OperationAccepted" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "422": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/delivery/projects/{projectId}/environments/{environmentId}/artifacts/previews": {
+      "post": {
+        "operationId": "previewArtifactAdmission",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/EnvironmentId" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/ArtifactPreview" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Preview" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "412": { "$ref": "#/components/responses/Problem" },
+          "422": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/delivery/projects/{projectId}/environments/{environmentId}/artifacts/{admissionId}": {
+      "get": {
+        "operationId": "getDeliveryArtifact",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/EnvironmentId" },
+          { "$ref": "#/components/parameters/AdmissionId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Artifact" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/delivery/projects/{projectId}/environments/{environmentId}/releases": {
+      "get": {
+        "operationId": "listDeliveryReleases",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/EnvironmentId" },
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Cursor" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Releases" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      },
+      "post": {
+        "operationId": "submitDeliveryRelease",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/EnvironmentId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/DeliverySubmit" },
+        "responses": {
+          "202": { "$ref": "#/components/responses/OperationAccepted" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "422": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/delivery/projects/{projectId}/environments/{environmentId}/releases/previews": {
+      "post": {
+        "operationId": "previewDeliveryRelease",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/EnvironmentId" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/ReleasePreview" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Preview" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "412": { "$ref": "#/components/responses/Problem" },
+          "422": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/delivery/projects/{projectId}/environments/{environmentId}/releases/{releaseId}": {
+      "get": {
+        "operationId": "getDeliveryRelease",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/EnvironmentId" },
+          { "$ref": "#/components/parameters/ReleaseId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Release" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/delivery/projects/{projectId}/environments/{environmentId}/promotions": {
+      "post": {
+        "operationId": "submitDeliveryPromotion",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/EnvironmentId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/DeliverySubmit" },
+        "responses": {
+          "202": { "$ref": "#/components/responses/OperationAccepted" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "422": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/delivery/projects/{projectId}/environments/{environmentId}/promotions/previews": {
+      "post": {
+        "operationId": "previewDeliveryPromotion",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/EnvironmentId" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/PromotionPreview" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Preview" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "412": { "$ref": "#/components/responses/Problem" },
+          "422": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/delivery/projects/{projectId}/environments/{environmentId}/rollbacks": {
+      "post": {
+        "operationId": "submitDeliveryRollback",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/EnvironmentId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/DeliverySubmit" },
+        "responses": {
+          "202": { "$ref": "#/components/responses/OperationAccepted" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "422": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/delivery/projects/{projectId}/environments/{environmentId}/rollbacks/previews": {
+      "post": {
+        "operationId": "previewDeliveryRollback",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/EnvironmentId" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/RollbackPreview" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Preview" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "412": { "$ref": "#/components/responses/Problem" },
+          "422": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/delivery/projects/{projectId}/environments/{environmentId}/decommissions": {
+      "post": {
+        "operationId": "submitDeliveryDecommission",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/EnvironmentId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/DeliverySubmit" },
+        "responses": {
+          "202": { "$ref": "#/components/responses/OperationAccepted" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "422": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/delivery/projects/{projectId}/environments/{environmentId}/decommissions/previews": {
+      "post": {
+        "operationId": "previewDeliveryDecommission",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/EnvironmentId" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Preview" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "412": { "$ref": "#/components/responses/Problem" },
+          "422": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/delivery/projects/{projectId}/operations": {
+      "get": {
+        "operationId": "listDeliveryOperations",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Cursor" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Operations" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/delivery/projects/{projectId}/operations/{operationId}": {
+      "get": {
+        "operationId": "getDeliveryOperation",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/OperationId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Operation" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/delivery/projects/{projectId}/operations/events": {
+      "get": {
+        "operationId": "streamDeliveryOperationEvents",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/EnvironmentIdOptional" },
+          { "$ref": "#/components/parameters/OperationIdOptional" },
+          { "$ref": "#/components/parameters/LastEventId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/OperationEvents" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/delivery/projects/{projectId}/operations/{operationId}/abandon/previews": {
+      "post": {
+        "operationId": "previewDeliveryAbandon",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/OperationId" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Preview" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "412": { "$ref": "#/components/responses/Problem" },
+          "422": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/delivery/projects/{projectId}/operations/{operationId}/abandon": {
+      "post": {
+        "operationId": "submitDeliveryAbandon",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/OperationId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/DeliverySubmit" },
+        "responses": {
+          "202": { "$ref": "#/components/responses/OperationAccepted" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "422": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "deliveryBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Short-lived workload token issued by the configured delivery authority. Human console tokens are not accepted."
+      }
+    },
+    "parameters": {
+      "ProjectId": { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+      "EnvironmentId": { "name": "environmentId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+      "TemplateId": { "name": "templateId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+      "AdmissionId": { "name": "admissionId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+      "ReleaseId": { "name": "releaseId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+      "OperationId": { "name": "operationId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+      "EnvironmentIdOptional": { "name": "environmentId", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+      "OperationIdOptional": { "name": "operationId", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+      "Limit": { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 } },
+      "Cursor": { "name": "cursor", "in": "query", "schema": { "type": "string", "maxLength": 4096 } },
+      "IfMatch": { "name": "If-Match", "in": "header", "required": true, "schema": { "type": "string", "pattern": "^W/\\\\\"[0-9]+\\\\\"$" } },
+      "IdempotencyKey": { "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 128 } },
+      "LastEventId": { "name": "Last-Event-ID", "in": "header", "schema": { "type": "string", "minLength": 1, "maxLength": 4096 }, "description": "Opaque, authenticated resume token from a prior event ID. It is bound to the workload subject, project, and selected environment/operation filters." }
+    },
+    "headers": {
+      "ETag": { "required": true, "schema": { "type": "string", "pattern": "^W/\\\\\"[0-9]+\\\\\"$" } },
+      "Location": { "required": true, "schema": { "type": "string", "format": "uri-reference" } },
+      "RetryAfter": { "required": true, "schema": { "type": "integer", "minimum": 1 } },
+      "CorrelationId": { "required": true, "schema": { "type": "string", "maxLength": 128 } }
+    },
+    "requestBodies": {
+      "EnvironmentPreview": { "required": true, "description": "Only application/json is accepted; the optional charset parameter is allowed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeliveryEnvironmentPreviewRequest" } } } },
+      "ArtifactPreview": { "required": true, "description": "Only application/json is accepted; the optional charset parameter is allowed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeliveryArtifactPreviewRequest" } } } },
+      "ReleasePreview": { "required": true, "description": "Only application/json is accepted; the optional charset parameter is allowed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeliveryReleasePreviewRequest" } } } },
+      "PromotionPreview": { "required": true, "description": "Only application/json is accepted; the optional charset parameter is allowed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeliveryPromotionPreviewRequest" } } } },
+      "RollbackPreview": { "required": true, "description": "Only application/json is accepted; the optional charset parameter is allowed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeliveryRollbackPreviewRequest" } } } },
+      "DeliverySubmit": { "required": true, "description": "Only application/json is accepted; the optional charset parameter is allowed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeliverySubmitRequest" } } } }
+    },
+    "responses": {
+      "Unauthorized": { "description": "The workload token or configured delivery host was rejected.", "headers": { "X-Yogabase-Correlation-Id": { "$ref": "#/components/headers/CorrelationId" } }, "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/ProblemDetails" } } } },
+      "Problem": { "description": "The request could not be completed.", "headers": { "X-Yogabase-Correlation-Id": { "$ref": "#/components/headers/CorrelationId" } }, "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/ProblemDetails" } } } },
+      "RateLimited": { "description": "The subject or global delivery limit was reached.", "headers": { "Retry-After": { "$ref": "#/components/headers/RetryAfter" }, "X-Yogabase-Correlation-Id": { "$ref": "#/components/headers/CorrelationId" } }, "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/ProblemDetails" } } } },
+      "Preview": { "description": "A durable, expiring preview was created; no workload mutation occurred.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeliveryPreviewResponse" } } } },
+      "OperationAccepted": { "description": "The exact route-bound preview was accepted for durable processing.", "headers": { "Location": { "$ref": "#/components/headers/Location" }, "Retry-After": { "$ref": "#/components/headers/RetryAfter" } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeliveryOperationEnvelope" } } } },
+      "Templates": { "description": "Delivery templates.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeliveryTemplateList" } } } },
+      "Template": { "description": "A delivery template.", "headers": { "ETag": { "$ref": "#/components/headers/ETag" } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeliveryTemplateResponse" } } } },
+      "Environments": { "description": "Delivery environments.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeliveryEnvironmentList" } } } },
+      "Environment": { "description": "A delivery environment.", "headers": { "ETag": { "$ref": "#/components/headers/ETag" } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeliveryEnvironmentResponse" } } } },
+      "Artifacts": { "description": "Artifact admissions.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeliveryArtifactList" } } } },
+      "Artifact": { "description": "An artifact admission.", "headers": { "ETag": { "$ref": "#/components/headers/ETag" } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeliveryArtifactResponse" } } } },
+      "Releases": { "description": "Delivery releases.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeliveryReleaseList" } } } },
+      "Release": { "description": "A delivery release.", "headers": { "ETag": { "$ref": "#/components/headers/ETag" } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeliveryReleaseResponse" } } } },
+      "Operations": { "description": "Delivery operations.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeliveryOperationList" } } } },
+      "Operation": { "description": "A delivery operation.", "headers": { "ETag": { "$ref": "#/components/headers/ETag" } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeliveryOperationEnvelope" } } } },
+      "OperationEvents": { "description": "Server-sent delivery operation events.", "content": { "text/event-stream": { "schema": { "$ref": "#/components/schemas/DeliveryOperationEvent" } } } }
+    },
+    "schemas": {
+      "Uuid": { "type": "string", "format": "uuid" },
+      "Sha256Digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+      "DeliveryEnvironmentPreviewRequest": {
+        "type": "object", "additionalProperties": false, "required": ["name", "templateId", "templateVersion"],
+        "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 63 }, "templateId": { "$ref": "#/components/schemas/Uuid" }, "templateVersion": { "type": "integer", "minimum": 1 } }
+      },
+      "DeliveryArtifactPreviewRequest": {
+        "type": "object", "additionalProperties": false,
+        "required": ["sourceLocator", "bundleDigest", "manifestDigest", "sbomDigest", "scanEvidenceDigest", "artifactVersion", "sourceSizeBytes", "sourceMediaType", "manifestUri", "sbomUri", "sbomFormat", "scanUri", "scanner", "scannedAt", "criticalFindings", "highFindings"],
+        "properties": {
+          "sourceLocator": { "type": "string", "minLength": 10, "maxLength": 2048, "description": "Credential-free native provider URI; percent escapes are rejected." },
+          "bundleDigest": { "$ref": "#/components/schemas/Sha256Digest" }, "manifestDigest": { "$ref": "#/components/schemas/Sha256Digest" }, "sbomDigest": { "$ref": "#/components/schemas/Sha256Digest" }, "scanEvidenceDigest": { "$ref": "#/components/schemas/Sha256Digest" },
+          "artifactVersion": { "type": "integer", "minimum": 1 }, "sourceSizeBytes": { "type": "integer", "minimum": 1 },
+          "sourceMediaType": { "type": "string", "minLength": 3, "maxLength": 256 },
+          "manifestUri": { "type": "string", "minLength": 10, "maxLength": 2048 }, "sbomUri": { "type": "string", "minLength": 10, "maxLength": 2048 }, "sbomFormat": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "scanUri": { "type": "string", "minLength": 10, "maxLength": 2048 }, "scanner": { "type": "string", "minLength": 1, "maxLength": 256 }, "scannedAt": { "type": "string", "format": "date-time" },
+          "criticalFindings": { "type": "integer", "minimum": 0 }, "highFindings": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "DeliveryReleaseConfiguration": {
+        "type": "object", "additionalProperties": false, "required": ["statelessFunctions", "scheduler", "jobs"],
+        "properties": { "statelessFunctions": { "type": "boolean" }, "scheduler": { "type": "boolean" }, "jobs": { "type": "boolean" }, "maxConcurrentExecutions": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 }, "maxCatchUp": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 }, "allowedTimeZones": { "type": "array", "maxItems": 128, "items": { "type": "string", "maxLength": 128 } } }
+      },
+      "DeliveryReleasePreviewRequest": {
+        "type": "object", "additionalProperties": false, "required": ["artifactAdmissionIds", "configuration", "migrationEvidenceDigest"],
+        "properties": { "artifactAdmissionIds": { "type": "array", "minItems": 1, "maxItems": 256, "uniqueItems": true, "items": { "$ref": "#/components/schemas/Uuid" } }, "configuration": { "$ref": "#/components/schemas/DeliveryReleaseConfiguration" }, "migrationEvidenceDigest": { "$ref": "#/components/schemas/Sha256Digest" } }
+      },
+      "DeliveryPromotionPreviewRequest": { "type": "object", "additionalProperties": false, "required": ["sourceEnvironmentId", "sourceReleaseId", "migrationEvidenceDigest"], "properties": { "sourceEnvironmentId": { "$ref": "#/components/schemas/Uuid" }, "sourceReleaseId": { "$ref": "#/components/schemas/Uuid" }, "migrationEvidenceDigest": { "$ref": "#/components/schemas/Sha256Digest" } } },
+      "DeliveryRollbackPreviewRequest": { "type": "object", "additionalProperties": false, "required": ["releaseId", "migrationEvidenceDigest"], "properties": { "releaseId": { "$ref": "#/components/schemas/Uuid" }, "migrationEvidenceDigest": { "$ref": "#/components/schemas/Sha256Digest" } } },
+      "DeliverySubmitRequest": { "type": "object", "additionalProperties": false, "required": ["previewId", "previewDigest"], "properties": { "previewId": { "$ref": "#/components/schemas/Uuid" }, "previewDigest": { "$ref": "#/components/schemas/Sha256Digest" } } },
+      "DeliveryPreviewResponse": { "type": "object", "additionalProperties": false, "required": ["previewId", "previewDigest", "action", "expectedRevision", "approvalRequired", "expiresAt"], "properties": { "previewId": { "$ref": "#/components/schemas/Uuid" }, "previewDigest": { "$ref": "#/components/schemas/Sha256Digest" }, "action": { "type": "string" }, "expectedRevision": { "type": "integer", "minimum": 0 }, "approvalRequired": { "type": "boolean" }, "expiresAt": { "type": "string", "format": "date-time" } } },
+      "DeliveryTemplateResponse": { "type": "object", "additionalProperties": false, "required": ["id", "name", "version", "state", "targetId", "templateDigest", "revision"], "properties": { "id": { "$ref": "#/components/schemas/Uuid" }, "name": { "type": "string" }, "version": { "type": "integer", "minimum": 1 }, "state": { "type": "string" }, "targetId": { "$ref": "#/components/schemas/Uuid" }, "templateDigest": { "$ref": "#/components/schemas/Sha256Digest" }, "revision": { "type": "integer", "minimum": 1 } } },
+      "DeliveryEnvironmentResponse": { "type": "object", "additionalProperties": false, "required": ["id", "name", "slug", "lifecycle", "isProduction", "templateId", "templateVersion", "runtimeRevision", "revision"], "properties": { "id": { "$ref": "#/components/schemas/Uuid" }, "name": { "type": "string" }, "slug": { "type": "string" }, "lifecycle": { "type": "string" }, "isProduction": { "type": "boolean" }, "templateId": { "$ref": "#/components/schemas/Uuid" }, "templateVersion": { "type": "integer", "minimum": 1 }, "currentReleaseId": { "oneOf": [{ "$ref": "#/components/schemas/Uuid" }, { "type": "null" }] }, "runtimeRevision": { "type": "integer", "minimum": 0 }, "revision": { "type": "integer", "minimum": 1 } } },
+      "DeliveryArtifactResponse": { "type": "object", "additionalProperties": false, "required": ["id", "status", "artifactVersion", "bundleDigest", "manifestDigest", "sbomDigest", "scanResultDigest", "signerId", "keyId", "revision"], "properties": { "id": { "$ref": "#/components/schemas/Uuid" }, "status": { "type": "string" }, "artifactVersion": { "type": "integer", "minimum": 1 }, "bundleDigest": { "$ref": "#/components/schemas/Sha256Digest" }, "manifestDigest": { "$ref": "#/components/schemas/Sha256Digest" }, "sbomDigest": { "$ref": "#/components/schemas/Sha256Digest" }, "scanResultDigest": { "$ref": "#/components/schemas/Sha256Digest" }, "signerId": { "type": "string" }, "keyId": { "type": "string" }, "revision": { "type": "integer", "minimum": 1 } } },
+      "DeliveryReleaseResponse": { "type": "object", "additionalProperties": false, "required": ["id", "releaseType", "desiredRuntimeRevision", "artifactSetDigest", "configurationDigest", "migrationEvidenceDigest", "status", "revision"], "properties": { "id": { "$ref": "#/components/schemas/Uuid" }, "releaseType": { "type": "string" }, "sourceReleaseId": { "oneOf": [{ "$ref": "#/components/schemas/Uuid" }, { "type": "null" }] }, "desiredRuntimeRevision": { "type": "integer", "minimum": 0 }, "artifactSetDigest": { "$ref": "#/components/schemas/Sha256Digest" }, "configurationDigest": { "$ref": "#/components/schemas/Sha256Digest" }, "migrationEvidenceDigest": { "$ref": "#/components/schemas/Sha256Digest" }, "status": { "type": "string" }, "revision": { "type": "integer", "minimum": 1 } } },
+      "DeliveryOperationEnvelope": { "type": "object", "additionalProperties": false, "required": ["operationId", "state", "kind", "revision", "updatedAt"], "properties": { "operationId": { "$ref": "#/components/schemas/Uuid" }, "state": { "type": "string" }, "kind": { "type": "string" }, "resourceType": { "oneOf": [{ "type": "string" }, { "type": "null" }] }, "resourceId": { "oneOf": [{ "$ref": "#/components/schemas/Uuid" }, { "type": "null" }] }, "revision": { "type": "integer", "minimum": 1 }, "updatedAt": { "type": "string", "format": "date-time" } } },
+      "DeliveryOperationEvent": { "type": "object", "additionalProperties": false, "required": ["operationId", "state", "detail", "occurredAt"], "properties": { "operationId": { "$ref": "#/components/schemas/Uuid" }, "state": { "type": "string" }, "detail": { "type": "string" }, "occurredAt": { "type": "string", "format": "date-time" } } },
+      "DeliveryTemplateList": { "type": "object", "additionalProperties": false, "required": ["items"], "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/DeliveryTemplateResponse" } }, "nextCursor": { "oneOf": [{ "type": "string" }, { "type": "null" }] } } },
+      "DeliveryEnvironmentList": { "type": "object", "additionalProperties": false, "required": ["items"], "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/DeliveryEnvironmentResponse" } }, "nextCursor": { "oneOf": [{ "type": "string" }, { "type": "null" }] } } },
+      "DeliveryArtifactList": { "type": "object", "additionalProperties": false, "required": ["items"], "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/DeliveryArtifactResponse" } }, "nextCursor": { "oneOf": [{ "type": "string" }, { "type": "null" }] } } },
+      "DeliveryReleaseList": { "type": "object", "additionalProperties": false, "required": ["items"], "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/DeliveryReleaseResponse" } }, "nextCursor": { "oneOf": [{ "type": "string" }, { "type": "null" }] } } },
+      "DeliveryOperationList": { "type": "object", "additionalProperties": false, "required": ["items"], "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/DeliveryOperationEnvelope" } }, "nextCursor": { "oneOf": [{ "type": "string" }, { "type": "null" }] } } },
+      "ProblemDetails": { "type": "object", "additionalProperties": true, "required": ["title", "status", "code", "correlationId"], "properties": { "type": { "type": "string", "format": "uri-reference" }, "title": { "type": "string" }, "status": { "type": "integer" }, "detail": { "type": "string" }, "instance": { "type": "string" }, "code": { "type": "string" }, "correlationId": { "type": "string" } } }
+    }
+  }
+}

@@ -10,11 +10,13 @@ provenance. Its artifact paths are interpreted relative
 to `artifacts/imported`; its source-package paths identify the original output layout, while this
 repository uses `languages/<language>`.
 
-The current API document is snapshotted under `contracts` and independently checksummed. The root
-`MANIFEST.json` records this sibling repository's current contract, source provenance, imported
+The current application and workload Delivery API documents are snapshotted under `contracts` and
+independently checksummed. The root `MANIFEST.json` records this sibling repository's current
+contracts, source provenance, imported
 historical artifact manifest, per-platform qualification, and locally rebuilt NuGet package. The
-current TypeScript, Python, Java, and Dart source trees are reproducibly generated with the pinned
-Kiota tool; `artifacts/imported` remains historical and unmodified.
+current application protocol trees and the Java/Dart delivery protocol trees are reproducibly
+generated with the pinned Kiota tool. Authored delivery facades are preserved by regeneration;
+`artifacts/imported` remains historical and unmodified.
 
 No artifact is published. The configured origin is the owner's private local Gitea server and is a
 development remote, not a publication channel.

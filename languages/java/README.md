@@ -34,3 +34,24 @@ var item = YogabaseStorageLogicalKey.requestBuilder(
 For `PUT`, add both required contract headers in the generated `PutRequestConfiguration` consumer:
 `X-Yogabase-Content-Sha256: sha256:<64 lowercase hex>` and a bounded `Idempotency-Key`. Kiota does
 not emit dedicated Java method arguments for these headers.
+
+## Workload delivery
+
+The package also contains a delivery client generated from the separate workload Delivery v1
+contract under `io.stackyoga.yogabase.delivery`. Wrap a delivery-only `RequestAdapter` with
+`YogabaseDeliveryClient`; do not reuse the application adapter or its credentials. The authored
+facade validates the delivery origin, provides a rotating bearer-token provider and header helpers,
+recognizes the exact terminal operation states, supports cancellable bounded polling, and parses
+SSE while preserving opaque resume IDs.
+
+```java
+try (var delivery = new YogabaseDeliveryClient(
+        deliveryRequestAdapter,
+        URI.create("https://delivery.example.com"))) {
+    var operations = delivery.api().api().v1().delivery().projects()
+        .byProjectId(projectId).operations();
+}
+```
+
+Artifact admission carries credential-free source and evidence metadata. No Kubernetes credential,
+Agones/PlayFlow compatibility call, or unimplemented runtime health/allocation API is added.

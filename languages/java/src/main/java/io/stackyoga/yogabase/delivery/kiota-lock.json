@@ -1,0 +1,35 @@
+{
+  "descriptionHash": "2669DA134FA667C9E8EE2F89A6176AE64904AAC7C7FDFB3FB7EF8DA650C8C1B7D9192FB964B25DB9081BEDC4F0E2E0A0DC514E4328D3EF4382443B6AE4A60D8A",
+  "descriptionLocation": "../../../../../../../../../contracts/yogabase-delivery-v1.openapi.json",
+  "lockFileVersion": "1.0.0",
+  "kiotaVersion": "1.34.1",
+  "clientClassName": "YogabaseDeliveryApiClient",
+  "typeAccessModifier": "Public",
+  "clientNamespaceName": "io.stackyoga.yogabase.delivery",
+  "language": "Java",
+  "usesBackingStore": false,
+  "excludeBackwardCompatible": true,
+  "includeAdditionalData": true,
+  "disableSSLValidation": false,
+  "serializers": [
+    "Microsoft.Kiota.Serialization.Json.JsonSerializationWriterFactory",
+    "Microsoft.Kiota.Serialization.Text.TextSerializationWriterFactory",
+    "Microsoft.Kiota.Serialization.Form.FormSerializationWriterFactory",
+    "Microsoft.Kiota.Serialization.Multipart.MultipartSerializationWriterFactory"
+  ],
+  "deserializers": [
+    "Microsoft.Kiota.Serialization.Json.JsonParseNodeFactory",
+    "Microsoft.Kiota.Serialization.Text.TextParseNodeFactory",
+    "Microsoft.Kiota.Serialization.Form.FormParseNodeFactory"
+  ],
+  "structuredMimeTypes": [
+    "application/json",
+    "text/plain;q=0.9",
+    "application/x-www-form-urlencoded;q=0.2",
+    "multipart/form-data;q=0.1"
+  ],
+  "includePatterns": [],
+  "excludePatterns": [],
+  "disabledValidationRules": [],
+  "allowedExternalOrigins": []
+}

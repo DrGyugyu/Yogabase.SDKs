@@ -4,7 +4,7 @@
 
 **Yogabase** 기반 애플리케이션을 위한 클라이언트 SDK 프리뷰입니다.
 
-Yogabase는 Kubernetes 전반에서 데이터 서비스를 운영하기 위한 .NET 10 Control Plane입니다. 이 저장소는 비공개 Yogabase 제품 저장소, Helm 차트, 이미지, Control Plane 및 Marketplace 전달 그래프와 의도적으로 분리되어 있습니다. 이곳에는 애플리케이션용 클라이언트 라이브러리와 계약 픽스처만 있으며, Kubernetes 오퍼레이터, 클라우드 프로비저닝 도구 또는 관리 SDK가 아닙니다.
+Yogabase는 Kubernetes 전반에서 데이터 서비스를 운영하기 위한 .NET 10 Control Plane입니다. 이 저장소는 비공개 Yogabase 제품 저장소, Helm 차트, 이미지, Control Plane 및 Marketplace 전달 그래프와 의도적으로 분리되어 있습니다. 이곳에는 애플리케이션용 및 워크로드 전달용 클라이언트 라이브러리와 계약 픽스처가 있으며, Kubernetes 오퍼레이터, 클라우드 프로비저닝 도구 또는 범용 관리 SDK가 아닙니다.
 
 > **프리뷰 상태:** 이 저장소의 패키지는 아직 게시되지 않은 프리뷰입니다. 로컬 빌드가 성공하더라도 NuGet, npm, PyPI, Maven Central, pub.dev, GitHub Packages 또는 다른 레지스트리에 게시할 권한이 부여되는 것은 아닙니다.
 
@@ -64,6 +64,29 @@ YSQL 트래픽은 인증서 기반이며 fail-closed입니다. 노드 간 및 �
 
 Yogabase를 통한 Direct 운영이 권위 있습니다. GitOps 지원은 고객의 자체 로컬 Git 워크플로를 위해 결정론적 YAML과 diff를 내보냅니다. Yogabase는 브랜치를 push하거나 pull request를 만들거나 고객 저장소에 쓰지 않습니다.
 
+## 커스텀 빌드 전달과 Kubernetes
+
+![Yogabase Control Plane을 통한 커스텀 빌드 전달](assets/custom-build-delivery-flow.svg)
+
+커스텀 빌드 워크플로는 Kubernetes 또는 클라우드 자격 증명을 받지 않고 권위 있는
+Control Plane을 통해 Kubernetes에 도달합니다. 별도로 구성하는 Delivery 클라이언트는
+수명이 짧은 워크로드 OIDC 토큰으로 TLS 전용 `/api/v1/delivery` 호스트를 호출합니다.
+승인된 템플릿 조회, 환경 및 변경 불가능한 아티팩트 admission의 preview/submit, release,
+promotion, rollback, 환경 decommission을 수행하고, 제한된 polling 또는 SSE로 내구성 있는
+작업을 추적할 수 있습니다.
+
+아티팩트 제출에는 자격 증명이 없는 공급자 네이티브 locator와 bundle, manifest, SBOM,
+scan evidence의 정확한 digest만 포함됩니다. Control Plane은 의도를 기록하고, 격리된
+admission Job이 아티팩트를 검증합니다. 이후 서명된 의도가 아웃바운드 상호 TLS fleet
+채널을 통해 member의 종속 로컬 actuator로 전달되며, 이 actuator만 Kubernetes 워크로드를
+조정합니다.
+
+현재 서버 계약에는 실행 중인 빌드가 health/readiness를 보고하거나 allocation/reservation을
+요청하거나 shutdown을 알리는 Agones 스타일 API가 없습니다. 이 SDK는 그런 작업을
+만들어내지 않습니다. Agones, PlayFlow, Nakama, Firebase 및 Supabase는 클라이언트 수명 주기,
+세션, 취소, polling, event stream 및 플랫폼 사용성을 개선하기 위한 참고 자료로만
+사용합니다. 자세한 내용은 [`docs/REFERENCE_REVIEW.md`](docs/REFERENCE_REVIEW.md)를 참조하세요.
+
 ## 애플리케이션 런타임 및 SDK 경계
 
 Yogabase는 승인된 애플리케이션 작업을 위한 대상 로컬 애플리케이션 게이트웨이를 노출할 수 있습니다. 이 SDK가 구현하는 경계는 다음과 같습니다.
@@ -78,7 +101,7 @@ Yogabase는 승인된 애플리케이션 작업을 위한 대상 로컬 애플�
 
 클라이언트는 공급자 중립적이고 shard를 인식하지 않습니다. 클라우드 선택기, 클라우드 자격 증명, Kubernetes ID, TServer 주소, tablet/shard 식별자, shard key, 물리적 배치 맵 또는 토폴로지 생성을 받지 않습니다. YugabyteDB가 내부 라우팅과 배치를 소유합니다. Yogabase는 또 다른 데이터 경로 라우터를 도입하지 않고 제한된 상태 및 용량 사실을 관찰합니다.
 
-SDK는 Control Plane 관리 API, 인프라 프로비저닝, fleet 명령, Kubernetes CRD, 승인 워크플로, 원격 셸, `pods/exec`, 일반 알림, 분석, GameSessions 및 공급자 자격 증명을 의도적으로 제외합니다.
+SDK는 범용 사용자용 Control Plane 관리 API, 인프라 프로비저닝, fleet 명령, Kubernetes CRD, 승인 변경, 원격 셸, `pods/exec`, 일반 알림, 분석, GameSessions 및 공급자 자격 증명을 의도적으로 제외합니다. 유일한 Control Plane 표면은 위에서 설명한 정확한 워크로드 인증 Delivery v1 계약입니다.
 
 ## 기능 상태
 
@@ -95,17 +118,17 @@ Yogabase는 서명된 관찰과 릴리스에 고정된 증거를 통해 모듈 �
 
 ## 패키지
 
-.NET 이외의 패키지 식별자는 연속성을 위해 기존 프리뷰 이름을 유지합니다. 이는 레지스트리 게시나 지원 약속을 의미하지 않습니다. 버전 `0.2`는 확장된 인증, Actor Lambda, Workflow Lambda 및 bootstrap 계약과 소스 표기 `Yogabase` 수정 사항을 반영합니다.
+.NET 이외의 패키지 식별자는 연속성을 위해 기존 프리뷰 이름을 유지합니다. 이는 레지스트리 게시나 지원 약속을 의미하지 않습니다. 버전 `0.3`은 기존 애플리케이션 계약을 유지하면서 워크로드 인증 Control Plane Delivery v1 표면과 교차 플랫폼 수명 주기 개선을 추가합니다.
 
 | 플랫폼 | 위치 | 현재 패키지 ID | 적격성 |
 |---|---|---|---|
-| .NET | `src/dotnet/Yogabase.Yogabase.Client` | `Yogabase.Yogabase.Client` `0.2.0-preview.1` | 작성된 REST, PKCE 및 SignalR 클라이언트; `netstandard2.1` 및 `net10.0` |
-| TypeScript | `languages/typescript` | `@stackyoga/yogabase-client-preview` `0.2.0-preview.1` | Kiota 생성 REST 프리뷰와 작성된 storage-key adapter |
-| Python | `languages/python` | `stackyoga-yogabase-client-preview` `0.2.0.dev1` | Kiota 생성 REST 프리뷰와 작성된 storage-key adapter |
-| Java/JVM | `languages/java` | `io.stackyoga:yogabase-client-preview` `0.2.0-preview.1` | Kiota 생성 REST 프리뷰 및 현재 Kotlin/JVM 상호 운용 경로 |
-| Dart | `languages/dart` | `stackyoga_yogabase_client_preview` `0.2.0-dev.1` | 실험적 Kiota 생성 REST 소스와 작성된 storage-key adapter |
+| .NET | `src/dotnet/Yogabase.Yogabase.Client` | `Yogabase.Yogabase.Client` `0.3.0-preview.1` | 작성된 애플리케이션, PKCE, SignalR 및 Delivery 클라이언트; `netstandard2.1` 및 `net10.0` |
+| TypeScript | `languages/typescript` | `@stackyoga/yogabase-client-preview` `0.3.0-preview.1` | 생성된 애플리케이션 클라이언트와 작성된 Delivery/storage-key facade |
+| Python | `languages/python` | `stackyoga-yogabase-client-preview` `0.3.0.dev1` | 생성된 애플리케이션 클라이언트와 작성된 비동기 Delivery/storage-key facade |
+| Java/JVM | `languages/java` | `io.stackyoga:yogabase-client-preview` `0.3.0-preview.1` | 생성된 애플리케이션/Delivery 클라이언트와 작성된 JVM facade; Kotlin/JVM 상호 운용 경로 |
+| Dart | `languages/dart` | `stackyoga_yogabase_client_preview` `0.3.0-dev.1` | 실험적 생성 애플리케이션/Delivery 소스와 작성된 facade |
 
-변경 불가능한 API 스냅샷은 `contracts/yogabase-client-v1.openapi.json`이며 SHA-256은 `a5f0e01985dc0e6ef8ecdbb26b9505eff02dd083a529a83e3f97f19826d96497`입니다. 인접한 checksum, Kiota lock 및 `MANIFEST.json`은 이 저장소를 정확한 계약과 generator에 바인딩합니다.
+변경 불가능한 애플리케이션 스냅샷은 `contracts/yogabase-client-v1.openapi.json`이며 SHA-256은 `a5f0e01985dc0e6ef8ecdbb26b9505eff02dd083a529a83e3f97f19826d96497`입니다. 워크로드 스냅샷은 `contracts/yogabase-delivery-v1.openapi.json`이며 SHA-256은 `f34601596e473efd158a2823d4113a04bb8f508515d4efccc0c355f18e480fec`입니다. 인접한 checksum, Kiota lock 및 `MANIFEST.json`은 이 저장소를 정확한 계약과 generator에 바인딩합니다.
 
 ## 로컬 검증
 
@@ -121,8 +144,8 @@ cd languages/java && mvn test
 cd languages/dart && dart analyze
 ```
 
-`scripts/regenerate-clients.sh`를 실행하면 고정된 Kiota 1.34.1 도구를 복원하고 체크인된 계약에서 네 개의 생성 클라이언트를 다시 만듭니다. 각 생성 언어 폴더는 자체 package manifest, 사용 가능한 경우 dependency lock, Kiota lock, 소스, 문서 및 conformance helper를 유지합니다. 다운로드한 도구, 캐시, 의존성 트리와 빌드 중간 산출물은 제외됩니다. 과거 가져온 아티팩트는 `artifacts/imported` 아래에서 변경하지 않으며 현재 빌드는 `artifacts/local` 아래에 둡니다.
+`scripts/regenerate-clients.sh`를 실행하면 두 계약을 검증하고 고정된 Kiota 1.34.1 도구를 복원하여 네 개의 애플리케이션 클라이언트와 Java/Dart Delivery 프로토콜 클라이언트를 다시 만듭니다. 작성된 Delivery facade는 보존됩니다. 각 생성 언어 폴더는 자체 package manifest, 사용 가능한 경우 dependency lock, Kiota lock, 소스, 문서 및 conformance helper를 유지합니다. 다운로드한 도구, 캐시, 의존성 트리와 빌드 중간 산출물은 제외됩니다. 과거 가져온 아티팩트는 `artifacts/imported` 아래에서 변경하지 않으며 현재 빌드는 `artifacts/local` 아래에 둡니다.
 
 ## 플랫폼 적격성
 
-생성된 REST 소스만으로 production 플랫폼 통합이 적격해지는 것은 아닙니다. `netstandard2.1` 호환성만으로 Unity 또는 AOT가 적격하다는 뜻도 아닙니다. Android, Flutter, Dart, Kotlin/JVM, Unity IL2CPP, 네이티브 보안 저장소, interactive cookie 처리, redirect 처리, .NET 이외의 SignalR 통합 및 live-gateway conformance는 지원을 주장하기 전에 각각 명시적인 플랫폼 증거가 필요합니다.
+생성된 REST 소스만으로 production 플랫폼 통합이 적격해지는 것은 아닙니다. `netstandard2.1` 호환성만으로 Unity 또는 AOT가 적격하다는 뜻도 아닙니다. Dart 패키지는 Dart 3.13.2 분석과 작성 소스 테스트를 통과했지만 Android, Flutter, Kotlin/JVM 런타임 통합, Unity IL2CPP, 네이티브 보안 저장소, interactive cookie 처리, .NET 이외의 SignalR 통합 및 live-gateway conformance는 지원을 주장하기 전에 각각 명시적인 플랫폼 증거가 필요합니다.

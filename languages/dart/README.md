@@ -25,9 +25,32 @@ final item = storageObjectForLogicalKey(
 );
 ```
 
-The adapter is authored Yogabase code, not Kiota output. Dart remains source-inspected only until
-the Dart SDK is available for compilation and tests.
+The adapter is authored Yogabase code, not Kiota output. The package passes Dart 3.13.2 analysis
+and its standalone authored-source checks; Flutter integration and live-gateway behavior remain
+unqualified.
 
 For `PUT`, add both required contract headers through the Kiota request configuration:
 `X-Yogabase-Content-Sha256: sha256:<64 lowercase hex>` and a bounded `Idempotency-Key`. Kiota does
 not emit dedicated Dart method arguments for these headers.
+
+## Workload delivery
+
+The package exports a second generated protocol client under `src/delivery` plus the authored
+`YogabaseDeliveryClient` facade. Construct it with a delivery-only request adapter and the TLS-only
+Delivery origin; never share the application adapter or bearer credential.
+
+```dart
+final delivery = YogabaseDeliveryClient(
+  deliveryRequestAdapter,
+  Uri.parse('https://delivery.example.com'),
+);
+final operations = delivery.api.api.v1.delivery.projects
+    .byProjectId(projectId)
+    .operations;
+```
+
+The facade provides terminal-state recognition, bounded polling with an explicit cancellation
+token, delivery header helpers, and buffered SSE parsing that preserves opaque resume IDs. True
+streaming remains dependent on a streaming Dart request adapter and is not claimed as qualified.
+Artifact admission does not expose Kubernetes credentials or add Agones/PlayFlow or unimplemented
+runtime lifecycle operations.

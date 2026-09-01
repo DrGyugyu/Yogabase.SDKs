@@ -143,6 +143,16 @@ public sealed class YogabaseClient : IDisposable, IAsyncDisposable
         YogabaseClientConfiguration configuration,
         YogabaseClientOptions? options = null) => new(configuration, options ?? new YogabaseClientOptions());
 
+    /// <summary>
+    /// Loads the persisted session and refreshes it when required. Applications can await this
+    /// during startup instead of discovering an expired session on their first gateway request.
+    /// </summary>
+    public Task<YogabaseSession?> InitializeAsync(CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        return auth.GetValidSessionAsync(cancellationToken);
+    }
+
     public void Dispose()
     {
         if (disposed)
@@ -175,6 +185,18 @@ public sealed class YogabaseClient : IDisposable, IAsyncDisposable
         {
             throw new NotSupportedException($"Yogabase capability '{capabilityId}' is unavailable for this release.");
         }
+    }
+
+    private void ThrowIfDisposed()
+    {
+#if NET10_0_OR_GREATER
+        ObjectDisposedException.ThrowIf(disposed, this);
+#else
+        if (disposed)
+        {
+            throw new ObjectDisposedException(nameof(YogabaseClient));
+        }
+#endif
     }
 
     private static YogabaseClientConfiguration ValidateConfiguration(

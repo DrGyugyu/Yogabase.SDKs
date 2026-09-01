@@ -32,3 +32,38 @@ For `PUT`, pass both required contract headers through the Kiota request configu
 `X-Yogabase-Content-Sha256: sha256:<64 lowercase hex>` and a bounded `Idempotency-Key`. Kiota
 models operation header parameters through the generic `headers` record rather than dedicated
 method arguments in this generated TypeScript surface.
+
+## Workload delivery
+
+The authored `YogabaseDeliveryClient` is a separate client for the release-configured Delivery
+API host. It uses a bearer token provider, returns response metadata (`etag`, `location`, and
+`retryAfter`), and exposes the contract's preview/submit workflow for environments, artifact
+admissions, releases, promotions, rollbacks, decommissions, and operation abandonment:
+
+```ts
+const delivery = new YogabaseDeliveryClient({
+  deliveryHost: "https://delivery.example.test",
+  accessToken: () => token,
+});
+const preview = await delivery.previewEnvironment(
+  projectId,
+  { name: "staging", templateId, templateVersion: 1 },
+  { ifMatch: 'W/"7"' },
+);
+const accepted = await delivery.submitEnvironment(
+  projectId,
+  { previewId: preview.data.previewId, previewDigest: preview.data.previewDigest },
+  { idempotencyKey: crypto.randomUUID() },
+);
+const operation = await delivery.waitForOperation(projectId, accepted.data.operationId, {
+  terminalStates: ["Succeeded", "Failed", "Abandoned", "Cancelled", "Blocked"],
+  signal: abortController.signal,
+});
+```
+
+Artifact admission submits immutable source and evidence metadata plus digests; it does not upload
+bundle bytes and this client does not add custom-build, Kubernetes, Agones, PlayFlow, or other
+compatibility operations. The event stream is parsed with the platform Web Streams API and yields
+`{ id, event, data }`; `id` is an opaque resume token that callers may explicitly pass back as
+`lastEventId`. Heartbeat comment frames are ignored and resume tokens are never persisted or parsed
+by the client.

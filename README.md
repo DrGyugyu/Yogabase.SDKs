@@ -4,7 +4,7 @@ English | [한국어](README.ko.md)
 
 Client SDK previews for applications built on **Yogabase**.
 
-Yogabase is a .NET 10 control plane for operating data services across Kubernetes. This repository is deliberately independent of the private Yogabase product repository, its Helm chart, images, Control Plane, and Marketplace delivery graph. It contains application-facing client libraries and their contract fixtures only; it is not a Kubernetes operator, a cloud-provisioning tool, or a management SDK.
+Yogabase is a .NET 10 control plane for operating data services across Kubernetes. This repository is deliberately independent of the private Yogabase product repository, its Helm chart, images, Control Plane, and Marketplace delivery graph. It contains application-facing and workload-delivery client libraries plus their contract fixtures; it is not a Kubernetes operator, a cloud-provisioning tool, or a generic management SDK.
 
 > **Preview status:** the packages in this repository are unpublished previews. A successful local build does not authorize publication to NuGet, npm, PyPI, Maven Central, pub.dev, GitHub Packages, or any other registry.
 
@@ -64,6 +64,28 @@ The product keeps the public Kubernetes API intentionally small: `YogaDatabase`,
 
 Direct operation through Yogabase is authoritative. GitOps support exports deterministic YAML and diffs for the customer's own local Git workflow; Yogabase does not push branches, create pull requests, or write to customer repositories.
 
+## Custom build delivery and Kubernetes
+
+![Custom build delivery through the Yogabase Control Plane](assets/custom-build-delivery-flow.svg)
+
+A custom-build workflow reaches Kubernetes through the authoritative Control Plane, never by
+receiving Kubernetes or cloud credentials. The separately configured Delivery client uses a
+short-lived workload OIDC token to call the TLS-only `/api/v1/delivery` host. It can discover
+approved templates, preview and submit environments and immutable artifact admissions, create
+releases, promote or roll back them, decommission an environment, and follow the resulting durable
+operation through bounded polling or server-sent events.
+
+Artifact submission carries a credential-free provider-native locator and exact bundle, manifest,
+SBOM, and scan-evidence digests. The Control Plane records intent; an isolated admission job verifies
+the artifact; signed intent then travels over the outbound mutually authenticated fleet channel to
+the member's subordinate local actuator, which alone reconciles the Kubernetes workload.
+
+The current server contract does not expose an Agones-style API for the running build to report
+health/readiness, request allocation or reservation, or signal shutdown. These SDKs do not invent
+those operations. Agones, PlayFlow, Nakama, Firebase, and Supabase are used only to improve client
+lifecycle, session, cancellation, polling, event-stream, and platform ergonomics; see
+[`docs/REFERENCE_REVIEW.md`](docs/REFERENCE_REVIEW.md).
+
 ## Application runtime and SDK boundary
 
 Yogabase can expose a target-local application gateway for approved application operations. That is the boundary these SDKs implement:
@@ -78,7 +100,7 @@ Yogabase can expose a target-local application gateway for approved application 
 
 Clients are provider-neutral and shard-oblivious. They never receive a cloud selector, cloud credential, Kubernetes identity, TServer address, tablet/shard identifier, shard key, physical placement map, or topology generation. YugabyteDB owns its internal routing and placement; Yogabase observes bounded health and capacity facts without introducing another data-path router.
 
-The SDKs deliberately exclude Control Plane management APIs, infrastructure provisioning, fleet commands, Kubernetes CRDs, approval workflows, remote shell, `pods/exec`, general notifications, analytics, GameSessions, and provider credentials.
+The SDKs deliberately exclude generic human Control Plane management APIs, infrastructure provisioning, fleet commands, Kubernetes CRDs, approval mutation, remote shell, `pods/exec`, general notifications, analytics, GameSessions, and provider credentials. The only Control Plane surface is the exact workload-authenticated Delivery v1 contract described above.
 
 ## Capability truth
 
@@ -95,17 +117,17 @@ This README describes product architecture and boundaries, not a promise that a 
 
 ## Packages
 
-The non-.NET package identifiers retain their existing preview names for continuity. They do not imply registry publication or a support commitment. Version `0.2` reflects the expanded auth, Actor Lambda, Workflow Lambda, and bootstrap contract plus the source-facing `Yogabase` spelling correction.
+The non-.NET package identifiers retain their existing preview names for continuity. They do not imply registry publication or a support commitment. Version `0.3` adds the workload-authenticated Control Plane Delivery v1 surface and cross-platform lifecycle improvements while retaining the existing application contract.
 
 | Platform | Location | Current package identity | Qualification |
 |---|---|---|---|
-| .NET | `src/dotnet/Yogabase.Yogabase.Client` | `Yogabase.Yogabase.Client` `0.2.0-preview.1` | Authored REST, PKCE, and SignalR client; `netstandard2.1` and `net10.0` |
-| TypeScript | `languages/typescript` | `@stackyoga/yogabase-client-preview` `0.2.0-preview.1` | Kiota-generated REST preview plus authored storage-key adapter |
-| Python | `languages/python` | `stackyoga-yogabase-client-preview` `0.2.0.dev1` | Kiota-generated REST preview plus authored storage-key adapter |
-| Java/JVM | `languages/java` | `io.stackyoga:yogabase-client-preview` `0.2.0-preview.1` | Kiota-generated REST preview and current Kotlin/JVM interop path |
-| Dart | `languages/dart` | `stackyoga_yogabase_client_preview` `0.2.0-dev.1` | Experimental Kiota-generated REST source plus authored storage-key adapter |
+| .NET | `src/dotnet/Yogabase.Yogabase.Client` | `Yogabase.Yogabase.Client` `0.3.0-preview.1` | Authored application, PKCE, SignalR, and Delivery clients; `netstandard2.1` and `net10.0` |
+| TypeScript | `languages/typescript` | `@stackyoga/yogabase-client-preview` `0.3.0-preview.1` | Generated application client plus authored Delivery and storage-key facades |
+| Python | `languages/python` | `stackyoga-yogabase-client-preview` `0.3.0.dev1` | Generated application client plus authored async Delivery and storage-key facades |
+| Java/JVM | `languages/java` | `io.stackyoga:yogabase-client-preview` `0.3.0-preview.1` | Generated application/Delivery clients plus authored JVM facades; Kotlin/JVM interop path |
+| Dart | `languages/dart` | `stackyoga_yogabase_client_preview` `0.3.0-dev.1` | Experimental generated application/Delivery source plus authored facades |
 
-The immutable API snapshot is `contracts/yogabase-client-v1.openapi.json` (SHA-256 `a5f0e01985dc0e6ef8ecdbb26b9505eff02dd083a529a83e3f97f19826d96497`). Its adjacent checksum, Kiota locks, and `MANIFEST.json` bind this repository to the exact contract and generator.
+The immutable application snapshot is `contracts/yogabase-client-v1.openapi.json` (SHA-256 `a5f0e01985dc0e6ef8ecdbb26b9505eff02dd083a529a83e3f97f19826d96497`). The workload snapshot is `contracts/yogabase-delivery-v1.openapi.json` (SHA-256 `f34601596e473efd158a2823d4113a04bb8f508515d4efccc0c355f18e480fec`). Their adjacent checksums, Kiota locks, and `MANIFEST.json` bind this repository to the exact contracts and generator.
 
 ## Local verification
 
@@ -121,8 +143,8 @@ cd languages/java && mvn test
 cd languages/dart && dart analyze
 ```
 
-Run `scripts/regenerate-clients.sh` to restore the pinned Kiota 1.34.1 tool and regenerate all four generated clients from the checked-in contract. Each generated-language folder retains its own package manifest, dependency lock where available, Kiota lock, source, documentation, and conformance helper. Downloaded tools, caches, dependency trees, and build intermediates are excluded. Historical imported artifacts remain unchanged under `artifacts/imported`; current sibling-repository builds belong under `artifacts/local`.
+Run `scripts/regenerate-clients.sh` to verify both contracts, restore pinned Kiota 1.34.1, regenerate all four application clients, and regenerate the Java and Dart delivery protocol clients. Authored delivery facades are preserved. Each generated-language folder retains its own package manifest, dependency lock where available, Kiota lock, source, documentation, and conformance helper. Downloaded tools, caches, dependency trees, and build intermediates are excluded. Historical imported artifacts remain unchanged under `artifacts/imported`; current sibling-repository builds belong under `artifacts/local`.
 
 ## Platform qualification
 
-Generated REST source is not the same as a production-qualified platform integration. `netstandard2.1` compatibility alone does not qualify Unity or AOT. Android, Flutter, Dart, Kotlin/JVM, Unity IL2CPP, native secure storage, interactive-cookie handling, redirect handling, non-.NET SignalR integration, and live-gateway conformance each need explicit platform evidence before they can be claimed as supported.
+Generated REST source is not the same as a production-qualified platform integration. `netstandard2.1` compatibility alone does not qualify Unity or AOT. The Dart package passes Dart 3.13.2 analysis and authored-source tests, but Android, Flutter, Kotlin/JVM runtime integration, Unity IL2CPP, native secure storage, interactive-cookie handling, non-.NET SignalR integration, and live-gateway conformance each still need explicit platform evidence before they can be claimed as supported.

@@ -41,6 +41,18 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
         return tokens is null ? null : YogabaseSession.FromTokenSet(tokens);
     }
 
+    public async Task<YogabaseSession?> GetValidSessionAsync(CancellationToken cancellationToken = default)
+    {
+        var accessToken = await GetValidAccessTokenAsync(cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(accessToken))
+        {
+            return null;
+        }
+
+        var tokens = await store.LoadAsync(cancellationToken).ConfigureAwait(false);
+        return tokens is null ? null : YogabaseSession.FromTokenSet(tokens);
+    }
+
     public async Task SignUpAsync(
         string email,
         string password,
@@ -99,6 +111,7 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
             body: null,
             authenticated: false,
             cancellationToken).ConfigureAwait(false);
+        await ClearLocalSessionAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task ConfirmEmailAsync(

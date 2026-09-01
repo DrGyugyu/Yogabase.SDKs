@@ -1,8 +1,9 @@
 name: stackyoga_yogabase_client_preview
-description: Unpublished generated preview client for Yogabase.
-version: 0.2.0-dev.1
+description: Unpublished application and workload-delivery client preview for Yogabase.
+version: 0.3.0-dev.1
 publish_to: none
 environment:
   sdk: ^3.9.0
 dependencies:
   microsoft_kiota_bundle: 0.1.1
+  uuid: 4.6.0

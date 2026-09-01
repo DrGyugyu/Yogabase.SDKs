@@ -5,11 +5,11 @@
     <RootNamespace>Yogabase.Yogabase</RootNamespace>
     <AssemblyName>Yogabase.Yogabase.Client</AssemblyName>
     <PackageId>Yogabase.Yogabase.Client</PackageId>
-    <Version>0.2.0-preview.1</Version>
+    <Version>0.3.0-preview.1</Version>
     <Authors>Yogabase</Authors>
     <Company>Yogabase</Company>
-    <Description>Preview first-party .NET client for the Yogabase application gateway.</Description>
-    <PackageTags>yogabase;baas;signalr</PackageTags>
+    <Description>Preview first-party .NET clients for the Yogabase application gateway and workload Delivery API.</Description>
+    <PackageTags>yogabase;baas;signalr;delivery;kubernetes</PackageTags>
     <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
     <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
