@@ -21,6 +21,12 @@ Yogabase는 하나의 Helm 차트와 하나의 조정된 이미지 제품군으�
 
 Control Plane은 Yogabase에서 허용된 관리 의도의 유일한 출처입니다. member는 인바운드 관리 API를 노출하지 않고, 제품 정책을 결정하지 않으며, 동등한 Control Plane이 되지 않습니다. member는 상호 TLS 인증을 사용하는 gRPC로 Control Plane에 **아웃바운드** 연결하고, 서명된 대상 바인딩 의도를 지속하며, Control Plane을 사용할 수 없을 때에도 이미 수락된 로컬 작업을 계속 조정합니다.
 
+## Marketplace 아키텍처
+
+![Yogabase EKS Beta Marketplace 아키텍처](assets/marketplace-architecture.ko.svg)
+
+EKS Beta 아키텍처에서는 데이터베이스, Secret 및 운영 상태가 고객의 AWS 계정 안에 유지됩니다. member는 권위 있는 Control Plane에 아웃바운드로만 연결하며, 고객은 선택적 백업 대상의 제어권을 유지합니다.
+
 ## Console 경험
 
 ![Yogabase Blazor Console 개념 이미지](assets/yogabase-console-concept-v2.png)

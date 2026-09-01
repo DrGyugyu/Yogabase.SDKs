@@ -21,6 +21,12 @@ It is one Kubernetes Marketplace product delivered through one Helm chart and on
 
 The Control Plane is Yogabase's sole source of accepted management intent. A member never exposes an inbound management API, never decides product policy, and never becomes a peer control plane. Members connect **outbound** to the Control Plane over mutually authenticated gRPC, persist signed target-bound intent, and keep reconciling already accepted local work while the Control Plane is unavailable.
 
+## Marketplace architecture
+
+![Yogabase EKS Beta marketplace architecture](assets/marketplace-architecture.svg)
+
+The EKS Beta architecture keeps databases, secrets, and operational state inside the customer's AWS account. Members connect outbound-only to the authoritative Control Plane; the customer retains control of the optional backup destination.
+
 ## Console experience
 
 ![Illustrative Yogabase Blazor Console concept](assets/yogabase-console-concept-v2.png)
