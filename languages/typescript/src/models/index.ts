@@ -4,6 +4,55 @@
 // @ts-ignore
 import { createUntypedNodeFromDiscriminatorValue, type AdditionalDataHolder, type ApiError, type Guid, type Parsable, type ParseNode, type SerializationWriter, type UntypedNode } from '@microsoft/kiota-abstractions';
 
+export interface ActorInvocationRequest extends Parsable {
+    /**
+     * The correlationId property
+     */
+    correlationId?: string | null;
+    /**
+     * Must be within 30 seconds of admission.
+     */
+    deadline?: Date | null;
+    /**
+     * The idempotencyKey property
+     */
+    idempotencyKey?: string | null;
+    /**
+     * The inlinePayloadBase64 property
+     */
+    inlinePayloadBase64?: string | null;
+    /**
+     * The payloadDigest property
+     */
+    payloadDigest?: string | null;
+}
+export interface ActorInvocationResult extends ApiError, Parsable {
+    /**
+     * The correlationId property
+     */
+    correlationId?: string | null;
+    /**
+     * The failureCode property
+     */
+    failureCode?: string | null;
+    /**
+     * The invocationId property
+     */
+    invocationId?: Guid | null;
+    /**
+     * The resultReference property
+     */
+    resultReference?: string | null;
+    /**
+     * The stateVersion property
+     */
+    stateVersion?: number | null;
+    /**
+     * The status property
+     */
+    status?: ActorInvocationResult_status | null;
+}
+export type ActorInvocationResult_status = (typeof ActorInvocationResult_statusObject)[keyof typeof ActorInvocationResult_statusObject];
 export interface Capability extends Parsable {
     /**
      * The available property
@@ -49,7 +98,7 @@ export interface ClientConfiguration extends Parsable {
      */
     oidcPublicClientId?: string | null;
     /**
-     * The oidcRedirectUris property
+     * Exact OAuth redirect allowlist. Entries are public HTTPS URLs, loopback HTTP URLs, or lowercase reverse-domain private-use native schemes such as com.example.app:/oauth/callback. Userinfo, query strings, and fragments are forbidden.
      */
     oidcRedirectUris?: string[] | null;
     /**
@@ -61,6 +110,10 @@ export interface ClientConfiguration extends Parsable {
      */
     projectId?: Guid | null;
     /**
+     * Exact HTTPS origin of the separately deployed SignalR realtime gateway.
+     */
+    realtimeEndpoint?: string | null;
+    /**
      * The realtimePath property
      */
     realtimePath?: string | null;
@@ -68,6 +121,24 @@ export interface ClientConfiguration extends Parsable {
      * The schema property
      */
     schema?: string | null;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {ActorInvocationRequest}
+ */
+// @ts-ignore
+export function createActorInvocationRequestFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoActorInvocationRequest;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {ActorInvocationResult}
+ */
+// @ts-ignore
+export function createActorInvocationResultFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoActorInvocationResult;
 }
 /**
  * Creates a new instance of the appropriate class based on discriminator value
@@ -189,6 +260,24 @@ export function createDataValueFromDiscriminatorValue(parseNode: ParseNode | und
 /**
  * Creates a new instance of the appropriate class based on discriminator value
  * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {EmailConfirmationRequest}
+ */
+// @ts-ignore
+export function createEmailConfirmationRequestFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoEmailConfirmationRequest;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {ExternalIdentityCallbackRequest}
+ */
+// @ts-ignore
+export function createExternalIdentityCallbackRequestFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoExternalIdentityCallbackRequest;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
  * @returns {InvocationRequest_objectReferenceMember1 | ObjectReference}
  */
 // @ts-ignore
@@ -225,6 +314,33 @@ export function createInvocationResultFromDiscriminatorValue(parseNode: ParseNod
 /**
  * Creates a new instance of the appropriate class based on discriminator value
  * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {LoginRequest}
+ */
+// @ts-ignore
+export function createLoginRequestFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoLoginRequest;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {MfaCodeRequest}
+ */
+// @ts-ignore
+export function createMfaCodeRequestFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoMfaCodeRequest;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {MfaSetupResponse}
+ */
+// @ts-ignore
+export function createMfaSetupResponseFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoMfaSetupResponse;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
  * @returns {ObjectReference}
  */
 // @ts-ignore
@@ -239,6 +355,24 @@ export function createObjectReferenceFromDiscriminatorValue(parseNode: ParseNode
 // @ts-ignore
 export function createObjectWriteResultFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
     return deserializeIntoObjectWriteResult;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {PasswordResetCompletionRequest}
+ */
+// @ts-ignore
+export function createPasswordResetCompletionRequestFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoPasswordResetCompletionRequest;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {PasswordResetRequest}
+ */
+// @ts-ignore
+export function createPasswordResetRequestFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoPasswordResetRequest;
 }
 /**
  * Creates a new instance of the appropriate class based on discriminator value
@@ -261,11 +395,56 @@ export function createProblemFromDiscriminatorValue(parseNode: ParseNode | undef
 /**
  * Creates a new instance of the appropriate class based on discriminator value
  * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {RecoveryCodeRequest}
+ */
+// @ts-ignore
+export function createRecoveryCodeRequestFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoRecoveryCodeRequest;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {RecoveryCodesResponse}
+ */
+// @ts-ignore
+export function createRecoveryCodesResponseFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoRecoveryCodesResponse;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
  * @returns {SignUpRequest}
  */
 // @ts-ignore
 export function createSignUpRequestFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
     return deserializeIntoSignUpRequest;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {WorkflowCancelRequest}
+ */
+// @ts-ignore
+export function createWorkflowCancelRequestFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoWorkflowCancelRequest;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {WorkflowStartRequest}
+ */
+// @ts-ignore
+export function createWorkflowStartRequestFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoWorkflowStartRequest;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {WorkflowStartResult}
+ */
+// @ts-ignore
+export function createWorkflowStartResultFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoWorkflowStartResult;
 }
 export interface DataCursor extends Parsable {
     /**
@@ -375,6 +554,37 @@ export interface DataValue extends Parsable {
 export type DataValue_type = (typeof DataValue_typeObject)[keyof typeof DataValue_typeObject];
 /**
  * The deserialization information for the current model
+ * @param ActorInvocationRequest The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoActorInvocationRequest(actorInvocationRequest: Partial<ActorInvocationRequest> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "correlationId": n => { actorInvocationRequest.correlationId = n.getStringValue(); },
+        "deadline": n => { actorInvocationRequest.deadline = n.getDateValue(); },
+        "idempotencyKey": n => { actorInvocationRequest.idempotencyKey = n.getStringValue(); },
+        "inlinePayloadBase64": n => { actorInvocationRequest.inlinePayloadBase64 = n.getStringValue(); },
+        "payloadDigest": n => { actorInvocationRequest.payloadDigest = n.getStringValue(); },
+    }
+}
+/**
+ * The deserialization information for the current model
+ * @param ActorInvocationResult The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoActorInvocationResult(actorInvocationResult: Partial<ActorInvocationResult> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "correlationId": n => { actorInvocationResult.correlationId = n.getStringValue(); },
+        "failureCode": n => { actorInvocationResult.failureCode = n.getStringValue(); },
+        "invocationId": n => { actorInvocationResult.invocationId = n.getGuidValue(); },
+        "resultReference": n => { actorInvocationResult.resultReference = n.getStringValue(); },
+        "stateVersion": n => { actorInvocationResult.stateVersion = n.getNumberValue(); },
+        "status": n => { actorInvocationResult.status = n.getEnumValue<ActorInvocationResult_status>(ActorInvocationResult_statusObject); },
+    }
+}
+/**
+ * The deserialization information for the current model
  * @param Capability The instance to deserialize into.
  * @returns {Record<string, (node: ParseNode) => void>}
  */
@@ -404,6 +614,7 @@ export function deserializeIntoClientConfiguration(clientConfiguration: Partial<
         "oidcRedirectUris": n => { clientConfiguration.oidcRedirectUris = n.getCollectionOfPrimitiveValues<string>("string"); },
         "oidcScopes": n => { clientConfiguration.oidcScopes = n.getCollectionOfPrimitiveValues<string>("string"); },
         "projectId": n => { clientConfiguration.projectId = n.getGuidValue(); },
+        "realtimeEndpoint": n => { clientConfiguration.realtimeEndpoint = n.getStringValue(); },
         "realtimePath": n => { clientConfiguration.realtimePath = n.getStringValue(); },
         "schema": n => { clientConfiguration.schema = n.getStringValue(); },
     }
@@ -543,6 +754,30 @@ export function deserializeIntoDataValue(dataValue: Partial<DataValue> | undefin
 }
 /**
  * The deserialization information for the current model
+ * @param EmailConfirmationRequest The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoEmailConfirmationRequest(emailConfirmationRequest: Partial<EmailConfirmationRequest> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "token": n => { emailConfirmationRequest.token = n.getStringValue(); },
+        "userId": n => { emailConfirmationRequest.userId = n.getGuidValue(); },
+    }
+}
+/**
+ * The deserialization information for the current model
+ * @param ExternalIdentityCallbackRequest The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoExternalIdentityCallbackRequest(externalIdentityCallbackRequest: Partial<ExternalIdentityCallbackRequest> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "code": n => { externalIdentityCallbackRequest.code = n.getStringValue(); },
+        "state": n => { externalIdentityCallbackRequest.state = n.getStringValue(); },
+    }
+}
+/**
+ * The deserialization information for the current model
  * @param InvocationRequest The instance to deserialize into.
  * @returns {Record<string, (node: ParseNode) => void>}
  */
@@ -598,6 +833,40 @@ export function deserializeIntoInvocationResult(invocationResult: Partial<Invoca
 }
 /**
  * The deserialization information for the current model
+ * @param LoginRequest The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoLoginRequest(loginRequest: Partial<LoginRequest> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "email": n => { loginRequest.email = n.getStringValue(); },
+        "password": n => { loginRequest.password = n.getStringValue(); },
+    }
+}
+/**
+ * The deserialization information for the current model
+ * @param MfaCodeRequest The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoMfaCodeRequest(mfaCodeRequest: Partial<MfaCodeRequest> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "code": n => { mfaCodeRequest.code = n.getStringValue(); },
+    }
+}
+/**
+ * The deserialization information for the current model
+ * @param MfaSetupResponse The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoMfaSetupResponse(mfaSetupResponse: Partial<MfaSetupResponse> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "sharedKey": n => { mfaSetupResponse.sharedKey = n.getStringValue(); },
+    }
+}
+/**
+ * The deserialization information for the current model
  * @param ObjectReference The instance to deserialize into.
  * @returns {Record<string, (node: ParseNode) => void>}
  */
@@ -621,6 +890,30 @@ export function deserializeIntoObjectWriteResult(objectWriteResult: Partial<Obje
         "encryption": n => { objectWriteResult.encryption = n.getStringValue(); },
         "key": n => { objectWriteResult.key = n.getStringValue(); },
         "sizeBytes": n => { objectWriteResult.sizeBytes = n.getNumberValue(); },
+    }
+}
+/**
+ * The deserialization information for the current model
+ * @param PasswordResetCompletionRequest The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoPasswordResetCompletionRequest(passwordResetCompletionRequest: Partial<PasswordResetCompletionRequest> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "password": n => { passwordResetCompletionRequest.password = n.getStringValue(); },
+        "token": n => { passwordResetCompletionRequest.token = n.getStringValue(); },
+        "userId": n => { passwordResetCompletionRequest.userId = n.getGuidValue(); },
+    }
+}
+/**
+ * The deserialization information for the current model
+ * @param PasswordResetRequest The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoPasswordResetRequest(passwordResetRequest: Partial<PasswordResetRequest> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "email": n => { passwordResetRequest.email = n.getStringValue(); },
     }
 }
 /**
@@ -652,6 +945,28 @@ export function deserializeIntoProblem_extensions(problem_extensions: Partial<Pr
 }
 /**
  * The deserialization information for the current model
+ * @param RecoveryCodeRequest The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoRecoveryCodeRequest(recoveryCodeRequest: Partial<RecoveryCodeRequest> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "code": n => { recoveryCodeRequest.code = n.getStringValue(); },
+    }
+}
+/**
+ * The deserialization information for the current model
+ * @param RecoveryCodesResponse The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoRecoveryCodesResponse(recoveryCodesResponse: Partial<RecoveryCodesResponse> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "recoveryCodes": n => { recoveryCodesResponse.recoveryCodes = n.getCollectionOfPrimitiveValues<string>("string"); },
+    }
+}
+/**
+ * The deserialization information for the current model
  * @param SignUpRequest The instance to deserialize into.
  * @returns {Record<string, (node: ParseNode) => void>}
  */
@@ -662,6 +977,63 @@ export function deserializeIntoSignUpRequest(signUpRequest: Partial<SignUpReques
         "invitationToken": n => { signUpRequest.invitationToken = n.getStringValue(); },
         "password": n => { signUpRequest.password = n.getStringValue(); },
     }
+}
+/**
+ * The deserialization information for the current model
+ * @param WorkflowCancelRequest The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoWorkflowCancelRequest(workflowCancelRequest: Partial<WorkflowCancelRequest> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "idempotencyKey": n => { workflowCancelRequest.idempotencyKey = n.getStringValue(); },
+        "inlinePayloadBase64": n => { workflowCancelRequest.inlinePayloadBase64 = n.getStringValue(); },
+        "payloadDigest": n => { workflowCancelRequest.payloadDigest = n.getStringValue(); },
+    }
+}
+/**
+ * The deserialization information for the current model
+ * @param WorkflowStartRequest The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoWorkflowStartRequest(workflowStartRequest: Partial<WorkflowStartRequest> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "idempotencyKey": n => { workflowStartRequest.idempotencyKey = n.getStringValue(); },
+        "inlineInputBase64": n => { workflowStartRequest.inlineInputBase64 = n.getStringValue(); },
+        "payloadDigest": n => { workflowStartRequest.payloadDigest = n.getStringValue(); },
+    }
+}
+/**
+ * The deserialization information for the current model
+ * @param WorkflowStartResult The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoWorkflowStartResult(workflowStartResult: Partial<WorkflowStartResult> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "workflowInstanceId": n => { workflowStartResult.workflowInstanceId = n.getGuidValue(); },
+    }
+}
+export interface EmailConfirmationRequest extends Parsable {
+    /**
+     * The token property
+     */
+    token?: string | null;
+    /**
+     * The userId property
+     */
+    userId?: Guid | null;
+}
+export interface ExternalIdentityCallbackRequest extends Parsable {
+    /**
+     * The code property
+     */
+    code?: string | null;
+    /**
+     * The state property
+     */
+    state?: string | null;
 }
 export interface InvocationRequest extends Parsable {
     /**
@@ -722,6 +1094,28 @@ export interface InvocationResult extends ApiError, Parsable {
      */
     resultReference?: string | null;
 }
+export interface LoginRequest extends Parsable {
+    /**
+     * The email property
+     */
+    email?: string | null;
+    /**
+     * The password property
+     */
+    password?: string | null;
+}
+export interface MfaCodeRequest extends Parsable {
+    /**
+     * The code property
+     */
+    code?: string | null;
+}
+export interface MfaSetupResponse extends Parsable {
+    /**
+     * The sharedKey property
+     */
+    sharedKey?: string | null;
+}
 export interface ObjectReference extends Parsable {
     /**
      * The uri property
@@ -753,6 +1147,26 @@ export interface ObjectWriteResult extends Parsable {
      * The sizeBytes property
      */
     sizeBytes?: number | null;
+}
+export interface PasswordResetCompletionRequest extends Parsable {
+    /**
+     * The password property
+     */
+    password?: string | null;
+    /**
+     * The token property
+     */
+    token?: string | null;
+    /**
+     * The userId property
+     */
+    userId?: Guid | null;
+}
+export interface PasswordResetRequest extends Parsable {
+    /**
+     * The email property
+     */
+    email?: string | null;
 }
 export interface Problem extends AdditionalDataHolder, ApiError, Parsable {
     /**
@@ -786,6 +1200,49 @@ export interface Problem extends AdditionalDataHolder, ApiError, Parsable {
 }
 export interface Problem_extensions extends AdditionalDataHolder, Parsable {
 }
+export interface RecoveryCodeRequest extends Parsable {
+    /**
+     * The code property
+     */
+    code?: string | null;
+}
+export interface RecoveryCodesResponse extends Parsable {
+    /**
+     * The recoveryCodes property
+     */
+    recoveryCodes?: string[] | null;
+}
+/**
+ * Serializes information the current object
+ * @param ActorInvocationRequest The instance to serialize from.
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeActorInvocationRequest(writer: SerializationWriter, actorInvocationRequest: Partial<ActorInvocationRequest> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!actorInvocationRequest || isSerializingDerivedType) { return; }
+    writer.writeStringValue("correlationId", actorInvocationRequest.correlationId);
+    writer.writeDateValue("deadline", actorInvocationRequest.deadline);
+    writer.writeStringValue("idempotencyKey", actorInvocationRequest.idempotencyKey);
+    writer.writeStringValue("inlinePayloadBase64", actorInvocationRequest.inlinePayloadBase64);
+    writer.writeStringValue("payloadDigest", actorInvocationRequest.payloadDigest);
+}
+/**
+ * Serializes information the current object
+ * @param ActorInvocationResult The instance to serialize from.
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeActorInvocationResult(writer: SerializationWriter, actorInvocationResult: Partial<ActorInvocationResult> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!actorInvocationResult || isSerializingDerivedType) { return; }
+    writer.writeStringValue("correlationId", actorInvocationResult.correlationId);
+    writer.writeStringValue("failureCode", actorInvocationResult.failureCode);
+    writer.writeGuidValue("invocationId", actorInvocationResult.invocationId);
+    writer.writeStringValue("resultReference", actorInvocationResult.resultReference);
+    writer.writeNumberValue("stateVersion", actorInvocationResult.stateVersion);
+    writer.writeEnumValue<ActorInvocationResult_status>("status", actorInvocationResult.status);
+}
 /**
  * Serializes information the current object
  * @param Capability The instance to serialize from.
@@ -818,6 +1275,7 @@ export function serializeClientConfiguration(writer: SerializationWriter, client
     writer.writeCollectionOfPrimitiveValues<string>("oidcRedirectUris", clientConfiguration.oidcRedirectUris);
     writer.writeCollectionOfPrimitiveValues<string>("oidcScopes", clientConfiguration.oidcScopes);
     writer.writeGuidValue("projectId", clientConfiguration.projectId);
+    writer.writeStringValue("realtimeEndpoint", clientConfiguration.realtimeEndpoint);
     writer.writeStringValue("realtimePath", clientConfiguration.realtimePath);
     writer.writeStringValue("schema", clientConfiguration.schema);
 }
@@ -958,6 +1416,30 @@ export function serializeDataValue(writer: SerializationWriter, dataValue: Parti
 }
 /**
  * Serializes information the current object
+ * @param EmailConfirmationRequest The instance to serialize from.
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeEmailConfirmationRequest(writer: SerializationWriter, emailConfirmationRequest: Partial<EmailConfirmationRequest> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!emailConfirmationRequest || isSerializingDerivedType) { return; }
+    writer.writeStringValue("token", emailConfirmationRequest.token);
+    writer.writeGuidValue("userId", emailConfirmationRequest.userId);
+}
+/**
+ * Serializes information the current object
+ * @param ExternalIdentityCallbackRequest The instance to serialize from.
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeExternalIdentityCallbackRequest(writer: SerializationWriter, externalIdentityCallbackRequest: Partial<ExternalIdentityCallbackRequest> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!externalIdentityCallbackRequest || isSerializingDerivedType) { return; }
+    writer.writeStringValue("code", externalIdentityCallbackRequest.code);
+    writer.writeStringValue("state", externalIdentityCallbackRequest.state);
+}
+/**
+ * Serializes information the current object
  * @param InvocationRequest The instance to serialize from.
  * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
  * @param writer Serialization writer to use to serialize this model
@@ -1014,6 +1496,40 @@ export function serializeInvocationResult(writer: SerializationWriter, invocatio
 /**
  * Serializes information the current object
  * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param LoginRequest The instance to serialize from.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeLoginRequest(writer: SerializationWriter, loginRequest: Partial<LoginRequest> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!loginRequest || isSerializingDerivedType) { return; }
+    writer.writeStringValue("email", loginRequest.email);
+    writer.writeStringValue("password", loginRequest.password);
+}
+/**
+ * Serializes information the current object
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param MfaCodeRequest The instance to serialize from.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeMfaCodeRequest(writer: SerializationWriter, mfaCodeRequest: Partial<MfaCodeRequest> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!mfaCodeRequest || isSerializingDerivedType) { return; }
+    writer.writeStringValue("code", mfaCodeRequest.code);
+}
+/**
+ * Serializes information the current object
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param MfaSetupResponse The instance to serialize from.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeMfaSetupResponse(writer: SerializationWriter, mfaSetupResponse: Partial<MfaSetupResponse> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!mfaSetupResponse || isSerializingDerivedType) { return; }
+    writer.writeStringValue("sharedKey", mfaSetupResponse.sharedKey);
+}
+/**
+ * Serializes information the current object
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
  * @param ObjectReference The instance to serialize from.
  * @param writer Serialization writer to use to serialize this model
  */
@@ -1037,6 +1553,30 @@ export function serializeObjectWriteResult(writer: SerializationWriter, objectWr
     writer.writeStringValue("encryption", objectWriteResult.encryption);
     writer.writeStringValue("key", objectWriteResult.key);
     writer.writeNumberValue("sizeBytes", objectWriteResult.sizeBytes);
+}
+/**
+ * Serializes information the current object
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param PasswordResetCompletionRequest The instance to serialize from.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializePasswordResetCompletionRequest(writer: SerializationWriter, passwordResetCompletionRequest: Partial<PasswordResetCompletionRequest> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!passwordResetCompletionRequest || isSerializingDerivedType) { return; }
+    writer.writeStringValue("password", passwordResetCompletionRequest.password);
+    writer.writeStringValue("token", passwordResetCompletionRequest.token);
+    writer.writeGuidValue("userId", passwordResetCompletionRequest.userId);
+}
+/**
+ * Serializes information the current object
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param PasswordResetRequest The instance to serialize from.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializePasswordResetRequest(writer: SerializationWriter, passwordResetRequest: Partial<PasswordResetRequest> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!passwordResetRequest || isSerializingDerivedType) { return; }
+    writer.writeStringValue("email", passwordResetRequest.email);
 }
 /**
  * Serializes information the current object
@@ -1070,6 +1610,28 @@ export function serializeProblem_extensions(writer: SerializationWriter, problem
 /**
  * Serializes information the current object
  * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param RecoveryCodeRequest The instance to serialize from.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeRecoveryCodeRequest(writer: SerializationWriter, recoveryCodeRequest: Partial<RecoveryCodeRequest> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!recoveryCodeRequest || isSerializingDerivedType) { return; }
+    writer.writeStringValue("code", recoveryCodeRequest.code);
+}
+/**
+ * Serializes information the current object
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param RecoveryCodesResponse The instance to serialize from.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeRecoveryCodesResponse(writer: SerializationWriter, recoveryCodesResponse: Partial<RecoveryCodesResponse> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!recoveryCodesResponse || isSerializingDerivedType) { return; }
+    writer.writeCollectionOfPrimitiveValues<string>("recoveryCodes", recoveryCodesResponse.recoveryCodes);
+}
+/**
+ * Serializes information the current object
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
  * @param SignUpRequest The instance to serialize from.
  * @param writer Serialization writer to use to serialize this model
  */
@@ -1079,6 +1641,43 @@ export function serializeSignUpRequest(writer: SerializationWriter, signUpReques
     writer.writeStringValue("email", signUpRequest.email);
     writer.writeStringValue("invitationToken", signUpRequest.invitationToken);
     writer.writeStringValue("password", signUpRequest.password);
+}
+/**
+ * Serializes information the current object
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param WorkflowCancelRequest The instance to serialize from.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeWorkflowCancelRequest(writer: SerializationWriter, workflowCancelRequest: Partial<WorkflowCancelRequest> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!workflowCancelRequest || isSerializingDerivedType) { return; }
+    writer.writeStringValue("idempotencyKey", workflowCancelRequest.idempotencyKey);
+    writer.writeStringValue("inlinePayloadBase64", workflowCancelRequest.inlinePayloadBase64);
+    writer.writeStringValue("payloadDigest", workflowCancelRequest.payloadDigest);
+}
+/**
+ * Serializes information the current object
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param WorkflowStartRequest The instance to serialize from.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeWorkflowStartRequest(writer: SerializationWriter, workflowStartRequest: Partial<WorkflowStartRequest> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!workflowStartRequest || isSerializingDerivedType) { return; }
+    writer.writeStringValue("idempotencyKey", workflowStartRequest.idempotencyKey);
+    writer.writeStringValue("inlineInputBase64", workflowStartRequest.inlineInputBase64);
+    writer.writeStringValue("payloadDigest", workflowStartRequest.payloadDigest);
+}
+/**
+ * Serializes information the current object
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param WorkflowStartResult The instance to serialize from.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeWorkflowStartResult(writer: SerializationWriter, workflowStartResult: Partial<WorkflowStartResult> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!workflowStartResult || isSerializingDerivedType) { return; }
+    writer.writeGuidValue("workflowInstanceId", workflowStartResult.workflowInstanceId);
 }
 export interface SignUpRequest extends Parsable {
     /**
@@ -1094,6 +1693,45 @@ export interface SignUpRequest extends Parsable {
      */
     password?: string | null;
 }
+export interface WorkflowCancelRequest extends Parsable {
+    /**
+     * The idempotencyKey property
+     */
+    idempotencyKey?: string | null;
+    /**
+     * The inlinePayloadBase64 property
+     */
+    inlinePayloadBase64?: string | null;
+    /**
+     * The payloadDigest property
+     */
+    payloadDigest?: string | null;
+}
+export interface WorkflowStartRequest extends Parsable {
+    /**
+     * The idempotencyKey property
+     */
+    idempotencyKey?: string | null;
+    /**
+     * The inlineInputBase64 property
+     */
+    inlineInputBase64?: string | null;
+    /**
+     * The payloadDigest property
+     */
+    payloadDigest?: string | null;
+}
+export interface WorkflowStartResult extends Parsable {
+    /**
+     * The workflowInstanceId property
+     */
+    workflowInstanceId?: Guid | null;
+}
+export const ActorInvocationResult_statusObject = {
+    InProgress: "InProgress",
+    Completed: "Completed",
+    Failed: "Failed",
+} as const;
 export const Capability_idObject = {
     Auth: "auth",
     DataRest: "data-rest",

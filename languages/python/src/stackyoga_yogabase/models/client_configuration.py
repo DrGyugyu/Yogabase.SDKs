@@ -25,12 +25,14 @@ class ClientConfiguration(Parsable):
     oidc_discovery_endpoint: Optional[str] = None
     # The oidcPublicClientId property
     oidc_public_client_id: Optional[str] = None
-    # The oidcRedirectUris property
+    # Exact OAuth redirect allowlist. Entries are public HTTPS URLs, loopback HTTP URLs, or lowercase reverse-domain private-use native schemes such as com.example.app:/oauth/callback. Userinfo, query strings, and fragments are forbidden.
     oidc_redirect_uris: Optional[list[str]] = None
     # The oidcScopes property
     oidc_scopes: Optional[list[str]] = None
     # The projectId property
     project_id: Optional[UUID] = None
+    # Exact HTTPS origin of the separately deployed SignalR realtime gateway.
+    realtime_endpoint: Optional[str] = None
     # The realtimePath property
     realtime_path: Optional[str] = None
     # The schema property
@@ -67,6 +69,7 @@ class ClientConfiguration(Parsable):
             "oidcRedirectUris": lambda n : setattr(self, 'oidc_redirect_uris', n.get_collection_of_primitive_values(str)),
             "oidcScopes": lambda n : setattr(self, 'oidc_scopes', n.get_collection_of_primitive_values(str)),
             "projectId": lambda n : setattr(self, 'project_id', n.get_uuid_value()),
+            "realtimeEndpoint": lambda n : setattr(self, 'realtime_endpoint', n.get_str_value()),
             "realtimePath": lambda n : setattr(self, 'realtime_path', n.get_str_value()),
             "schema": lambda n : setattr(self, 'schema', n.get_str_value()),
         }
@@ -90,6 +93,7 @@ class ClientConfiguration(Parsable):
         writer.write_collection_of_primitive_values("oidcRedirectUris", self.oidc_redirect_uris)
         writer.write_collection_of_primitive_values("oidcScopes", self.oidc_scopes)
         writer.write_uuid_value("projectId", self.project_id)
+        writer.write_str_value("realtimeEndpoint", self.realtime_endpoint)
         writer.write_str_value("realtimePath", self.realtime_path)
         writer.write_str_value("schema", self.schema)
     

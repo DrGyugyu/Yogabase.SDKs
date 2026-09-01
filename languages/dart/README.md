@@ -1,10 +1,14 @@
-# YogaBase Dart client preview
+# Yogabase Dart client preview
 
-Generated with Microsoft Kiota 1.34.1 from the StackYoga YogaBase v1-preview contract. Dart output
+Generated with Microsoft Kiota 1.34.1 from the current Yogabase v1-preview contract. Dart output
 is experimental in this generator version. Callers must provide a request adapter with the exact
-YogaBase gateway and a project bearer-token authentication provider.
+Yogabase REST gateway and a project bearer-token authentication provider.
 
-This source preview is local, unpublished, and not production-qualified.
+The generated REST surface includes bootstrap, signup and interactive auth endpoints, Data,
+Storage, stateless Function invocation, Actor Lambda invocation, and Workflow start/cancel. The
+contract returns a separate realtime origin, but this package does not yet include or qualify a
+Dart/Flutter SignalR wrapper. This source preview is local, unpublished, and not
+production-qualified.
 
 ## Hierarchical storage keys
 
@@ -21,5 +25,9 @@ final item = storageObjectForLogicalKey(
 );
 ```
 
-The adapter is authored StackYoga code, not Kiota output. Dart remains source-inspected only until
+The adapter is authored Yogabase code, not Kiota output. Dart remains source-inspected only until
 the Dart SDK is available for compilation and tests.
+
+For `PUT`, add both required contract headers through the Kiota request configuration:
+`X-Yogabase-Content-Sha256: sha256:<64 lowercase hex>` and a bounded `Idempotency-Key`. Kiota does
+not emit dedicated Dart method arguments for these headers.

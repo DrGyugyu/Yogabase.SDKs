@@ -1,11 +1,14 @@
-# YogaBase Python client preview
+# Yogabase Python client preview
 
-Generated with Microsoft Kiota 1.34.1 from the StackYoga YogaBase v1-preview contract. Python 3.10
-or newer is required by the pinned Kiota runtime. Callers must provide a Kiota request adapter whose
-base URL is the validated YogaBase gateway and whose authentication provider supplies a project
-bearer token. Current runtime bootstrap documents report authentication unavailable.
+Generated with Microsoft Kiota 1.34.1 from the current Yogabase v1-preview contract. Python 3.10
+or newer is required by the pinned Kiota runtime. Callers provide a Kiota request adapter whose
+base URL is the validated Yogabase REST gateway and whose authentication provider supplies a
+project bearer token for protected operations.
 
-This source preview is local, unpublished, and not production-qualified.
+The generated REST surface includes bootstrap, signup and interactive auth endpoints, Data,
+Storage, stateless Function invocation, Actor Lambda invocation, and Workflow start/cancel. The
+contract returns a separate realtime origin, but this package does not yet include or qualify a
+Python SignalR wrapper. This source preview is local, unpublished, and not production-qualified.
 
 ## Hierarchical storage keys
 
@@ -22,4 +25,8 @@ item = storage_object_for_logical_key(
 )
 ```
 
-The adapter module is authored StackYoga code, not Kiota output.
+The adapter module is authored Yogabase code, not Kiota output.
+
+For `PUT`, add both required contract headers to the Kiota request configuration's
+`HeadersCollection`: `X-Yogabase-Content-Sha256: sha256:<64 lowercase hex>` and a bounded
+`Idempotency-Key`. Kiota does not emit dedicated Python method arguments for these headers.

@@ -68,12 +68,13 @@ Yogabase를 통한 Direct 운영이 권위 있습니다. GitOps 지원은 고객
 
 Yogabase는 승인된 애플리케이션 작업을 위한 대상 로컬 애플리케이션 게이트웨이를 노출할 수 있습니다. 이 SDK가 구현하는 경계는 다음과 같습니다.
 
-- Bootstrap은 Secret이 아닌 프로젝트 바인딩 논리 엔드포인트 구성을 반환합니다.
-- 인증은 PKCE를 포함한 authorization code와 순환 refresh token을 사용합니다. SDK에는 기밀 클라이언트 자격 증명이 포함되지 않습니다.
+- Bootstrap은 Secret이 아닌 프로젝트 바인딩 REST, ID 및 별도 배포된 realtime 엔드포인트 구성을 반환합니다.
+- 인증은 회원가입, 로그인/로그아웃, 이메일 확인, 비밀번호 재설정, MFA 및 복구 코드, 외부 ID 콜백과 함께 PKCE authorization code 및 순환 refresh token을 지원합니다. SDK에는 기밀 클라이언트 자격 증명이 포함되지 않습니다.
 - 데이터는 승인된 형식화 작업만 노출합니다. 임의 SQL은 클라이언트 표면의 일부가 아닙니다.
 - 스토리지는 매개되며 digest 및 idempotency에 바인딩되고, 공급자 자격 증명이나 서명된 URL을 반환하지 않습니다.
-- Functions는 제한된 공개 계약으로 정확히 등록된 버전을 호출합니다.
-- Realtime은 적격한 SignalR 구독 수명 주기만 노출합니다.
+- Stateless Functions는 제한된 공개 계약으로 정확히 등록된 버전을 호출합니다.
+- Actor Lambdas는 버전이 지정된 프로젝트 로컬 인스턴스 하나를 대상으로 하며, Workflow Lambdas는 변경 불가능한 정의 버전 하나를 시작하고 v1 cancel 작업만 노출합니다.
+- Realtime은 별도로 반환된 SignalR origin을 사용하여 topic subscribe/unsubscribe, 서명된 Lambda binding 호출, `eventId`로 중복 제거되는 at-least-once 완료 이벤트를 제공합니다. 작성된 .NET 클라이언트는 이 흐름을 직접 구현하며 JSON이 기본 Hub 프로토콜입니다.
 
 클라이언트는 공급자 중립적이고 shard를 인식하지 않습니다. 클라우드 선택기, 클라우드 자격 증명, Kubernetes ID, TServer 주소, tablet/shard 식별자, shard key, 물리적 배치 맵 또는 토폴로지 생성을 받지 않습니다. YugabyteDB가 내부 라우팅과 배치를 소유합니다. Yogabase는 또 다른 데이터 경로 라우터를 도입하지 않고 제한된 상태 및 용량 사실을 관찰합니다.
 
@@ -94,29 +95,34 @@ Yogabase는 서명된 관찰과 릴리스에 고정된 증거를 통해 모듈 �
 
 ## 패키지
 
-아래 패키지 식별자는 현재의 프리뷰 이름을 유지합니다. 제품 이름 변경, 레지스트리 게시 또는 지원 약속을 의미하지 않습니다.
+.NET 이외의 패키지 식별자는 연속성을 위해 기존 프리뷰 이름을 유지합니다. 이는 레지스트리 게시나 지원 약속을 의미하지 않습니다. 버전 `0.2`는 확장된 인증, Actor Lambda, Workflow Lambda 및 bootstrap 계약과 소스 표기 `Yogabase` 수정 사항을 반영합니다.
 
 | 플랫폼 | 위치 | 현재 패키지 ID | 적격성 |
 |---|---|---|---|
-| .NET | `src/dotnet/StackYoga.YogaBase.Client` | `StackYoga.YogaBase.Client` `0.1.0-preview.1` | 작성됨; `netstandard2.1` 및 `net10.0`; 로컬 테스트 및 패키지 빌드 |
-| TypeScript | `languages/typescript` | `@stackyoga/yogabase-client-preview` `0.1.0-preview.1` | Kiota 생성 프리뷰와 storage-key adapter |
-| Python | `languages/python` | `stackyoga-yogabase-client-preview` `0.1.0.dev1` | Kiota 생성 프리뷰와 storage-key adapter |
-| Java/JVM | `languages/java` | `io.stackyoga:yogabase-client-preview` `0.1.0-preview.1` | Kiota 생성 프리뷰 및 현재 Kotlin/JVM 상호 운용 경로 |
-| Dart | `languages/dart` | `stackyoga_yogabase_client_preview` `0.1.0-dev.1` | 실험적 생성 소스; 로컬 Dart 컴파일은 아직 적격성이 확인되지 않음 |
+| .NET | `src/dotnet/Yogabase.Yogabase.Client` | `Yogabase.Yogabase.Client` `0.2.0-preview.1` | 작성된 REST, PKCE 및 SignalR 클라이언트; `netstandard2.1` 및 `net10.0` |
+| TypeScript | `languages/typescript` | `@stackyoga/yogabase-client-preview` `0.2.0-preview.1` | Kiota 생성 REST 프리뷰와 작성된 storage-key adapter |
+| Python | `languages/python` | `stackyoga-yogabase-client-preview` `0.2.0.dev1` | Kiota 생성 REST 프리뷰와 작성된 storage-key adapter |
+| Java/JVM | `languages/java` | `io.stackyoga:yogabase-client-preview` `0.2.0-preview.1` | Kiota 생성 REST 프리뷰 및 현재 Kotlin/JVM 상호 운용 경로 |
+| Dart | `languages/dart` | `stackyoga_yogabase_client_preview` `0.2.0-dev.1` | 실험적 Kiota 생성 REST 소스와 작성된 storage-key adapter |
 
-변경 불가능한 API 스냅샷은 `contracts/yogabase-client-v1.openapi.json`입니다. 인접한 checksum과 `MANIFEST.json`은 이 저장소를 정확한 계약 및 가져온 아티팩트에 바인딩합니다.
+변경 불가능한 API 스냅샷은 `contracts/yogabase-client-v1.openapi.json`이며 SHA-256은 `a5f0e01985dc0e6ef8ecdbb26b9505eff02dd083a529a83e3f97f19826d96497`입니다. 인접한 checksum, Kiota lock 및 `MANIFEST.json`은 이 저장소를 정확한 계약과 generator에 바인딩합니다.
 
 ## 로컬 검증
 
 ```text
-dotnet restore StackYoga.SDKs.slnx --locked-mode
-dotnet build StackYoga.SDKs.slnx -c Release --no-restore
-dotnet test --solution StackYoga.SDKs.slnx -c Release --no-restore --no-build
-dotnet pack src/dotnet/StackYoga.YogaBase.Client/StackYoga.YogaBase.Client.csproj -c Release --no-restore
+dotnet restore Yogabase.SDKs.slnx --locked-mode
+dotnet build Yogabase.SDKs.slnx -c Release --no-restore
+dotnet test Yogabase.SDKs.slnx -c Release --no-restore --no-build
+dotnet pack src/dotnet/Yogabase.Yogabase.Client/Yogabase.Yogabase.Client.csproj -c Release --no-restore
+
+cd languages/typescript && npm ci && npm test
+cd languages/python && python -m unittest discover -s tests
+cd languages/java && mvn test
+cd languages/dart && dart analyze
 ```
 
-각 생성 언어 폴더는 자체 manifest, 사용 가능한 경우 dependency lock, Kiota lock, 소스, 문서 및 conformance helper를 유지합니다. 다운로드한 도구, 캐시, 의존성 트리와 빌드 중간 산출물은 제외됩니다. 가져온 소스 아티팩트는 `artifacts/imported` 아래에, 형제 저장소 빌드는 `artifacts/local` 아래에 남습니다.
+`scripts/regenerate-clients.sh`를 실행하면 고정된 Kiota 1.34.1 도구를 복원하고 체크인된 계약에서 네 개의 생성 클라이언트를 다시 만듭니다. 각 생성 언어 폴더는 자체 package manifest, 사용 가능한 경우 dependency lock, Kiota lock, 소스, 문서 및 conformance helper를 유지합니다. 다운로드한 도구, 캐시, 의존성 트리와 빌드 중간 산출물은 제외됩니다. 과거 가져온 아티팩트는 `artifacts/imported` 아래에서 변경하지 않으며 현재 빌드는 `artifacts/local` 아래에 둡니다.
 
 ## 플랫폼 적격성
 
-`netstandard2.1` 호환성만으로 Unity 또는 AOT가 적격하다는 뜻은 아닙니다. Android, Flutter, Dart, Kotlin/JVM, Unity IL2CPP, 네이티브 보안 저장소, redirect 처리 및 live-gateway conformance는 지원된다고 주장하기 전에 각각 명시적인 플랫폼 증거가 필요합니다.
+생성된 REST 소스만으로 production 플랫폼 통합이 적격해지는 것은 아닙니다. `netstandard2.1` 호환성만으로 Unity 또는 AOT가 적격하다는 뜻도 아닙니다. Android, Flutter, Dart, Kotlin/JVM, Unity IL2CPP, 네이티브 보안 저장소, interactive cookie 처리, redirect 처리, .NET 이외의 SignalR 통합 및 live-gateway conformance는 지원을 주장하기 전에 각각 명시적인 플랫폼 증거가 필요합니다.

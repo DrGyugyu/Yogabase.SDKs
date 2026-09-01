@@ -2,6 +2,12 @@ package io.stackyoga.yogabase.auth;
 
 import com.microsoft.kiota.BaseRequestBuilder;
 import com.microsoft.kiota.RequestAdapter;
+import io.stackyoga.yogabase.auth.email.EmailRequestBuilder;
+import io.stackyoga.yogabase.auth.external.ExternalRequestBuilder;
+import io.stackyoga.yogabase.auth.login.LoginRequestBuilder;
+import io.stackyoga.yogabase.auth.logout.LogoutRequestBuilder;
+import io.stackyoga.yogabase.auth.mfa.MfaRequestBuilder;
+import io.stackyoga.yogabase.auth.password.PasswordRequestBuilder;
 import io.stackyoga.yogabase.auth.signup.SignupRequestBuilder;
 import java.util.HashMap;
 import java.util.Objects;
@@ -10,6 +16,54 @@ import java.util.Objects;
  */
 @jakarta.annotation.Generated("com.microsoft.kiota")
 public class AuthRequestBuilder extends BaseRequestBuilder {
+    /**
+     * The email property
+     * @return a {@link EmailRequestBuilder}
+     */
+    @jakarta.annotation.Nonnull
+    public EmailRequestBuilder email() {
+        return new EmailRequestBuilder(pathParameters, requestAdapter);
+    }
+    /**
+     * The external property
+     * @return a {@link ExternalRequestBuilder}
+     */
+    @jakarta.annotation.Nonnull
+    public ExternalRequestBuilder external() {
+        return new ExternalRequestBuilder(pathParameters, requestAdapter);
+    }
+    /**
+     * The login property
+     * @return a {@link LoginRequestBuilder}
+     */
+    @jakarta.annotation.Nonnull
+    public LoginRequestBuilder login() {
+        return new LoginRequestBuilder(pathParameters, requestAdapter);
+    }
+    /**
+     * The logout property
+     * @return a {@link LogoutRequestBuilder}
+     */
+    @jakarta.annotation.Nonnull
+    public LogoutRequestBuilder logout() {
+        return new LogoutRequestBuilder(pathParameters, requestAdapter);
+    }
+    /**
+     * The mfa property
+     * @return a {@link MfaRequestBuilder}
+     */
+    @jakarta.annotation.Nonnull
+    public MfaRequestBuilder mfa() {
+        return new MfaRequestBuilder(pathParameters, requestAdapter);
+    }
+    /**
+     * The password property
+     * @return a {@link PasswordRequestBuilder}
+     */
+    @jakarta.annotation.Nonnull
+    public PasswordRequestBuilder password() {
+        return new PasswordRequestBuilder(pathParameters, requestAdapter);
+    }
     /**
      * The signup property
      * @return a {@link SignupRequestBuilder}

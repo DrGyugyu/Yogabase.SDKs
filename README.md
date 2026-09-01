@@ -68,12 +68,13 @@ Direct operation through Yogabase is authoritative. GitOps support exports deter
 
 Yogabase can expose a target-local application gateway for approved application operations. That is the boundary these SDKs implement:
 
-- Bootstrap returns non-secret, project-bound logical endpoint configuration.
-- Authentication uses authorization code with PKCE and rotating refresh tokens. SDKs never contain confidential client credentials.
+- Bootstrap returns non-secret, project-bound REST, identity, and separately deployed realtime endpoint configuration.
+- Authentication covers signup, login/logout, email confirmation, password reset, MFA and recovery codes, external-identity callbacks, plus authorization code with PKCE and rotating refresh tokens. SDKs never contain confidential client credentials.
 - Data exposes only approved typed operations; arbitrary SQL is not part of the client surface.
 - Storage is mediated, digest- and idempotency-bound, and never returns provider credentials or signed URLs.
-- Functions invoke an exact registered version through the bounded public contract.
-- Realtime exposes only the qualified SignalR subscription lifecycle.
+- Stateless Functions invoke an exact registered version through the bounded public contract.
+- Actor Lambdas address one versioned, project-local instance; Workflow Lambdas start one immutable definition version and expose only the v1 cancel operation.
+- Realtime uses the separately returned SignalR origin for topic subscribe/unsubscribe, signed Lambda-binding invocation, and at-least-once completion events deduplicated by `eventId` in the authored .NET client. JSON remains the default Hub protocol.
 
 Clients are provider-neutral and shard-oblivious. They never receive a cloud selector, cloud credential, Kubernetes identity, TServer address, tablet/shard identifier, shard key, physical placement map, or topology generation. YugabyteDB owns its internal routing and placement; Yogabase observes bounded health and capacity facts without introducing another data-path router.
 
@@ -94,29 +95,34 @@ This README describes product architecture and boundaries, not a promise that a 
 
 ## Packages
 
-The package identifiers below retain their current preview names. They do not imply a product rename, registry publication, or support commitment.
+The non-.NET package identifiers retain their existing preview names for continuity. They do not imply registry publication or a support commitment. Version `0.2` reflects the expanded auth, Actor Lambda, Workflow Lambda, and bootstrap contract plus the source-facing `Yogabase` spelling correction.
 
 | Platform | Location | Current package identity | Qualification |
 |---|---|---|---|
-| .NET | `src/dotnet/StackYoga.YogaBase.Client` | `StackYoga.YogaBase.Client` `0.1.0-preview.1` | Authored; `netstandard2.1` and `net10.0`; local tests and package build |
-| TypeScript | `languages/typescript` | `@stackyoga/yogabase-client-preview` `0.1.0-preview.1` | Kiota-generated preview plus storage-key adapter |
-| Python | `languages/python` | `stackyoga-yogabase-client-preview` `0.1.0.dev1` | Kiota-generated preview plus storage-key adapter |
-| Java/JVM | `languages/java` | `io.stackyoga:yogabase-client-preview` `0.1.0-preview.1` | Kiota-generated preview and current Kotlin/JVM interop path |
-| Dart | `languages/dart` | `stackyoga_yogabase_client_preview` `0.1.0-dev.1` | Experimental generated source; local Dart compilation is unqualified |
+| .NET | `src/dotnet/Yogabase.Yogabase.Client` | `Yogabase.Yogabase.Client` `0.2.0-preview.1` | Authored REST, PKCE, and SignalR client; `netstandard2.1` and `net10.0` |
+| TypeScript | `languages/typescript` | `@stackyoga/yogabase-client-preview` `0.2.0-preview.1` | Kiota-generated REST preview plus authored storage-key adapter |
+| Python | `languages/python` | `stackyoga-yogabase-client-preview` `0.2.0.dev1` | Kiota-generated REST preview plus authored storage-key adapter |
+| Java/JVM | `languages/java` | `io.stackyoga:yogabase-client-preview` `0.2.0-preview.1` | Kiota-generated REST preview and current Kotlin/JVM interop path |
+| Dart | `languages/dart` | `stackyoga_yogabase_client_preview` `0.2.0-dev.1` | Experimental Kiota-generated REST source plus authored storage-key adapter |
 
-The immutable API snapshot is `contracts/yogabase-client-v1.openapi.json`. Its adjacent checksum and `MANIFEST.json` bind this repository to the exact contract and imported artifacts.
+The immutable API snapshot is `contracts/yogabase-client-v1.openapi.json` (SHA-256 `a5f0e01985dc0e6ef8ecdbb26b9505eff02dd083a529a83e3f97f19826d96497`). Its adjacent checksum, Kiota locks, and `MANIFEST.json` bind this repository to the exact contract and generator.
 
 ## Local verification
 
 ```text
-dotnet restore StackYoga.SDKs.slnx --locked-mode
-dotnet build StackYoga.SDKs.slnx -c Release --no-restore
-dotnet test --solution StackYoga.SDKs.slnx -c Release --no-restore --no-build
-dotnet pack src/dotnet/StackYoga.YogaBase.Client/StackYoga.YogaBase.Client.csproj -c Release --no-restore
+dotnet restore Yogabase.SDKs.slnx --locked-mode
+dotnet build Yogabase.SDKs.slnx -c Release --no-restore
+dotnet test Yogabase.SDKs.slnx -c Release --no-restore --no-build
+dotnet pack src/dotnet/Yogabase.Yogabase.Client/Yogabase.Yogabase.Client.csproj -c Release --no-restore
+
+cd languages/typescript && npm ci && npm test
+cd languages/python && python -m unittest discover -s tests
+cd languages/java && mvn test
+cd languages/dart && dart analyze
 ```
 
-Each generated-language folder retains its own manifest, dependency lock where available, Kiota lock, source, documentation, and conformance helpers. Downloaded tools, caches, dependency trees, and build intermediates are excluded. Imported source artifacts remain under `artifacts/imported`; sibling-repository builds belong under `artifacts/local`.
+Run `scripts/regenerate-clients.sh` to restore the pinned Kiota 1.34.1 tool and regenerate all four generated clients from the checked-in contract. Each generated-language folder retains its own package manifest, dependency lock where available, Kiota lock, source, documentation, and conformance helper. Downloaded tools, caches, dependency trees, and build intermediates are excluded. Historical imported artifacts remain unchanged under `artifacts/imported`; current sibling-repository builds belong under `artifacts/local`.
 
 ## Platform qualification
 
-`netstandard2.1` compatibility alone does not qualify Unity or AOT. Android, Flutter, Dart, Kotlin/JVM, Unity IL2CPP, native secure storage, redirect handling, and live-gateway conformance each need explicit platform evidence before they can be claimed as supported.
+Generated REST source is not the same as a production-qualified platform integration. `netstandard2.1` compatibility alone does not qualify Unity or AOT. Android, Flutter, Dart, Kotlin/JVM, Unity IL2CPP, native secure storage, interactive-cookie handling, redirect handling, non-.NET SignalR integration, and live-gateway conformance each need explicit platform evidence before they can be claimed as supported.

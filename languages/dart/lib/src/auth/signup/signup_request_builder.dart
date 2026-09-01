@@ -27,7 +27,6 @@ class SignupRequestBuilder extends BaseRequestBuilder<SignupRequestBuilder> {
             '400' :  Problem.createFromDiscriminatorValue,
             '403' :  Problem.createFromDiscriminatorValue,
             '409' :  Problem.createFromDiscriminatorValue,
-            '429' :  Problem.createFromDiscriminatorValue,
             '503' :  Problem.createFromDiscriminatorValue,
         };
         return await requestAdapter.sendNoContent(requestInfo, errorMapping);

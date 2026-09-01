@@ -1,13 +1,23 @@
 // ignore_for_file: type=lint
 import 'package:microsoft_kiota_abstractions/microsoft_kiota_abstractions.dart';
+import './actors/actors_request_builder.dart';
 import './functions/functions_request_builder.dart';
+import './workflows/workflows_request_builder.dart';
 
 /// auto generated
 /// Builds and executes requests for operations under \v1\projects\{projectId}
 class WithProjectItemRequestBuilder extends BaseRequestBuilder<WithProjectItemRequestBuilder> {
+    ///  The actors property
+    ActorsRequestBuilder get actors {
+        return ActorsRequestBuilder(pathParameters, requestAdapter);
+    }
     ///  The functions property
     FunctionsRequestBuilder get functions {
         return FunctionsRequestBuilder(pathParameters, requestAdapter);
+    }
+    ///  The workflows property
+    WorkflowsRequestBuilder get workflows {
+        return WorkflowsRequestBuilder(pathParameters, requestAdapter);
     }
     /// Clones the requestbuilder.
     @override

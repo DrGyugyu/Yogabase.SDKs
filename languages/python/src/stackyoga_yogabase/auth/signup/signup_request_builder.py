@@ -47,7 +47,6 @@ class SignupRequestBuilder(BaseRequestBuilder):
             "400": Problem,
             "403": Problem,
             "409": Problem,
-            "429": Problem,
             "503": Problem,
         }
         if not self.request_adapter:

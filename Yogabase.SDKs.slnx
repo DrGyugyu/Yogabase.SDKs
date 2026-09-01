@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/dotnet/Yogabase.Yogabase.Client/Yogabase.Yogabase.Client.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/dotnet/Yogabase.Yogabase.Client.Tests/Yogabase.Yogabase.Client.Tests.csproj" />
+  </Folder>
+</Solution>

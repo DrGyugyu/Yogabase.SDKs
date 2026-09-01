@@ -39,7 +39,7 @@ public class ClientConfiguration implements Parsable {
      */
     private String oidcPublicClientId;
     /**
-     * The oidcRedirectUris property
+     * Exact OAuth redirect allowlist. Entries are public HTTPS URLs, loopback HTTP URLs, or lowercase reverse-domain private-use native schemes such as com.example.app:/oauth/callback. Userinfo, query strings, and fragments are forbidden.
      */
     private java.util.List<String> oidcRedirectUris;
     /**
@@ -50,6 +50,10 @@ public class ClientConfiguration implements Parsable {
      * The projectId property
      */
     private UUID projectId;
+    /**
+     * Exact HTTPS origin of the separately deployed SignalR realtime gateway.
+     */
+    private String realtimeEndpoint;
     /**
      * The realtimePath property
      */
@@ -90,7 +94,7 @@ public class ClientConfiguration implements Parsable {
      */
     @jakarta.annotation.Nonnull
     public Map<String, java.util.function.Consumer<ParseNode>> getFieldDeserializers() {
-        final HashMap<String, java.util.function.Consumer<ParseNode>> deserializerMap = new HashMap<String, java.util.function.Consumer<ParseNode>>(12);
+        final HashMap<String, java.util.function.Consumer<ParseNode>> deserializerMap = new HashMap<String, java.util.function.Consumer<ParseNode>>(13);
         deserializerMap.put("capabilities", (n) -> { this.setCapabilities(n.getCollectionOfObjectValues(Capability::createFromDiscriminatorValue)); });
         deserializerMap.put("environmentId", (n) -> { this.setEnvironmentId(n.getUUIDValue()); });
         deserializerMap.put("gatewayEndpoint", (n) -> { this.setGatewayEndpoint(n.getStringValue()); });
@@ -101,6 +105,7 @@ public class ClientConfiguration implements Parsable {
         deserializerMap.put("oidcRedirectUris", (n) -> { this.setOidcRedirectUris(n.getCollectionOfPrimitiveValues(String.class)); });
         deserializerMap.put("oidcScopes", (n) -> { this.setOidcScopes(n.getCollectionOfPrimitiveValues(String.class)); });
         deserializerMap.put("projectId", (n) -> { this.setProjectId(n.getUUIDValue()); });
+        deserializerMap.put("realtimeEndpoint", (n) -> { this.setRealtimeEndpoint(n.getStringValue()); });
         deserializerMap.put("realtimePath", (n) -> { this.setRealtimePath(n.getStringValue()); });
         deserializerMap.put("schema", (n) -> { this.setSchema(n.getStringValue()); });
         return deserializerMap;
@@ -146,7 +151,7 @@ public class ClientConfiguration implements Parsable {
         return this.oidcPublicClientId;
     }
     /**
-     * Gets the oidcRedirectUris property value. The oidcRedirectUris property
+     * Gets the oidcRedirectUris property value. Exact OAuth redirect allowlist. Entries are public HTTPS URLs, loopback HTTP URLs, or lowercase reverse-domain private-use native schemes such as com.example.app:/oauth/callback. Userinfo, query strings, and fragments are forbidden.
      * @return a {@link java.util.List<String>}
      */
     @jakarta.annotation.Nullable
@@ -168,6 +173,14 @@ public class ClientConfiguration implements Parsable {
     @jakarta.annotation.Nullable
     public UUID getProjectId() {
         return this.projectId;
+    }
+    /**
+     * Gets the realtimeEndpoint property value. Exact HTTPS origin of the separately deployed SignalR realtime gateway.
+     * @return a {@link String}
+     */
+    @jakarta.annotation.Nullable
+    public String getRealtimeEndpoint() {
+        return this.realtimeEndpoint;
     }
     /**
      * Gets the realtimePath property value. The realtimePath property
@@ -201,6 +214,7 @@ public class ClientConfiguration implements Parsable {
         writer.writeCollectionOfPrimitiveValues("oidcRedirectUris", this.getOidcRedirectUris());
         writer.writeCollectionOfPrimitiveValues("oidcScopes", this.getOidcScopes());
         writer.writeUUIDValue("projectId", this.getProjectId());
+        writer.writeStringValue("realtimeEndpoint", this.getRealtimeEndpoint());
         writer.writeStringValue("realtimePath", this.getRealtimePath());
         writer.writeStringValue("schema", this.getSchema());
     }
@@ -254,7 +268,7 @@ public class ClientConfiguration implements Parsable {
         this.oidcPublicClientId = value;
     }
     /**
-     * Sets the oidcRedirectUris property value. The oidcRedirectUris property
+     * Sets the oidcRedirectUris property value. Exact OAuth redirect allowlist. Entries are public HTTPS URLs, loopback HTTP URLs, or lowercase reverse-domain private-use native schemes such as com.example.app:/oauth/callback. Userinfo, query strings, and fragments are forbidden.
      * @param value Value to set for the oidcRedirectUris property.
      */
     public void setOidcRedirectUris(@jakarta.annotation.Nullable final java.util.List<String> value) {
@@ -273,6 +287,13 @@ public class ClientConfiguration implements Parsable {
      */
     public void setProjectId(@jakarta.annotation.Nullable final UUID value) {
         this.projectId = value;
+    }
+    /**
+     * Sets the realtimeEndpoint property value. Exact HTTPS origin of the separately deployed SignalR realtime gateway.
+     * @param value Value to set for the realtimeEndpoint property.
+     */
+    public void setRealtimeEndpoint(@jakarta.annotation.Nullable final String value) {
+        this.realtimeEndpoint = value;
     }
     /**
      * Sets the realtimePath property value. The realtimePath property

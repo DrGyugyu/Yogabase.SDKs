@@ -1,4 +1,5 @@
 .DS_Store
+.regeneration.*
 **/bin/
 **/obj/
 languages/typescript/node_modules/

@@ -1,4 +1,4 @@
-"""Executable tests for the authored StackYoga logical-key adapter."""
+"""Executable tests for the authored Yogabase logical-key adapter."""
 
 import unittest
 
@@ -51,7 +51,7 @@ class StorageLogicalKeyTests(unittest.TestCase):
         self.assertEqual(
             calls,
             [
-                ("by_key", "_stackyoga_raw_url_"),
+                ("by_key", "_yogabase_raw_url_"),
                 ("with_url", "https://apps.example.test/v1/storage/objects/avatars/user%201/photo.png"),
             ],
         )

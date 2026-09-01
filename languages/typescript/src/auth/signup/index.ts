@@ -16,7 +16,6 @@ export interface SignupRequestBuilder extends BaseRequestBuilder<SignupRequestBu
      * @throws {Problem} error when the service returns a 400 status code
      * @throws {Problem} error when the service returns a 403 status code
      * @throws {Problem} error when the service returns a 409 status code
-     * @throws {Problem} error when the service returns a 429 status code
      * @throws {Problem} error when the service returns a 503 status code
      */
      post(body: SignUpRequest, requestConfiguration?: RequestConfiguration<object> | undefined) : Promise<void>;
@@ -42,7 +41,6 @@ export const SignupRequestBuilderRequestsMetadata: RequestsMetadata = {
             400: createProblemFromDiscriminatorValue as ParsableFactory<Parsable>,
             403: createProblemFromDiscriminatorValue as ParsableFactory<Parsable>,
             409: createProblemFromDiscriminatorValue as ParsableFactory<Parsable>,
-            429: createProblemFromDiscriminatorValue as ParsableFactory<Parsable>,
             503: createProblemFromDiscriminatorValue as ParsableFactory<Parsable>,
         },
         adapterMethodName: "sendNoResponseContent",

@@ -11,7 +11,7 @@ import { type BaseRequestBuilder, type KeysToExcludeForNavigationMetadata, type 
  */
 export interface ObjectsRequestBuilder extends BaseRequestBuilder<ObjectsRequestBuilder> {
     /**
-     * Gets an item from the StackYoga.YogaBase.TypeScript.v1.storage.objects.item collection
+     * Gets an item from the Yogabase.Client.TypeScript.v1.storage.objects.item collection
      * @param key Project-local logical key. The live route is a catch-all path tail; SDKs must validate the key and percent-encode each segment separately while preserving literal slash separators.
      * @returns {WithKeyItemRequestBuilder}
      */

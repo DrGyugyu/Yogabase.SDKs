@@ -1,7 +1,7 @@
 # Dependency licenses
 
 Status: local preview inventory
-Last reviewed: 2026-08-26
+Last reviewed: 2026-09-01
 
 This inventory covers direct SDK and test dependencies. Exact transitive versions and integrity
 values remain locked in `packages.lock.json`, `package-lock.json`, generated Kiota lock files, and
@@ -24,4 +24,4 @@ transitive graph before publication.
 | Microsoft Kiota generator | 1.34.1 | External source generation | MIT | Generation tool only; source commit and NuGet digest are bound in `MANIFEST.json`. |
 
 The SDK implementations and package-specific `LICENSE.md` files are proprietary. Third-party
-dependencies do not receive rights to StackYoga source beyond their own license terms.
+dependencies do not receive rights to Yogabase source beyond their own license terms.

@@ -6,7 +6,9 @@ from kiota_abstractions.request_adapter import RequestAdapter
 from typing import Any, Optional, TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
+    from .actors.actors_request_builder import ActorsRequestBuilder
     from .functions.functions_request_builder import FunctionsRequestBuilder
+    from .workflows.workflows_request_builder import WorkflowsRequestBuilder
 
 class WithProjectItemRequestBuilder(BaseRequestBuilder):
     """
@@ -22,6 +24,15 @@ class WithProjectItemRequestBuilder(BaseRequestBuilder):
         super().__init__(request_adapter, "{+baseurl}/v1/projects/{projectId}", path_parameters)
     
     @property
+    def actors(self) -> ActorsRequestBuilder:
+        """
+        The actors property
+        """
+        from .actors.actors_request_builder import ActorsRequestBuilder
+
+        return ActorsRequestBuilder(self.request_adapter, self.path_parameters)
+    
+    @property
     def functions(self) -> FunctionsRequestBuilder:
         """
         The functions property
@@ -29,5 +40,14 @@ class WithProjectItemRequestBuilder(BaseRequestBuilder):
         from .functions.functions_request_builder import FunctionsRequestBuilder
 
         return FunctionsRequestBuilder(self.request_adapter, self.path_parameters)
+    
+    @property
+    def workflows(self) -> WorkflowsRequestBuilder:
+        """
+        The workflows property
+        """
+        from .workflows.workflows_request_builder import WorkflowsRequestBuilder
+
+        return WorkflowsRequestBuilder(self.request_adapter, self.path_parameters)
     
 

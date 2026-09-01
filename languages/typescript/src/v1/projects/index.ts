@@ -11,7 +11,7 @@ import { type BaseRequestBuilder, type Guid, type KeysToExcludeForNavigationMeta
  */
 export interface ProjectsRequestBuilder extends BaseRequestBuilder<ProjectsRequestBuilder> {
     /**
-     * Gets an item from the StackYoga.YogaBase.TypeScript.v1.projects.item collection
+     * Gets an item from the Yogabase.Client.TypeScript.v1.projects.item collection
      * @param projectId Unique identifier of the item
      * @returns {WithProjectItemRequestBuilder}
      */

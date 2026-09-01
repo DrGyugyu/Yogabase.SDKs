@@ -40,7 +40,6 @@ public class SignupRequestBuilder extends BaseRequestBuilder {
      * @throws Problem When receiving a 400 status code
      * @throws Problem When receiving a 403 status code
      * @throws Problem When receiving a 409 status code
-     * @throws Problem When receiving a 429 status code
      * @throws Problem When receiving a 503 status code
      */
     public void post(@jakarta.annotation.Nonnull final SignUpRequest body) {
@@ -52,7 +51,6 @@ public class SignupRequestBuilder extends BaseRequestBuilder {
      * @throws Problem When receiving a 400 status code
      * @throws Problem When receiving a 403 status code
      * @throws Problem When receiving a 409 status code
-     * @throws Problem When receiving a 429 status code
      * @throws Problem When receiving a 503 status code
      */
     public void post(@jakarta.annotation.Nonnull final SignUpRequest body, @jakarta.annotation.Nullable final java.util.function.Consumer<PostRequestConfiguration> requestConfiguration) {
@@ -62,7 +60,6 @@ public class SignupRequestBuilder extends BaseRequestBuilder {
         errorMapping.put("400", Problem::createFromDiscriminatorValue);
         errorMapping.put("403", Problem::createFromDiscriminatorValue);
         errorMapping.put("409", Problem::createFromDiscriminatorValue);
-        errorMapping.put("429", Problem::createFromDiscriminatorValue);
         errorMapping.put("503", Problem::createFromDiscriminatorValue);
         this.requestAdapter.sendPrimitive(requestInfo, errorMapping, Void.class);
     }

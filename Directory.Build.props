@@ -8,7 +8,7 @@
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
     <DeterministicSourcePaths>true</DeterministicSourcePaths>
-    <PathMap>$(MSBuildThisFileDirectory)=/_/StackYoga.SDKs/</PathMap>
+    <PathMap>$(MSBuildThisFileDirectory)=/_/Yogabase.SDKs/</PathMap>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>

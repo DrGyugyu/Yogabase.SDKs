@@ -11,7 +11,7 @@ import { type BaseRequestBuilder, type KeysToExcludeForNavigationMetadata, type 
  */
 export interface ClientConfigRequestBuilder extends BaseRequestBuilder<ClientConfigRequestBuilder> {
     /**
-     * Gets an item from the StackYoga.YogaBase.TypeScript.v1.clientConfig.item collection
+     * Gets an item from the Yogabase.Client.TypeScript.v1.clientConfig.item collection
      * @param publishableKey Unique identifier of the item
      * @returns {WithPublishableKeyItemRequestBuilder}
      */

@@ -1,32 +1,48 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "StackYoga YogaBase Application API",
+    "title": "Yogabase Yogabase Application API",
     "version": "v1-preview",
-    "description": "Target-local YogaBase application-plane API. This contract excludes StackYoga management, delivery, provisioning, CRDs, raw SQL, provider coordinates, and GameSessions."
+    "description": "Target-local Yogabase application-plane API. This contract excludes Yogabase management, delivery, provisioning, CRDs, raw SQL, provider coordinates, and GameSessions."
   },
   "servers": [
     {
       "url": "https://{gatewayHost}",
       "variables": {
         "gatewayHost": {
-          "default": "yogabase.stackyoga.invalid",
+          "default": "yogabase.yogabase.invalid",
           "description": "The exact TLS gateway origin returned by the client bootstrap document."
         }
       }
     }
   ],
-  "x-stackyoga-realtime": {
+  "x-yogabase-realtime": {
     "transport": "SignalR",
     "path": "/v1/realtime",
-    "clientMethods": ["Subscribe", "Unsubscribe"],
-    "events": [],
-    "status": "unavailable-until-outbound-event-contract"
+    "defaultHubProtocol": "json",
+    "supportedHubProtocols": ["json", "messagepack"],
+    "protocolSelection": "client-handshake",
+    "clientMethods": ["Subscribe", "Unsubscribe", "InvokeLambda"],
+    "lambdaIngress": {
+      "selection": "signed-artifact-binding",
+      "durability": "ysql-queue-or-platform-actor",
+      "inlineSandboxExecution": false
+    },
+    "events": [
+      {
+        "clientMethod": "message",
+        "schema": "yogabase.lambda-realtime-event.v1",
+        "delivery": "at-least-once",
+        "dedupeKey": "eventId",
+        "selection": "signed-artifact-egress-binding"
+      }
+    ],
+    "status": "available-when-runtime-projection-ready"
   },
   "paths": {
     "/v1/client-config/{publishableKey}": {
       "get": {
-        "operationId": "getYogaBaseClientConfiguration",
+        "operationId": "getYogabaseClientConfiguration",
         "description": "Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request.",
         "security": [],
         "parameters": [
@@ -41,7 +57,7 @@
     },
     "/auth/signup": {
       "post": {
-        "operationId": "signUpYogaBaseUser",
+        "operationId": "signUpYogabaseUser",
         "security": [],
         "requestBody": {
           "required": true,
@@ -56,14 +72,205 @@
           "400": { "$ref": "#/components/responses/Problem" },
           "403": { "$ref": "#/components/responses/Problem" },
           "409": { "$ref": "#/components/responses/Problem" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "operationId": "loginYogabaseUser",
+        "description": "Verifies a local project password and establishes the protected interactive session used by the authorization and MFA endpoints.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/LoginRequest" } }
+          }
+        },
+        "responses": {
+          "204": { "$ref": "#/components/responses/NoContent" },
+          "202": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Problem" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "logoutYogabaseUser",
+        "security": [],
+        "responses": {
+          "204": { "$ref": "#/components/responses/NoContent" }
+        }
+      }
+    },
+    "/auth/email/confirm": {
+      "post": {
+        "operationId": "confirmYogabaseEmail",
+        "description": "Consumes the exact user id and one-time token delivered in the authentication-email action.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/EmailConfirmationRequest" } }
+          }
+        },
+        "responses": {
+          "204": { "$ref": "#/components/responses/NoContent" },
+          "400": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/auth/password/reset/request": {
+      "post": {
+        "operationId": "requestYogabasePasswordReset",
+        "description": "Always returns the same accepted response so account existence and throttling are not disclosed.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/PasswordResetRequest" } }
+          }
+        },
+        "responses": {
+          "202": { "$ref": "#/components/responses/NoContent" }
+        }
+      }
+    },
+    "/auth/password/reset/complete": {
+      "post": {
+        "operationId": "completeYogabasePasswordReset",
+        "description": "Consumes the exact user id and one-time token delivered in the authentication-email action.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/PasswordResetCompletionRequest" } }
+          }
+        },
+        "responses": {
+          "204": { "$ref": "#/components/responses/NoContent" },
+          "400": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/auth/mfa/setup": {
+      "post": {
+        "operationId": "setupYogabaseMfa",
+        "description": "Returns an authenticator enrollment key only to the protected interactive project session.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Authenticator enrollment material.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/MfaSetupResponse" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/auth/mfa/confirm": {
+      "post": {
+        "operationId": "confirmYogabaseMfa",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/MfaCodeRequest" } }
+          }
+        },
+        "responses": {
+          "204": { "$ref": "#/components/responses/NoContent" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "409": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/auth/mfa/verify": {
+      "post": {
+        "operationId": "verifyYogabaseMfa",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/MfaCodeRequest" } }
+          }
+        },
+        "responses": {
+          "204": { "$ref": "#/components/responses/NoContent" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/auth/mfa/recovery/regenerate": {
+      "post": {
+        "operationId": "regenerateYogabaseRecoveryCodes",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "A replacement set of single-use recovery codes.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/RecoveryCodesResponse" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/auth/mfa/recovery/use": {
+      "post": {
+        "operationId": "useYogabaseRecoveryCode",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/RecoveryCodeRequest" } }
+          }
+        },
+        "responses": {
+          "204": { "$ref": "#/components/responses/NoContent" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/auth/external/{provider}/callback": {
+      "post": {
+        "operationId": "completeYogabaseExternalLogin",
+        "description": "Completes a configured external identity flow. The callback never auto-links by email and returns unavailable when no installation verifier exists.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "pattern": "^[a-z0-9._-]{1,64}$" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/ExternalIdentityCallbackRequest" } }
+          }
+        },
+        "responses": {
+          "204": { "$ref": "#/components/responses/NoContent" },
+          "202": { "$ref": "#/components/responses/Problem" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Problem" },
+          "403": { "$ref": "#/components/responses/Problem" },
           "503": { "$ref": "#/components/responses/Problem" }
         }
       }
     },
     "/v1/data/{resource}/select": {
       "post": {
-        "operationId": "selectYogaBaseData",
+        "operationId": "selectYogabaseData",
         "parameters": [{ "$ref": "#/components/parameters/Resource" }],
         "requestBody": { "$ref": "#/components/requestBodies/DataSelect" },
         "responses": {
@@ -77,7 +284,7 @@
     },
     "/v1/data/{resource}/insert": {
       "post": {
-        "operationId": "insertYogaBaseData",
+        "operationId": "insertYogabaseData",
         "parameters": [{ "$ref": "#/components/parameters/Resource" }],
         "requestBody": { "$ref": "#/components/requestBodies/DataMutation" },
         "responses": {
@@ -91,7 +298,7 @@
     },
     "/v1/data/{resource}/update": {
       "post": {
-        "operationId": "updateYogaBaseData",
+        "operationId": "updateYogabaseData",
         "parameters": [{ "$ref": "#/components/parameters/Resource" }],
         "requestBody": { "$ref": "#/components/requestBodies/DataMutation" },
         "responses": {
@@ -105,7 +312,7 @@
     },
     "/v1/data/{resource}/delete": {
       "post": {
-        "operationId": "deleteYogaBaseData",
+        "operationId": "deleteYogabaseData",
         "parameters": [{ "$ref": "#/components/parameters/Resource" }],
         "requestBody": { "$ref": "#/components/requestBodies/DataMutation" },
         "responses": {
@@ -119,7 +326,7 @@
     },
     "/v1/storage/objects/{key}": {
       "put": {
-        "operationId": "putYogaBaseObject",
+        "operationId": "putYogabaseObject",
         "parameters": [
           { "$ref": "#/components/parameters/ObjectKey" },
           { "$ref": "#/components/parameters/ContentDigest" },
@@ -144,7 +351,7 @@
         }
       },
       "get": {
-        "operationId": "getYogaBaseObject",
+        "operationId": "getYogabaseObject",
         "parameters": [{ "$ref": "#/components/parameters/ObjectKey" }],
         "responses": {
           "200": {
@@ -164,7 +371,8 @@
     },
     "/v1/projects/{projectId}/functions/{functionId}/versions/{functionVersion}/invoke": {
       "post": {
-        "operationId": "invokeYogaBaseFunction",
+        "operationId": "invokeYogabaseFunction",
+        "security": [{ "projectOAuth": ["lambda.invoke"] }],
         "parameters": [
           { "$ref": "#/components/parameters/ProjectId" },
           { "$ref": "#/components/parameters/FunctionId" },
@@ -189,6 +397,91 @@
           "409": { "$ref": "#/components/responses/InvocationResult" },
           "422": { "$ref": "#/components/responses/InvocationResult" },
           "503": { "$ref": "#/components/responses/InvocationResult" }
+        }
+      }
+    },
+    "/v1/projects/{projectId}/actors/{functionId}/versions/{functionVersion}/instances/{instanceKey}/invoke": {
+      "post": {
+        "operationId": "invokeYogabaseActorLambda",
+        "description": "Synchronously invokes one project-scoped Actor Lambda instance. The canonical local subject is carried to customer code; application authorization remains part of the admitted Function contract.",
+        "security": [{ "projectOAuth": ["lambda.invoke"] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/FunctionId" },
+          { "$ref": "#/components/parameters/FunctionVersion" },
+          { "$ref": "#/components/parameters/ActorInstanceKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/ActorInvocationRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/ActorInvocationResult" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "408": { "$ref": "#/components/responses/ActorInvocationResult" },
+          "409": { "$ref": "#/components/responses/ActorInvocationResult" },
+          "422": { "$ref": "#/components/responses/ActorInvocationResult" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/projects/{projectId}/workflows/{workflowId}/versions/{definitionVersion}/start": {
+      "post": {
+        "operationId": "startYogabaseWorkflowLambda",
+        "description": "Starts or idempotently replays one exact immutable Workflow definition.",
+        "security": [{ "projectOAuth": ["lambda.invoke"] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/WorkflowId" },
+          { "$ref": "#/components/parameters/WorkflowDefinitionVersion" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/WorkflowStartRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/WorkflowStartResult" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "422": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/projects/{projectId}/workflows/instances/{workflowInstanceId}/cancel": {
+      "post": {
+        "operationId": "cancelYogabaseWorkflowLambda",
+        "description": "Idempotently cancels and compensates a non-terminal Workflow owned by the same canonical local subject. Arbitrary signals are not part of v1.",
+        "security": [{ "projectOAuth": ["lambda.invoke"] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/WorkflowInstanceId" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/WorkflowCancelRequest" } }
+          }
+        },
+        "responses": {
+          "204": { "$ref": "#/components/responses/NoContent" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "422": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
         }
       }
     }
@@ -228,11 +521,11 @@
         "in": "path",
         "required": true,
         "description": "Project-local logical key. The live route is a catch-all path tail; SDKs must validate the key and percent-encode each segment separately while preserving literal slash separators.",
-        "x-stackyoga-catch-all-path-tail": true,
+        "x-yogabase-catch-all-path-tail": true,
         "schema": { "type": "string", "minLength": 1, "maxLength": 1024 }
       },
       "ContentDigest": {
-        "name": "X-StackYoga-Content-Sha256",
+        "name": "X-Yogabase-Content-Sha256",
         "in": "header",
         "required": true,
         "schema": { "$ref": "#/components/schemas/Sha256Digest" }
@@ -260,6 +553,30 @@
         "in": "path",
         "required": true,
         "schema": { "type": "string", "minLength": 1, "maxLength": 64 }
+      },
+      "ActorInstanceKey": {
+        "name": "instanceKey",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[^/\\\\?#%\\u0000-\\u001F\\u007F]+$" }
+      },
+      "WorkflowId": {
+        "name": "workflowId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "minLength": 1, "maxLength": 256 }
+      },
+      "WorkflowDefinitionVersion": {
+        "name": "definitionVersion",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "pattern": "^[1-9][0-9]*$", "maxLength": 64 }
+      },
+      "WorkflowInstanceId": {
+        "name": "workflowInstanceId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
       }
     },
     "requestBodies": {
@@ -313,6 +630,18 @@
           "application/json": { "schema": { "$ref": "#/components/schemas/InvocationResult" } }
         }
       },
+      "ActorInvocationResult": {
+        "description": "Durable Actor Lambda result.",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/ActorInvocationResult" } }
+        }
+      },
+      "WorkflowStartResult": {
+        "description": "The deterministic durable Workflow instance identity.",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/WorkflowStartResult" } }
+        }
+      },
       "NoContent": { "description": "Request accepted without secret-bearing output." },
       "Unauthorized": {
         "description": "A valid canonical project bearer subject is required.",
@@ -337,12 +666,13 @@
       "ClientConfiguration": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["schema", "projectId", "environmentId", "gatewayEndpoint", "oidcAuthority", "oidcDiscoveryEndpoint", "oidcPublicClientId", "oidcScopes", "oidcRedirectUris", "realtimePath", "capabilities", "issuedAt"],
+        "required": ["schema", "projectId", "environmentId", "gatewayEndpoint", "realtimeEndpoint", "oidcAuthority", "oidcDiscoveryEndpoint", "oidcPublicClientId", "oidcScopes", "oidcRedirectUris", "realtimePath", "capabilities", "issuedAt"],
         "properties": {
           "schema": { "type": "string", "const": "yogabase-client-config.v1" },
           "projectId": { "type": "string", "format": "uuid" },
           "environmentId": { "type": "string", "format": "uuid" },
           "gatewayEndpoint": { "type": "string", "format": "uri" },
+          "realtimeEndpoint": { "type": "string", "format": "uri", "description": "Exact HTTPS origin of the separately deployed SignalR realtime gateway." },
           "oidcAuthority": { "type": "string", "format": "uri" },
           "oidcDiscoveryEndpoint": { "type": "string", "format": "uri" },
           "oidcPublicClientId": { "type": "string", "minLength": 1, "maxLength": 256 },
@@ -394,9 +724,91 @@
         "additionalProperties": false,
         "required": ["email", "password"],
         "properties": {
-          "email": { "type": "string", "format": "email" },
-          "password": { "type": "string", "format": "password" },
-          "invitationToken": { "type": ["string", "null"] }
+          "email": { "type": "string", "format": "email", "maxLength": 320 },
+          "password": { "type": "string", "format": "password", "maxLength": 1024 },
+          "invitationToken": { "type": ["string", "null"], "maxLength": 8192 }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email", "maxLength": 320 },
+          "password": { "type": "string", "format": "password", "maxLength": 1024 }
+        }
+      },
+      "EmailConfirmationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["userId", "token"],
+        "properties": {
+          "userId": { "type": "string", "format": "uuid" },
+          "token": { "type": "string", "minLength": 1, "maxLength": 8192 }
+        }
+      },
+      "PasswordResetRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["email"],
+        "properties": {
+          "email": { "type": "string", "format": "email", "maxLength": 320 }
+        }
+      },
+      "PasswordResetCompletionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["userId", "token", "password"],
+        "properties": {
+          "userId": { "type": "string", "format": "uuid" },
+          "token": { "type": "string", "minLength": 1, "maxLength": 8192 },
+          "password": { "type": "string", "format": "password", "maxLength": 1024 }
+        }
+      },
+      "MfaCodeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code"],
+        "properties": {
+          "code": { "type": "string", "minLength": 1, "maxLength": 128 }
+        }
+      },
+      "RecoveryCodeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code"],
+        "properties": {
+          "code": { "type": "string", "minLength": 1, "maxLength": 256 }
+        }
+      },
+      "ExternalIdentityCallbackRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "state"],
+        "properties": {
+          "code": { "type": "string", "minLength": 1, "maxLength": 8192 },
+          "state": { "type": "string", "minLength": 1, "maxLength": 2048 }
+        }
+      },
+      "MfaSetupResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sharedKey"],
+        "properties": {
+          "sharedKey": { "type": "string", "minLength": 1, "maxLength": 512 }
+        }
+      },
+      "RecoveryCodesResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["recoveryCodes"],
+        "properties": {
+          "recoveryCodes": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+          }
         }
       },
       "DataValue": {
@@ -500,6 +912,59 @@
           { "required": ["inlinePayloadBase64"] },
           { "required": ["objectReference"] }
         ]
+      },
+      "ActorInvocationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["idempotencyKey", "correlationId", "deadline", "payloadDigest", "inlinePayloadBase64"],
+        "properties": {
+          "idempotencyKey": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "correlationId": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "deadline": { "type": "string", "format": "date-time", "description": "Must be within 30 seconds of admission." },
+          "payloadDigest": { "$ref": "#/components/schemas/Sha256Digest" },
+          "inlinePayloadBase64": { "type": "string", "contentEncoding": "base64", "maxLength": 655360 }
+        }
+      },
+      "ActorInvocationResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status", "invocationId", "correlationId", "stateVersion"],
+        "properties": {
+          "status": { "type": "string", "enum": ["InProgress", "Completed", "Failed"] },
+          "invocationId": { "type": "string", "format": "uuid" },
+          "correlationId": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "resultReference": { "type": ["string", "null"], "pattern": "^object://", "maxLength": 2048 },
+          "failureCode": { "type": ["string", "null"], "pattern": "^[a-z0-9_]{1,128}$" },
+          "stateVersion": { "type": "integer", "format": "int64", "minimum": 0 }
+        }
+      },
+      "WorkflowStartRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["idempotencyKey", "payloadDigest", "inlineInputBase64"],
+        "properties": {
+          "idempotencyKey": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "payloadDigest": { "$ref": "#/components/schemas/Sha256Digest" },
+          "inlineInputBase64": { "type": "string", "contentEncoding": "base64", "maxLength": 655360 }
+        }
+      },
+      "WorkflowStartResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["workflowInstanceId"],
+        "properties": {
+          "workflowInstanceId": { "type": "string", "format": "uuid" }
+        }
+      },
+      "WorkflowCancelRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["idempotencyKey", "payloadDigest", "inlinePayloadBase64"],
+        "properties": {
+          "idempotencyKey": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "payloadDigest": { "$ref": "#/components/schemas/Sha256Digest" },
+          "inlinePayloadBase64": { "type": "string", "contentEncoding": "base64", "maxLength": 655360 }
+        }
       },
       "ObjectReference": {
         "type": "object",

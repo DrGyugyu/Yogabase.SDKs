@@ -2,7 +2,9 @@ package io.stackyoga.yogabase.v1.projects.item;
 
 import com.microsoft.kiota.BaseRequestBuilder;
 import com.microsoft.kiota.RequestAdapter;
+import io.stackyoga.yogabase.v1.projects.item.actors.ActorsRequestBuilder;
 import io.stackyoga.yogabase.v1.projects.item.functions.FunctionsRequestBuilder;
+import io.stackyoga.yogabase.v1.projects.item.workflows.WorkflowsRequestBuilder;
 import java.util.HashMap;
 import java.util.Objects;
 /**
@@ -11,12 +13,28 @@ import java.util.Objects;
 @jakarta.annotation.Generated("com.microsoft.kiota")
 public class WithProjectItemRequestBuilder extends BaseRequestBuilder {
     /**
+     * The actors property
+     * @return a {@link ActorsRequestBuilder}
+     */
+    @jakarta.annotation.Nonnull
+    public ActorsRequestBuilder actors() {
+        return new ActorsRequestBuilder(pathParameters, requestAdapter);
+    }
+    /**
      * The functions property
      * @return a {@link FunctionsRequestBuilder}
      */
     @jakarta.annotation.Nonnull
     public FunctionsRequestBuilder functions() {
         return new FunctionsRequestBuilder(pathParameters, requestAdapter);
+    }
+    /**
+     * The workflows property
+     * @return a {@link WorkflowsRequestBuilder}
+     */
+    @jakarta.annotation.Nonnull
+    public WorkflowsRequestBuilder workflows() {
+        return new WorkflowsRequestBuilder(pathParameters, requestAdapter);
     }
     /**
      * Instantiates a new {@link WithProjectItemRequestBuilder} and sets the default values.

@@ -11,7 +11,7 @@ import { type BaseRequestBuilder, type KeysToExcludeForNavigationMetadata, type 
  */
 export interface DataRequestBuilder extends BaseRequestBuilder<DataRequestBuilder> {
     /**
-     * Gets an item from the StackYoga.YogaBase.TypeScript.v1.data.item collection
+     * Gets an item from the Yogabase.Client.TypeScript.v1.data.item collection
      * @param resource Unique identifier of the item
      * @returns {WithResourceItemRequestBuilder}
      */

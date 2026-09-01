@@ -19,12 +19,14 @@ class ClientConfiguration implements Parsable {
     String? oidcDiscoveryEndpoint;
     ///  The oidcPublicClientId property
     String? oidcPublicClientId;
-    ///  The oidcRedirectUris property
+    ///  Exact OAuth redirect allowlist. Entries are public HTTPS URLs, loopback HTTP URLs, or lowercase reverse-domain private-use native schemes such as com.example.app:/oauth/callback. Userinfo, query strings, and fragments are forbidden.
     Iterable<String>? oidcRedirectUris;
     ///  The oidcScopes property
     Iterable<String>? oidcScopes;
     ///  The projectId property
     UuidValue? projectId;
+    ///  Exact HTTPS origin of the separately deployed SignalR realtime gateway.
+    String? realtimeEndpoint;
     ///  The realtimePath property
     String? realtimePath;
     ///  The schema property
@@ -48,6 +50,7 @@ class ClientConfiguration implements Parsable {
         deserializerMap['oidcRedirectUris'] = (node) => oidcRedirectUris = node.getCollectionOfPrimitiveValues<String>();
         deserializerMap['oidcScopes'] = (node) => oidcScopes = node.getCollectionOfPrimitiveValues<String>();
         deserializerMap['projectId'] = (node) => projectId = node.getGuidValue();
+        deserializerMap['realtimeEndpoint'] = (node) => realtimeEndpoint = node.getStringValue();
         deserializerMap['realtimePath'] = (node) => realtimePath = node.getStringValue();
         deserializerMap['schema'] = (node) => schema = node.getStringValue();
         return deserializerMap;
@@ -66,6 +69,7 @@ class ClientConfiguration implements Parsable {
         writer.writeCollectionOfPrimitiveValues<String?>('oidcRedirectUris', oidcRedirectUris);
         writer.writeCollectionOfPrimitiveValues<String?>('oidcScopes', oidcScopes);
         writer.writeUuidValue('projectId', projectId);
+        writer.writeStringValue('realtimeEndpoint', realtimeEndpoint);
         writer.writeStringValue('realtimePath', realtimePath);
         writer.writeStringValue('schema', schema);
     }

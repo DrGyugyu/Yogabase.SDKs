@@ -1,6 +1,6 @@
 name: stackyoga_yogabase_client_preview
-description: Unpublished generated preview client for StackYoga YogaBase.
-version: 0.1.0-dev.1
+description: Unpublished generated preview client for Yogabase.
+version: 0.2.0-dev.1
 publish_to: none
 environment:
   sdk: ^3.9.0

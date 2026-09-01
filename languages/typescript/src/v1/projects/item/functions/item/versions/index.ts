@@ -11,7 +11,7 @@ import { type BaseRequestBuilder, type KeysToExcludeForNavigationMetadata, type 
  */
 export interface VersionsRequestBuilder extends BaseRequestBuilder<VersionsRequestBuilder> {
     /**
-     * Gets an item from the StackYoga.YogaBase.TypeScript.v1.projects.item.functions.item.versions.item collection
+     * Gets an item from the Yogabase.Client.TypeScript.v1.projects.item.functions.item.versions.item collection
      * @param functionVersion Unique identifier of the item
      * @returns {WithFunctionVersionItemRequestBuilder}
      */
