@@ -151,6 +151,24 @@ cd languages/dart && dart analyze
 
 Run `scripts/regenerate-clients.sh` to verify both contracts, restore pinned Kiota 1.34.1, regenerate all four application clients, and regenerate the Java and Dart delivery protocol clients. Authored delivery facades are preserved. Each generated-language folder retains its own package manifest, dependency lock where available, Kiota lock, source, documentation, and conformance helper. Downloaded tools, caches, dependency trees, and build intermediates are excluded. Historical imported artifacts remain unchanged under `artifacts/imported`; current sibling-repository builds belong under `artifacts/local`.
 
+### Connecting a client to a self-hosted installation
+
+The .NET client's public entry point is `Yogabase.Yogabase.YogabaseClient`. It has no public constructor; a consumer creates it through the static `YogabaseClient.CreateAsync(Uri gatewayEndpoint, string publishableKey, YogabaseClientOptions? options = null, CancellationToken cancellationToken = default)` factory. `gatewayEndpoint` is the installation's application-gateway origin and `publishableKey` is the project's publishable key.
+
+```csharp
+using Yogabase.Yogabase;
+
+await using var yogabase = await YogabaseClient.CreateAsync(
+    new Uri("https://<installation-host>"),
+    "<publishable-key>");
+```
+
+`<installation-host>` and `<publishable-key>` are placeholders; this repository does not choose either. The hostname of a self-hosted installation and the publishable key for a given project are both supplied by that installation's owner. A real publishable key begins with `sy_pub_`, and `CreateAsync` rejects one that does not.
+
+A publishable key is not a secret. It identifies the project to the gateway and is safe to ship in client code, and it authenticates nothing: the bootstrap document it fetches carries endpoints, identifiers, and capability facts only. Yogabase issues no privileged counterpart key that a client could hold instead. Every authenticated call carries a per-user access token obtained from the project's OIDC authority, so a client never ships a credential that speaks for the project as a whole.
+
+A console seat is claimed at `https://<installation-host>/console-seat/claim`, using the hostname the installation's owner supplies.
+
 ## Platform qualification
 
 Generated REST source is not the same as a production-qualified platform integration. `netstandard2.1` compatibility alone does not qualify Unity or AOT. The Dart package passes Dart 3.13.2 analysis and authored-source tests, but Android, Flutter, Kotlin/JVM runtime integration, Unity IL2CPP, native secure storage, interactive-cookie handling, non-.NET SignalR integration, and live-gateway conformance each still need explicit platform evidence before they can be claimed as supported.

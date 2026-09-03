@@ -152,6 +152,24 @@ cd languages/dart && dart analyze
 
 `scripts/regenerate-clients.sh`를 실행하면 두 계약을 검증하고 고정된 Kiota 1.34.1 도구를 복원하여 네 개의 애플리케이션 클라이언트와 Java/Dart Delivery 프로토콜 클라이언트를 다시 만듭니다. 작성된 Delivery facade는 보존됩니다. 각 생성 언어 폴더는 자체 package manifest, 사용 가능한 경우 dependency lock, Kiota lock, 소스, 문서 및 conformance helper를 유지합니다. 다운로드한 도구, 캐시, 의존성 트리와 빌드 중간 산출물은 제외됩니다. 과거 가져온 아티팩트는 `artifacts/imported` 아래에서 변경하지 않으며 현재 빌드는 `artifacts/local` 아래에 둡니다.
 
+### 자체 호스팅 설치에 클라이언트 연결하기
+
+.NET 클라이언트의 공개 진입점은 `Yogabase.Yogabase.YogabaseClient`입니다. 공개 생성자가 없으며, 호출 측은 정적 `YogabaseClient.CreateAsync(Uri gatewayEndpoint, string publishableKey, YogabaseClientOptions? options = null, CancellationToken cancellationToken = default)` 팩토리 메서드를 통해 이를 생성합니다. `gatewayEndpoint`는 설치본의 애플리케이션 게이트웨이 origin이며, `publishableKey`는 프로젝트의 publishable key입니다.
+
+```csharp
+using Yogabase.Yogabase;
+
+await using var yogabase = await YogabaseClient.CreateAsync(
+    new Uri("https://<installation-host>"),
+    "<publishable-key>");
+```
+
+`<installation-host>`와 `<publishable-key>`는 플레이스홀더이며, 이 저장소는 둘 중 어느 것도 정하지 않습니다. 자체 호스팅 설치의 호스트 이름과 해당 프로젝트의 publishable key는 모두 그 설치본의 소유자가 제공합니다. 실제 publishable key는 `sy_pub_`로 시작하며, 그렇지 않은 값은 `CreateAsync`가 거부합니다.
+
+publishable key는 Secret이 아닙니다. 이는 게이트웨이에 프로젝트를 식별시키는 값이며 클라이언트 코드에 포함해도 안전하고, 그 자체로는 아무것도 인증하지 않습니다. 이 키로 가져오는 bootstrap 문서에는 endpoint, 식별자, 기능 사실만 담깁니다. Yogabase는 클라이언트가 대신 보유할 수 있는 권한 있는 대응 키를 발급하지 않습니다. 인증이 필요한 모든 호출은 프로젝트의 OIDC authority에서 받은 사용자별 access token을 사용하므로, 클라이언트는 프로젝트 전체를 대변하는 자격 증명을 결코 포함하지 않습니다.
+
+콘솔 시트는 설치본의 소유자가 제공하는 호스트 이름을 사용해 `https://<installation-host>/console-seat/claim`에서 확보합니다.
+
 ## 플랫폼 적격성
 
 생성된 REST 소스만으로 production 플랫폼 통합이 적격해지는 것은 아닙니다. `netstandard2.1` 호환성만으로 Unity 또는 AOT가 적격하다는 뜻도 아닙니다. Dart 패키지는 Dart 3.13.2 분석과 작성 소스 테스트를 통과했지만 Android, Flutter, Kotlin/JVM 런타임 통합, Unity IL2CPP, 네이티브 보안 저장소, interactive cookie 처리, .NET 이외의 SignalR 통합 및 live-gateway conformance는 지원을 주장하기 전에 각각 명시적인 플랫폼 증거가 필요합니다.
