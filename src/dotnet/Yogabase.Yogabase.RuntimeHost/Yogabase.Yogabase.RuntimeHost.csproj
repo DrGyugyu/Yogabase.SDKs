@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework />
+    <TargetFrameworks>netstandard2.1;net10.0</TargetFrameworks>
+    <RootNamespace>Yogabase.Yogabase.RuntimeHost</RootNamespace>
+    <AssemblyName>Yogabase.Yogabase.RuntimeHost</AssemblyName>
+    <PackageId>Yogabase.Yogabase.RuntimeHost</PackageId>
+    <Version>0.1.0-preview.1</Version>
+    <Authors>Yogabase</Authors>
+    <Company>Yogabase</Company>
+    <Description>Preview first-party .NET/Unity runtime-host client for a Yogabase hosted self-contained service workload.</Description>
+    <PackageTags>yogabase;runtime-host;dedicated-server;unity;game-server</PackageTags>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+    <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsPackable>true</IsPackable>
+    <PublishRepositoryUrl>false</PublishRepositoryUrl>
+    <!-- These APIs have newer static/char alternatives only on the net10 target. Keep one
+         source-compatible implementation for the netstandard2.1/Unity build. -->
+    <NoWarn>$(NoWarn);CS1591;CA1510;CA1512;CA1847;CA1850;CA1865</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../../../LICENSE.md" Pack="true" PackagePath="/" />
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <!-- ADR 0043/0045 notice retention: this module is a modified derivative of the client loop
+         shape in Agones (Apache-2.0, v1.60.0, commit 67b44a783218f7811084adaa5d9b334fb28e44ba),
+         so the unmodified upstream licence travels inside the package itself. -->
+    <None Include="../../../licenses/Apache-2.0-Agones.txt" Pack="true" PackagePath="licenses/" />
+  </ItemGroup>
+  <!-- A local preview may contain reviewed working-tree changes beyond HEAD. Do not stamp the
+       resulting package with an older commit and imply that it is reproducible from that commit. -->
+  <Target Name="ClearLocalPreviewRepositoryMetadata" BeforeTargets="GenerateNuspec">
+    <PropertyGroup>
+      <RepositoryUrl />
+      <RepositoryType />
+      <RepositoryBranch />
+      <RepositoryCommit />
+    </PropertyGroup>
+  </Target>
+</Project>

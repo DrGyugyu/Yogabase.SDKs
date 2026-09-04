@@ -86,11 +86,14 @@ SBOM, and scan-evidence digests. The Control Plane records intent; an isolated a
 the artifact; signed intent then travels over the outbound mutually authenticated fleet channel to
 the member's subordinate local actuator, which alone reconciles the Kubernetes workload.
 
-The current server contract does not expose an Agones-style API for the running build to report
-health/readiness, request allocation or reservation, or signal shutdown. These SDKs do not invent
-those operations. Agones, PlayFlow, Nakama, Firebase, and Supabase are used only to improve client
-lifecycle, session, cancellation, polling, event-stream, and platform ergonomics; see
-[`docs/REFERENCE_REVIEW.md`](docs/REFERENCE_REVIEW.md).
+The server now exposes a versioned runtime-host contract that lets a running build report health
+and readiness, be reserved or allocated, and drain on shutdown
+(`contracts/yogabase-runtime-host-v1.openapi.json`). `Yogabase.Yogabase.RuntimeHost` implements the
+workload side of it as a faithful, modified C# derivative of Agones' client loop shape under
+Apache-2.0; see [`docs/REFERENCE_REVIEW.md`](docs/REFERENCE_REVIEW.md) and
+[`docs/UNITY_DEDICATED_SERVER.md`](docs/UNITY_DEDICATED_SERVER.md). PlayFlow, Nakama, Firebase, and
+Supabase remain reference-only, informing client lifecycle, session, cancellation, polling,
+event-stream, and platform ergonomics.
 
 ## Application runtime and SDK boundary
 
@@ -106,7 +109,7 @@ Yogabase can expose a target-local application gateway for approved application 
 
 Clients are provider-neutral and shard-oblivious. They never receive a cloud selector, cloud credential, Kubernetes identity, TServer address, tablet/shard identifier, shard key, physical placement map, or topology generation. YugabyteDB owns its internal routing and placement; Yogabase observes bounded health and capacity facts without introducing another data-path router.
 
-The SDKs deliberately exclude generic human Control Plane management APIs, infrastructure provisioning, fleet commands, Kubernetes CRDs, approval mutation, remote shell, `pods/exec`, general notifications, analytics, GameSessions, and provider credentials. The only Control Plane surface is the exact workload-authenticated Delivery v1 contract described above.
+The SDKs deliberately exclude generic human Control Plane management APIs, infrastructure provisioning, fleet commands, Kubernetes CRDs, approval mutation, remote shell, `pods/exec`, general notifications, analytics, GameSessions, and provider credentials. The only Control Plane surfaces are the exact workload-authenticated Delivery v1 contract described above and the self-scoped Runtime Host v1 contract that a hosted workload reaches over loopback, which accepts no application or Delivery credential and exposes no allocation call to the workload.
 
 ## Capability truth
 
@@ -132,8 +135,10 @@ The non-.NET package identifiers retain their existing preview names for continu
 | Python | `languages/python` | `stackyoga-yogabase-client-preview` `0.3.0.dev1` | Generated application client plus authored async Delivery and storage-key facades |
 | Java/JVM | `languages/java` | `io.stackyoga:yogabase-client-preview` `0.3.0-preview.1` | Generated application/Delivery clients plus authored JVM facades; Kotlin/JVM interop path |
 | Dart | `languages/dart` | `stackyoga_yogabase_client_preview` `0.3.0-dev.1` | Experimental generated application/Delivery source plus authored facades |
+| .NET runtime host | `src/dotnet/Yogabase.Yogabase.RuntimeHost` | `Yogabase.Yogabase.RuntimeHost` `0.1.0-preview.1` | Authored self-scoped runtime-host client; `netstandard2.1` and `net10.0`; fake-transport tests only, no live-gateway evidence |
+| Unity | `languages/unity/com.stackyoga.yogabase-runtime-host` | `com.stackyoga.yogabase-runtime-host` `0.1.0-preview.1` | Import-shaped UPM package carrying the runtime-host module and its `link.xml`; no Unity Editor import or IL2CPP build has verified it |
 
-The immutable application snapshot is `contracts/yogabase-client-v1.openapi.json` (SHA-256 `a5f0e01985dc0e6ef8ecdbb26b9505eff02dd083a529a83e3f97f19826d96497`). The workload snapshot is `contracts/yogabase-delivery-v1.openapi.json` (SHA-256 `f34601596e473efd158a2823d4113a04bb8f508515d4efccc0c355f18e480fec`). Their adjacent checksums, Kiota locks, and `MANIFEST.json` bind this repository to the exact contracts and generator.
+The immutable application snapshot is `contracts/yogabase-client-v1.openapi.json` (SHA-256 `a5f0e01985dc0e6ef8ecdbb26b9505eff02dd083a529a83e3f97f19826d96497`). The workload snapshot is `contracts/yogabase-delivery-v1.openapi.json` (SHA-256 `1eca152807ed2c6ab834b6ad7fea5fedb514ce359bd8f02f028635b03b8b6cc4`). The runtime-host snapshot is `contracts/yogabase-runtime-host-v1.openapi.json` (SHA-256 `e0393d8dd7962a0bf2447fd5a79ee22dbaa3f271f6bb98b92d8e4749365967e7`); it is checked in as the server-side reference for the lifecycle states and error codes and is deliberately never code-generated, because a workload calls the self-scoped relay routes rather than the instance-addressed paths that document declares. Their adjacent checksums, Kiota locks, and `MANIFEST.json` bind this repository to the exact contracts and generator.
 
 ## Local verification
 
@@ -149,7 +154,7 @@ cd languages/java && mvn test
 cd languages/dart && dart analyze
 ```
 
-Run `scripts/regenerate-clients.sh` to verify both contracts, restore pinned Kiota 1.34.1, regenerate all four application clients, and regenerate the Java and Dart delivery protocol clients. Authored delivery facades are preserved. Each generated-language folder retains its own package manifest, dependency lock where available, Kiota lock, source, documentation, and conformance helper. Downloaded tools, caches, dependency trees, and build intermediates are excluded. Historical imported artifacts remain unchanged under `artifacts/imported`; current sibling-repository builds belong under `artifacts/local`.
+Run `scripts/regenerate-clients.sh` to verify all three contracts, restore pinned Kiota 1.34.1, regenerate all four application clients, and regenerate the Java and Dart delivery protocol clients. The runtime-host contract is checksum-verified but never generated, and the authored runtime-host module is not regenerated source. Authored delivery facades are preserved. Each generated-language folder retains its own package manifest, dependency lock where available, Kiota lock, source, documentation, and conformance helper. Downloaded tools, caches, dependency trees, and build intermediates are excluded. Historical imported artifacts remain unchanged under `artifacts/imported`; current sibling-repository builds belong under `artifacts/local`.
 
 ### Connecting a client to a self-hosted installation
 
@@ -172,3 +177,5 @@ A console seat is claimed at `https://<installation-host>/console-seat/claim`, u
 ## Platform qualification
 
 Generated REST source is not the same as a production-qualified platform integration. `netstandard2.1` compatibility alone does not qualify Unity or AOT. The Dart package passes Dart 3.13.2 analysis and authored-source tests, but Android, Flutter, Kotlin/JVM runtime integration, Unity IL2CPP, native secure storage, interactive-cookie handling, non-.NET SignalR integration, and live-gateway conformance each still need explicit platform evidence before they can be claimed as supported.
+
+The runtime-host module and its Unity package are authored against the checked-in contract and covered only by fake-transport unit tests. No Unity Editor import, no IL2CPP build, and no live relay session has exercised them, and the per-family runtime-host conformance battery (restart, replay, duplicate, stale-epoch, double-allocation, reservation-expiry, disconnect, Pod-replacement, drain/shutdown-race, credential-confusion, and secret-negative cases) has not been run. Treat both as unqualified previews.

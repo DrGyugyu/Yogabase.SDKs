@@ -1,11 +1,31 @@
 # Generated client regeneration
 
 `scripts/regenerate-clients.sh` is the single regeneration entry point for the generated protocol
-clients. It verifies both checked-in OpenAPI checksums, restores the repository-local Microsoft
-Kiota 1.34.1 tool, generates into an isolated repository-local staging directory, and synchronizes
-only generated source roots. The application contract generates TypeScript, Python, Java, and
-Dart clients. The delivery contract additionally generates the Java and Dart low-level protocol
-clients used by their authored delivery facades.
+clients. It verifies all three checked-in OpenAPI checksums, restores the repository-local
+Microsoft Kiota 1.34.1 tool, generates into an isolated repository-local staging directory, and
+synchronizes only generated source roots. The application contract generates TypeScript, Python,
+Java, and Dart clients. The delivery contract additionally generates the Java and Dart low-level
+protocol clients used by their authored delivery facades.
+
+### `contracts/yogabase-runtime-host-v1.openapi.json` is checked in but not generated
+
+This third contract describes the Control Plane's server-side runtime-host surface. It is recorded
+here (contract file plus `.sha256` sidecar, and its checksum is verified by this script) purely as
+a pinned reference artifact — **it is deliberately not wired into any `generate_*` call above.**
+
+The reason is a mismatch between how the contract addresses resources and how a workload actually
+calls them. Every path in this contract is instance-addressed, e.g.
+`/instances/{instanceId}/...`. But a workload SDK running inside a member instance calls the
+self-scoped relay routes exposed to it, e.g. `/runtime-host/v1/self/...`, and it never learns its
+own `instanceId` (that is instance-side operator/relay state, not something exposed to the
+workload). If Kiota generated a client from this contract, every generated method would require an
+`instanceId` parameter the caller cannot supply, and callers would end up hand-rolling the real
+`self/...` calls anyway — the generated surface would be actively wrong, not merely unused.
+
+Do not "fix" this by wiring the contract into the regeneration script, changing its base path, or
+generating a client against it. If a workload-facing self-scoped client is ever needed, it must be
+generated from a contract whose paths are actually shaped as `/runtime-host/v1/self/...` — that is
+a new/updated contract, not a reinterpretation of this one.
 
 ```text
 ./scripts/regenerate-clients.sh
@@ -29,5 +49,25 @@ The following convenience adapters are authored and deliberately preserved durin
 
 The TypeScript root export, Python package initializer, and Dart package library are likewise
 authored integration seams and are preserved by the script. The authored .NET application and
-delivery clients are not Kiota outputs. Review generated diffs before committing; regeneration
-does not authorize publication or replace platform-specific build and live-gateway qualification.
+delivery clients are not Kiota outputs, and neither is the authored runtime-host module in
+`src/dotnet/Yogabase.Yogabase.RuntimeHost` or its Unity package under `languages/unity` — the
+script never touches them. Review generated diffs before committing; regeneration does not
+authorize publication or replace platform-specific build and live-gateway qualification.
+
+### Every rsync `--exclude` must stay anchored with a leading slash
+
+The preservation list above is implemented as `rsync --exclude` patterns. An rsync pattern with no
+leading slash matches by **basename at every depth**, not just at the transfer root. That is a trap
+here, because Kiota's TypeScript emitter writes almost all generated code into per-directory
+`index.ts` files: an unanchored `--exclude index.ts` silently excluded 56 of the 60 generated
+TypeScript files — protecting them from update *and* from `--delete` — so TypeScript regeneration
+was a no-op that still refreshed `kiota-lock.json`, leaving the lock claiming a contract the source
+did not match. The same latent bug applied to the Python and Java/Dart entries.
+
+Every exclude is therefore written as `/index.ts`, `/delivery/`, and so on. When adding an authored
+file to the list, anchor it the same way, and confirm afterwards that a regeneration run leaves the
+authored files untouched while the generated tree actually changes.
+
+The `--exclude /delivery/` entries in the Java and Dart parent blocks are intentional and must not
+be removed: they stop the parent sync's `--delete` from wiping the generated delivery subtree,
+which its own rsync populates immediately afterwards.

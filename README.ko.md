@@ -87,11 +87,14 @@ admission Job이 아티팩트를 검증합니다. 이후 서명된 의도가 아
 채널을 통해 member의 종속 로컬 actuator로 전달되며, 이 actuator만 Kubernetes 워크로드를
 조정합니다.
 
-현재 서버 계약에는 실행 중인 빌드가 health/readiness를 보고하거나 allocation/reservation을
-요청하거나 shutdown을 알리는 Agones 스타일 API가 없습니다. 이 SDK는 그런 작업을
-만들어내지 않습니다. Agones, PlayFlow, Nakama, Firebase 및 Supabase는 클라이언트 수명 주기,
-세션, 취소, polling, event stream 및 플랫폼 사용성을 개선하기 위한 참고 자료로만
-사용합니다. 자세한 내용은 [`docs/REFERENCE_REVIEW.md`](docs/REFERENCE_REVIEW.md)를 참조하세요.
+이제 서버는 실행 중인 빌드가 health/readiness를 보고하고 reservation/allocation을 받으며
+shutdown 시 drain할 수 있는 버전이 지정된 runtime-host 계약을 제공합니다
+(`contracts/yogabase-runtime-host-v1.openapi.json`). `Yogabase.Yogabase.RuntimeHost` 패키지는
+Apache-2.0에 따라 Agones의 클라이언트 루프 형태를 충실히 변형한 C# 파생물로 그 워크로드
+측을 구현합니다. 자세한 내용은 [`docs/REFERENCE_REVIEW.md`](docs/REFERENCE_REVIEW.md) 및
+[`docs/UNITY_DEDICATED_SERVER.md`](docs/UNITY_DEDICATED_SERVER.md)를 참조하세요. PlayFlow,
+Nakama, Firebase 및 Supabase는 클라이언트 수명 주기, 세션, 취소, polling, event stream 및
+플랫폼 사용성을 개선하기 위한 참고 자료로만 남습니다.
 
 ## 애플리케이션 런타임 및 SDK 경계
 
@@ -107,7 +110,7 @@ Yogabase는 승인된 애플리케이션 작업을 위한 대상 로컬 애플�
 
 클라이언트는 공급자 중립적이고 shard를 인식하지 않습니다. 클라우드 선택기, 클라우드 자격 증명, Kubernetes ID, TServer 주소, tablet/shard 식별자, shard key, 물리적 배치 맵 또는 토폴로지 생성을 받지 않습니다. YugabyteDB가 내부 라우팅과 배치를 소유합니다. Yogabase는 또 다른 데이터 경로 라우터를 도입하지 않고 제한된 상태 및 용량 사실을 관찰합니다.
 
-SDK는 범용 사용자용 Control Plane 관리 API, 인프라 프로비저닝, fleet 명령, Kubernetes CRD, 승인 변경, 원격 셸, `pods/exec`, 일반 알림, 분석, GameSessions 및 공급자 자격 증명을 의도적으로 제외합니다. 유일한 Control Plane 표면은 위에서 설명한 정확한 워크로드 인증 Delivery v1 계약입니다.
+SDK는 범용 사용자용 Control Plane 관리 API, 인프라 프로비저닝, fleet 명령, Kubernetes CRD, 승인 변경, 원격 셸, `pods/exec`, 일반 알림, 분석, GameSessions 및 공급자 자격 증명을 의도적으로 제외합니다. 유일한 Control Plane 표면은 위에서 설명한 정확한 워크로드 인증 Delivery v1 계약과, 호스팅된 워크로드가 loopback으로 접근하는 self-scoped Runtime Host v1 계약입니다. 후자는 애플리케이션이나 Delivery 자격 증명을 받지 않으며 워크로드에 allocation 호출을 노출하지 않습니다.
 
 ## 기능 상태
 
@@ -133,8 +136,10 @@ Yogabase는 서명된 관찰과 릴리스에 고정된 증거를 통해 모듈 �
 | Python | `languages/python` | `stackyoga-yogabase-client-preview` `0.3.0.dev1` | 생성된 애플리케이션 클라이언트와 작성된 비동기 Delivery/storage-key facade |
 | Java/JVM | `languages/java` | `io.stackyoga:yogabase-client-preview` `0.3.0-preview.1` | 생성된 애플리케이션/Delivery 클라이언트와 작성된 JVM facade; Kotlin/JVM 상호 운용 경로 |
 | Dart | `languages/dart` | `stackyoga_yogabase_client_preview` `0.3.0-dev.1` | 실험적 생성 애플리케이션/Delivery 소스와 작성된 facade |
+| .NET runtime host | `src/dotnet/Yogabase.Yogabase.RuntimeHost` | `Yogabase.Yogabase.RuntimeHost` `0.1.0-preview.1` | 작성된 self-scoped runtime-host 클라이언트; `netstandard2.1` 및 `net10.0`; fake transport 테스트만 있으며 live-gateway 증거 없음 |
+| Unity | `languages/unity/com.stackyoga.yogabase-runtime-host` | `com.stackyoga.yogabase-runtime-host` `0.1.0-preview.1` | runtime-host 모듈과 `link.xml`을 담은 import 형태의 UPM 패키지; Unity Editor import나 IL2CPP 빌드로 검증한 적 없음 |
 
-변경 불가능한 애플리케이션 스냅샷은 `contracts/yogabase-client-v1.openapi.json`이며 SHA-256은 `a5f0e01985dc0e6ef8ecdbb26b9505eff02dd083a529a83e3f97f19826d96497`입니다. 워크로드 스냅샷은 `contracts/yogabase-delivery-v1.openapi.json`이며 SHA-256은 `f34601596e473efd158a2823d4113a04bb8f508515d4efccc0c355f18e480fec`입니다. 인접한 checksum, Kiota lock 및 `MANIFEST.json`은 이 저장소를 정확한 계약과 generator에 바인딩합니다.
+변경 불가능한 애플리케이션 스냅샷은 `contracts/yogabase-client-v1.openapi.json`이며 SHA-256은 `a5f0e01985dc0e6ef8ecdbb26b9505eff02dd083a529a83e3f97f19826d96497`입니다. 워크로드 스냅샷은 `contracts/yogabase-delivery-v1.openapi.json`이며 SHA-256은 `1eca152807ed2c6ab834b6ad7fea5fedb514ce359bd8f02f028635b03b8b6cc4`입니다. runtime-host 스냅샷은 `contracts/yogabase-runtime-host-v1.openapi.json`이며 SHA-256은 `e0393d8dd7962a0bf2447fd5a79ee22dbaa3f271f6bb98b92d8e4749365967e7`입니다. 이 문서는 수명 주기 상태와 오류 코드를 위한 서버 측 참조로만 체크인되며 의도적으로 코드 생성을 하지 않습니다. 워크로드는 그 문서가 선언한 instance 주소 경로가 아니라 self-scoped relay 경로를 호출하기 때문입니다. 인접한 checksum, Kiota lock 및 `MANIFEST.json`은 이 저장소를 정확한 계약과 generator에 바인딩합니다.
 
 ## 로컬 검증
 
@@ -150,7 +155,7 @@ cd languages/java && mvn test
 cd languages/dart && dart analyze
 ```
 
-`scripts/regenerate-clients.sh`를 실행하면 두 계약을 검증하고 고정된 Kiota 1.34.1 도구를 복원하여 네 개의 애플리케이션 클라이언트와 Java/Dart Delivery 프로토콜 클라이언트를 다시 만듭니다. 작성된 Delivery facade는 보존됩니다. 각 생성 언어 폴더는 자체 package manifest, 사용 가능한 경우 dependency lock, Kiota lock, 소스, 문서 및 conformance helper를 유지합니다. 다운로드한 도구, 캐시, 의존성 트리와 빌드 중간 산출물은 제외됩니다. 과거 가져온 아티팩트는 `artifacts/imported` 아래에서 변경하지 않으며 현재 빌드는 `artifacts/local` 아래에 둡니다.
+`scripts/regenerate-clients.sh`를 실행하면 세 계약을 모두 검증하고 고정된 Kiota 1.34.1 도구를 복원하여 네 개의 애플리케이션 클라이언트와 Java/Dart Delivery 프로토콜 클라이언트를 다시 만듭니다. runtime-host 계약은 checksum만 검증하며 생성하지 않고, 작성된 runtime-host 모듈은 재생성 대상이 아닙니다. 작성된 Delivery facade는 보존됩니다. 각 생성 언어 폴더는 자체 package manifest, 사용 가능한 경우 dependency lock, Kiota lock, 소스, 문서 및 conformance helper를 유지합니다. 다운로드한 도구, 캐시, 의존성 트리와 빌드 중간 산출물은 제외됩니다. 과거 가져온 아티팩트는 `artifacts/imported` 아래에서 변경하지 않으며 현재 빌드는 `artifacts/local` 아래에 둡니다.
 
 ### 자체 호스팅 설치에 클라이언트 연결하기
 
@@ -173,3 +178,5 @@ publishable key는 Secret이 아닙니다. 이는 게이트웨이에 프로젝�
 ## 플랫폼 적격성
 
 생성된 REST 소스만으로 production 플랫폼 통합이 적격해지는 것은 아닙니다. `netstandard2.1` 호환성만으로 Unity 또는 AOT가 적격하다는 뜻도 아닙니다. Dart 패키지는 Dart 3.13.2 분석과 작성 소스 테스트를 통과했지만 Android, Flutter, Kotlin/JVM 런타임 통합, Unity IL2CPP, 네이티브 보안 저장소, interactive cookie 처리, .NET 이외의 SignalR 통합 및 live-gateway conformance는 지원을 주장하기 전에 각각 명시적인 플랫폼 증거가 필요합니다.
+
+runtime-host 모듈과 Unity 패키지는 체크인된 계약을 기준으로 작성되었고 fake transport 단위 테스트로만 검증되었습니다. Unity Editor import, IL2CPP 빌드, 실제 relay 세션으로 실행한 적이 없으며 계열별 runtime-host conformance 배터리(restart, replay, duplicate, stale-epoch, double-allocation, reservation-expiry, disconnect, Pod 교체, drain/shutdown 경합, credential-confusion, secret-negative)도 실행하지 않았습니다. 두 가지 모두 적격성이 검증되지 않은 preview로 취급하세요.

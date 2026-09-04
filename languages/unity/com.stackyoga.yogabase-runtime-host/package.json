@@ -1,0 +1,18 @@
+{
+  "name": "com.stackyoga.yogabase-runtime-host",
+  "version": "0.1.0-preview.1",
+  "displayName": "Yogabase Runtime Host",
+  "description": "Preview Unity runtime-host client for a Yogabase-hosted self-contained dedicated server workload. Talks to the Pod-local runtime-host relay over loopback (heartbeat, Ready, resume-token assignment polling, Shutdown) with no third-party dependency: only System.Text.Json and HttpClient, read exclusively through the JSON DOM so IL2CPP managed stripping at Medium/High cannot break it via reflection. This is a local, unpublished preview; it is not distributed through any package registry.",
+  "unity": "6000.0",
+  "author": {
+    "name": "Yogabase"
+  },
+  "keywords": [
+    "yogabase",
+    "runtime-host",
+    "dedicated-server",
+    "game-server",
+    "unity-server",
+    "il2cpp"
+  ]
+}

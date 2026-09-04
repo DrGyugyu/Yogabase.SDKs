@@ -1,0 +1,22 @@
+{
+  "name": "Yogabase.Yogabase.RuntimeHost.Tests",
+  "rootNamespace": "",
+  "references": [
+    "Yogabase.Yogabase.RuntimeHost",
+    "UnityEngine.TestRunner",
+    "UnityEditor.TestRunner"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "nunit.framework.dll"
+  ],
+  "autoReferenced": false,
+  "defineConstraints": [
+    "UNITY_INCLUDE_TESTS"
+  ],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

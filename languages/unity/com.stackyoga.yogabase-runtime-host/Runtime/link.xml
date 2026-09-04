@@ -1,0 +1,23 @@
+<!--
+  IL2CPP managed-code stripping (Medium/High) can remove types and members that are not
+  statically referenced elsewhere. This module builds and reads its wire payloads through
+  System.Text.Json.Nodes (JsonObject/JsonNode) — a document-object-model API, not an
+  attribute-driven or reflection-based serializer — so the main historical hazard this file
+  guards against (an attribute-mapped model type reachable only through reflection) does not
+  really apply here. It is still shipped defensively, in case a future change to this module
+  or a consumer's own code introduces a reflection-reached path.
+
+  Each entry:
+    - Yogabase.Yogabase.RuntimeHost: preserve the module's own assembly (the client, its
+      options, and the wire-model helpers) in case any member is reached only through
+      reflection from consumer code.
+    - System.Text.Json: preserve the JSON DOM types (JsonNode/JsonObject/JsonArray) this
+      module depends on for parsing and building relay payloads.
+    - System.Net.Http: preserve HttpClient and related types this module uses to call the
+      Pod-local runtime-host relay over loopback.
+-->
+<linker>
+  <assembly fullname="Yogabase.Yogabase.RuntimeHost" preserve="all"/>
+  <assembly fullname="System.Text.Json" preserve="all"/>
+  <assembly fullname="System.Net.Http" preserve="all"/>
+</linker>

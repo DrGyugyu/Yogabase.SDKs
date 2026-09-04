@@ -13,3 +13,10 @@ languages/python/**/*.pyc
 languages/java/target/
 languages/dart/.dart_tool/
 languages/dart/build/
+languages/unity/**/Library/
+languages/unity/**/Temp/
+languages/unity/**/Logs/
+languages/unity/**/obj/
+languages/unity/**/*.csproj
+languages/unity/**/*.unitypackage
+languages/unity/**/*.csproj.user

@@ -21,6 +21,7 @@ fi
 
 (cd "$repo_root/contracts" && shasum -a 256 -c yogabase-client-v1.openapi.sha256)
 (cd "$repo_root/contracts" && shasum -a 256 -c yogabase-delivery-v1.openapi.sha256)
+(cd "$repo_root/contracts" && shasum -a 256 -c yogabase-runtime-host-v1.openapi.sha256)
 (cd "$repo_root" && "$dotnet_exe" tool restore --tool-manifest "$tool_manifest")
 
 stage="$(mktemp -d "$repo_root/.regeneration.XXXXXX")"
@@ -81,29 +82,29 @@ generate_delivery Dart stackyoga_yogabase_delivery "$stage/languages/dart/lib/sr
 find "$stage" -name .kiota.log -delete
 
 rsync -a --delete \
-    --exclude index.ts \
-    --exclude delivery.ts \
-    --exclude storageLogicalKey.ts \
+    --exclude /index.ts \
+    --exclude /delivery.ts \
+    --exclude /storageLogicalKey.ts \
     "$stage/languages/typescript/src/" \
     "$repo_root/languages/typescript/src/"
 
 rsync -a --delete \
-    --exclude __init__.py \
-    --exclude delivery.py \
-    --exclude storage_logical_key.py \
+    --exclude /__init__.py \
+    --exclude /delivery.py \
+    --exclude /storage_logical_key.py \
     "$stage/languages/python/src/stackyoga_yogabase/" \
     "$repo_root/languages/python/src/stackyoga_yogabase/"
 
 rsync -a --delete \
-    --exclude delivery/ \
-    --exclude YogabaseApplicationClient.java \
-    --exclude YogabaseClientOrigin.java \
-    --exclude YogabaseDeliveryBearerTokenProvider.java \
-    --exclude YogabaseDeliveryClient.java \
-    --exclude YogabaseDeliveryRequestOptions.java \
-    --exclude YogabaseDeliverySseEvent.java \
-    --exclude YogabaseDeliverySseParser.java \
-    --exclude YogabaseStorageLogicalKey.java \
+    --exclude /delivery/ \
+    --exclude /YogabaseApplicationClient.java \
+    --exclude /YogabaseClientOrigin.java \
+    --exclude /YogabaseDeliveryBearerTokenProvider.java \
+    --exclude /YogabaseDeliveryClient.java \
+    --exclude /YogabaseDeliveryRequestOptions.java \
+    --exclude /YogabaseDeliverySseEvent.java \
+    --exclude /YogabaseDeliverySseParser.java \
+    --exclude /YogabaseStorageLogicalKey.java \
     "$stage/languages/java/src/main/java/io/stackyoga/yogabase/" \
     "$repo_root/languages/java/src/main/java/io/stackyoga/yogabase/"
 
@@ -112,13 +113,13 @@ rsync -a --delete \
     "$repo_root/languages/java/src/main/java/io/stackyoga/yogabase/delivery/"
 
 rsync -a --delete \
-    --exclude delivery/ \
-    --exclude yogabase_application_client.dart \
-    --exclude yogabase_delivery_bearer_token_provider.dart \
-    --exclude yogabase_delivery_client.dart \
-    --exclude yogabase_delivery_request_options.dart \
-    --exclude yogabase_delivery_sse.dart \
-    --exclude yogabase_storage_logical_key.dart \
+    --exclude /delivery/ \
+    --exclude /yogabase_application_client.dart \
+    --exclude /yogabase_delivery_bearer_token_provider.dart \
+    --exclude /yogabase_delivery_client.dart \
+    --exclude /yogabase_delivery_request_options.dart \
+    --exclude /yogabase_delivery_sse.dart \
+    --exclude /yogabase_storage_logical_key.dart \
     "$stage/languages/dart/lib/src/" \
     "$repo_root/languages/dart/lib/src/"
 

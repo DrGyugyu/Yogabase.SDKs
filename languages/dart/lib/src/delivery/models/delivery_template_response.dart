@@ -1,9 +1,12 @@
 // ignore_for_file: type=lint
 import 'package:microsoft_kiota_abstractions/microsoft_kiota_abstractions.dart';
 import 'package:uuid/uuid.dart';
+import './delivery_template_response_hosted_service_policy_digest.dart';
 
 /// auto generated
 class DeliveryTemplateResponse implements Parsable {
+    ///  The hostedServicePolicyDigest property
+    DeliveryTemplateResponseHostedServicePolicyDigest? hostedServicePolicyDigest;
     ///  The id property
     UuidValue? id;
     ///  The name property
@@ -27,6 +30,7 @@ class DeliveryTemplateResponse implements Parsable {
     @override
     Map<String, void Function(ParseNode)> getFieldDeserializers() {
         var deserializerMap = <String, void Function(ParseNode)>{};
+        deserializerMap['hostedServicePolicyDigest'] = (node) => hostedServicePolicyDigest = node.getObjectValue<DeliveryTemplateResponseHostedServicePolicyDigest>(DeliveryTemplateResponseHostedServicePolicyDigest.createFromDiscriminatorValue);
         deserializerMap['id'] = (node) => id = node.getGuidValue();
         deserializerMap['name'] = (node) => name = node.getStringValue();
         deserializerMap['revision'] = (node) => revision = node.getIntValue();
@@ -40,6 +44,7 @@ class DeliveryTemplateResponse implements Parsable {
     ///  [writer] Serialization writer to use to serialize this model
     @override
     void serialize(SerializationWriter writer) {
+        writer.writeObjectValue<DeliveryTemplateResponseHostedServicePolicyDigest>('hostedServicePolicyDigest', hostedServicePolicyDigest);
         writer.writeUuidValue('id', id);
         writer.writeStringValue('name', name);
         writer.writeIntValue('revision', revision);

@@ -96,6 +96,7 @@ public sealed class YogabaseDeliveryTemplate
     public string State { get; set; } = string.Empty;
     public Guid TargetId { get; set; }
     public string TemplateDigest { get; set; } = string.Empty;
+    public string? HostedServicePolicyDigest { get; set; }
     public long Revision { get; set; }
 }
 

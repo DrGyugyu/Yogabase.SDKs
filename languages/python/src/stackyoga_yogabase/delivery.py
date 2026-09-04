@@ -20,7 +20,7 @@ import httpx
 
 Uuid = str
 Sha256Digest = str
-YOGABASE_DELIVERY_CONTRACT_SHA256 = "f34601596e473efd158a2823d4113a04bb8f508515d4efccc0c355f18e480fec"
+YOGABASE_DELIVERY_CONTRACT_SHA256 = "1eca152807ed2c6ab834b6ad7fea5fedb514ce359bd8f02f028635b03b8b6cc4"
 DELIVERY_TERMINAL_OPERATION_STATES = ("Succeeded", "Failed", "Abandoned", "Cancelled", "Blocked")
 AccessToken = str | Callable[[], str | Awaitable[str]]
 T = TypeVar("T")
@@ -94,7 +94,7 @@ class DeliveryPreviewResponse(TypedDict):
     expiresAt: str
 
 
-class DeliveryTemplateResponse(TypedDict):
+class _DeliveryTemplateResponseRequired(TypedDict):
     id: Uuid
     name: str
     version: int
@@ -102,6 +102,10 @@ class DeliveryTemplateResponse(TypedDict):
     targetId: Uuid
     templateDigest: Sha256Digest
     revision: int
+
+
+class DeliveryTemplateResponse(_DeliveryTemplateResponseRequired, total=False):
+    hostedServicePolicyDigest: Sha256Digest | None
 
 
 class _DeliveryEnvironmentResponseRequired(TypedDict):

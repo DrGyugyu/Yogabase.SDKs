@@ -123,6 +123,40 @@ class DeliveryClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(raised.exception.status, 409)
         self.assertEqual(raised.exception.correlation_id, "c-1")
 
+    async def test_get_template_without_hosted_service_policy_digest(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={
+                "id": "template-1",
+                "name": "web",
+                "version": 1,
+                "state": "Active",
+                "targetId": "target-1",
+                "templateDigest": "sha256:aaaa",
+                "revision": 1,
+            }, request=request)
+
+        async with AsyncDeliveryClient(delivery_host="https://delivery.example.test", access_token="token", http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))) as client:
+            template = await client.get_template("project", "template-1")
+        self.assertNotIn("hostedServicePolicyDigest", template.data)
+        self.assertIsNone(template.data.get("hostedServicePolicyDigest"))
+
+    async def test_get_template_surfaces_hosted_service_policy_digest(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={
+                "id": "template-1",
+                "name": "web",
+                "version": 1,
+                "state": "Active",
+                "targetId": "target-1",
+                "templateDigest": "sha256:aaaa",
+                "hostedServicePolicyDigest": "sha256:bbbb",
+                "revision": 1,
+            }, request=request)
+
+        async with AsyncDeliveryClient(delivery_host="https://delivery.example.test", access_token="token", http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))) as client:
+            template = await client.get_template("project", "template-1")
+        self.assertEqual(template.data["hostedServicePolicyDigest"], "sha256:bbbb")
+
     async def test_sse_stream_is_parsed_and_resumed(self) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
             self.assertEqual(request.headers["Last-Event-ID"], "0")

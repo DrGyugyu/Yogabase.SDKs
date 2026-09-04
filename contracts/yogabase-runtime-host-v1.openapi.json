@@ -1,0 +1,617 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Yogabase Runtime Host API",
+    "version": "v1",
+    "description": "Instance-only runtime-host lifecycle contract (roadmap D2). Calls are made by (or on behalf of) a single running runtime-host instance and by the Control Plane-side allocator; human administration, delivery, and application traffic are deliberately outside this contract. The whole surface ships fail-closed: until the compiled runtime-host qualification evidence is accepted, every route answers 503 RUNTIME_HOST_UNAVAILABLE. Compatibility policy is N/N-1: when a v2 of this contract is published, v1 remains served for at least one release cycle so SDK families can migrate without a flag day."
+  },
+  "servers": [
+    {
+      "url": "https://{fleetRelay}/runtime-host/v1",
+      "variables": {
+        "fleetRelay": {
+          "description": "The member's outbound mutually authenticated fleet session relay. Instances never dial the Control Plane directly and hold no Kubernetes or cloud credentials.",
+          "default": "fleet-relay.yogabase.invalid"
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "runtimeHostBinding": []
+    }
+  ],
+  "paths": {
+    "/instances/{instanceId}/heartbeat": {
+      "post": {
+        "operationId": "runtimeHostHeartbeat",
+        "summary": "Renew the instance's bounded health lease.",
+        "description": "Heartbeats carry a strictly increasing client sequence; a replayed or reordered sequence is rejected with RUNTIME_HOST_STALE_SEQUENCE and does not renew the lease. A heartbeat from Starting or Unknown recovers the instance to Healthy — never directly to Ready, because readiness always requires accepted evidence. Lease durations are clamped to the 5 second – 5 minute contract bounds. A lease that expires moves the instance to Unknown, withdraws readiness, and voids any reservation; expiry never implies deletion — deletion requires an explicit tombstone bound to the exact resource UID.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/InstanceId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HeartbeatRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Lease"
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationProblem"
+          },
+          "403": {
+            "$ref": "#/components/responses/BindingProblem"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundProblem"
+          },
+          "409": {
+            "$ref": "#/components/responses/TransitionProblem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/instances/{instanceId}/ready": {
+      "post": {
+        "operationId": "runtimeHostRequestReady",
+        "summary": "Request readiness; granted only with accepted member-observation evidence.",
+        "description": "Ready is a request, not a self-declaration. The transition is granted only from Healthy and only after the Control Plane has accepted independent member-observation readiness evidence for this exact instance incarnation; otherwise the call fails with RUNTIME_HOST_READINESS_EVIDENCE_REQUIRED and the instance stays Healthy.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/InstanceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Lease"
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationProblem"
+          },
+          "403": {
+            "$ref": "#/components/responses/BindingProblem"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundProblem"
+          },
+          "409": {
+            "$ref": "#/components/responses/TransitionProblem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/instances/{instanceId}/reserve": {
+      "post": {
+        "operationId": "runtimeHostReserve",
+        "summary": "Place a bounded reservation on a Ready instance.",
+        "description": "A reservation holds a Ready instance for an imminent allocation for a bounded window (1 second – 10 minutes). Reservations are renewable while unexpired; an expired reservation returns the instance to Ready on the next observation. Reservation is Control Plane-authoritative — the instance cannot reserve itself into allocation.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/InstanceId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReserveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Lease"
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationProblem"
+          },
+          "403": {
+            "$ref": "#/components/responses/BindingProblem"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundProblem"
+          },
+          "409": {
+            "$ref": "#/components/responses/TransitionProblem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/instances/{instanceId}/shutdown": {
+      "post": {
+        "operationId": "runtimeHostRequestShutdown",
+        "summary": "Begin an auditable drain toward shutdown.",
+        "description": "Shutdown starts a drain: readiness is withdrawn immediately, existing work continues inside a bounded drain window (at most 30 minutes), and the completion event records whether the drain finished on its own (drain-complete) or was forced at the deadline (drain-deadline-forced). The request is idempotent. Deletion of the underlying workload still requires an explicit tombstone bound to the exact resource UID; this API never deletes.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/InstanceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Lease"
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationProblem"
+          },
+          "403": {
+            "$ref": "#/components/responses/BindingProblem"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundProblem"
+          },
+          "409": {
+            "$ref": "#/components/responses/TransitionProblem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/instances/{instanceId}/assignments": {
+      "get": {
+        "operationId": "runtimeHostReadAssignments",
+        "summary": "Read the instance's append-only assignment event stream.",
+        "description": "The polling fallback and the resume path are the same read: events are append-only with a per-instance monotonic sequence, the resume token is the last sequence the caller has processed, and a page returns at most 100 events with the next resume token. Replaying a token re-delivers the same events in the same order — consumers must be idempotent. A malformed or non-monotonic token fails with RUNTIME_HOST_RESUME_TOKEN_INVALID rather than silently restarting the stream.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/InstanceId"
+          },
+          {
+            "name": "resumeToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The last processed event sequence, exactly as returned by a previous page. Omit to read from the beginning."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of assignment events.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationProblem"
+          },
+          "403": {
+            "$ref": "#/components/responses/BindingProblem"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundProblem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/allocations": {
+      "post": {
+        "operationId": "runtimeHostAllocate",
+        "summary": "Allocate a Ready (or validly Reserved) instance, idempotently.",
+        "description": "Allocation is Control Plane-authoritative and idempotent: replaying the same idempotency key with the same constraints digest returns the original allocation with replayed=true; the same key with different constraints fails with RUNTIME_HOST_IDEMPOTENCY_CONFLICT. A concurrent double-allocation of one instance is fenced by optimistic concurrency and surfaces as a retryable RUNTIME_HOST_ALREADY_ALLOCATED. When no Ready instance exists for the target the call fails with RUNTIME_HOST_NO_READY_INSTANCE instead of queueing. The response carries only the instance's registered non-secret connection metadata.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AllocationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The allocation, freshly placed or idempotently replayed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AllocationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationProblem"
+          },
+          "403": {
+            "$ref": "#/components/responses/BindingProblem"
+          },
+          "409": {
+            "$ref": "#/components/responses/TransitionProblem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/allocations/{allocationId}/release": {
+      "post": {
+        "operationId": "runtimeHostReleaseAllocation",
+        "summary": "Release an allocation.",
+        "description": "Releasing is idempotent; releasing an already-released allocation succeeds without effect. The instance returns toward Ready through its normal observed lifecycle — release never deletes anything.",
+        "parameters": [
+          {
+            "name": "allocationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The allocation is released."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationProblem"
+          },
+          "403": {
+            "$ref": "#/components/responses/BindingProblem"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundProblem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "runtimeHostBinding": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Yogabase-Runtime-Host-Binding",
+        "description": "Strict JSON envelope {\"podUid\":\"...\",\"workloadGeneration\":N,\"sessionEpoch\":N} binding every call to one exact instance incarnation. A stale sessionEpoch, wrong podUid, or wrong workloadGeneration is rejected with 403 — a replaced Pod can never act as its predecessor. This surface accepts no delivery bearer token, no application credential, and no Kubernetes or cloud credential; production calls arrive only through the member's outbound mutually authenticated fleet session, which supplies the transport identity."
+      }
+    },
+    "parameters": {
+      "InstanceId": {
+        "name": "instanceId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "description": "The Control Plane-issued runtime-host instance identifier."
+      }
+    },
+    "responses": {
+      "Lease": {
+        "description": "The instance's current lease and lifecycle position.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/LeaseResponse"
+            }
+          }
+        }
+      },
+      "Unavailable": {
+        "description": "Runtime hosting is honestly unavailable: the compiled qualification gate is false because the enabling ADR is not accepted and the five-SDK conformance plus real-EKS exit has not passed.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ProblemDetails"
+            }
+          }
+        }
+      },
+      "ValidationProblem": {
+        "description": "The request body, resume token, or a bounded field is invalid.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ProblemDetails"
+            }
+          }
+        }
+      },
+      "BindingProblem": {
+        "description": "The instance binding envelope is missing, malformed, or names a stale incarnation (stale sessionEpoch, wrong podUid, wrong workloadGeneration, or a stale heartbeat sequence).",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ProblemDetails"
+            }
+          }
+        }
+      },
+      "NotFoundProblem": {
+        "description": "The instance or allocation does not exist in this scope.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ProblemDetails"
+            }
+          }
+        }
+      },
+      "TransitionProblem": {
+        "description": "The lifecycle refuses the transition from the instance's honest current state (for example already allocated, no ready instance, shutdown in progress, or an idempotency conflict).",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ProblemDetails"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "HeartbeatRequest": {
+        "type": "object",
+        "required": [
+          "sequence"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "sequence": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Strictly increasing client heartbeat sequence; replays and reordering are rejected."
+          }
+        }
+      },
+      "ReserveRequest": {
+        "type": "object",
+        "required": [
+          "seconds"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "seconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 600,
+            "description": "Requested reservation window in seconds, within the 1 second – 10 minute contract bounds."
+          }
+        }
+      },
+      "AllocationRequest": {
+        "type": "object",
+        "required": [
+          "targetId",
+          "idempotencyKey",
+          "constraintsJson"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "targetId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The member target whose Ready instances are eligible."
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Caller-chosen replay key. The same key with the same constraints replays the original allocation; different constraints under the same key conflict."
+          },
+          "constraintsJson": {
+            "type": "string",
+            "description": "Bounded JSON allocation constraints; digested for idempotency comparison."
+          },
+          "instanceId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Optional: allocate this exact instance (it must be Ready or validly Reserved) instead of letting the Control Plane pick."
+          }
+        }
+      },
+      "LeaseResponse": {
+        "type": "object",
+        "required": [
+          "instanceId",
+          "state",
+          "heartbeatSequence",
+          "leaseExpiresAt",
+          "eventSequence"
+        ],
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "$ref": "#/components/schemas/RuntimeHostState"
+          },
+          "heartbeatSequence": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "leaseExpiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "eventSequence": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The instance's latest assignment-event sequence; usable as a resume token."
+          }
+        }
+      },
+      "AssignmentEvent": {
+        "type": "object",
+        "required": [
+          "sequence",
+          "kind",
+          "state",
+          "occurredAt"
+        ],
+        "properties": {
+          "sequence": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "type": "string",
+            "description": "Audit event kind, for example registered, allocated, released, drain-complete, or drain-deadline-forced."
+          },
+          "state": {
+            "$ref": "#/components/schemas/RuntimeHostState"
+          },
+          "allocationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AssignmentPage": {
+        "type": "object",
+        "required": [
+          "events",
+          "resumeToken"
+        ],
+        "properties": {
+          "events": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/AssignmentEvent"
+            }
+          },
+          "resumeToken": {
+            "type": "string",
+            "description": "Pass back verbatim to continue after the last event in this page."
+          }
+        }
+      },
+      "AllocationResponse": {
+        "type": "object",
+        "required": [
+          "allocationId",
+          "instanceId",
+          "connectionMetadataJson",
+          "replayed"
+        ],
+        "properties": {
+          "allocationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "instanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "connectionMetadataJson": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "The instance's registered non-secret connection metadata. Registration rejects secret-looking material, so no credential can transit this field."
+          },
+          "replayed": {
+            "type": "boolean",
+            "description": "True when this response replays an earlier allocation under the same idempotency key."
+          }
+        }
+      },
+      "RuntimeHostState": {
+        "type": "string",
+        "enum": [
+          "Starting",
+          "Healthy",
+          "Ready",
+          "Reserved",
+          "Allocated",
+          "Draining",
+          "ShutdownRequested",
+          "Terminated",
+          "Unknown"
+        ],
+        "description": "The nine-state runtime-host lifecycle. Unknown means the lease expired and the Control Plane makes no claim about the process; it never implies deletion."
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "description": "RFC 9457 problem document with Yogabase extensions.",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "code": {
+            "$ref": "#/components/schemas/RuntimeHostErrorCode"
+          },
+          "correlationId": {
+            "type": "string"
+          }
+        }
+      },
+      "RuntimeHostErrorCode": {
+        "type": "string",
+        "enum": [
+          "RUNTIME_HOST_UNAVAILABLE",
+          "RUNTIME_HOST_INSTANCE_NOT_FOUND",
+          "RUNTIME_HOST_BINDING_REJECTED",
+          "RUNTIME_HOST_STALE_EPOCH",
+          "RUNTIME_HOST_STALE_SEQUENCE",
+          "RUNTIME_HOST_WRONG_POD",
+          "RUNTIME_HOST_WRONG_GENERATION",
+          "RUNTIME_HOST_NOT_READY",
+          "RUNTIME_HOST_READINESS_EVIDENCE_REQUIRED",
+          "RUNTIME_HOST_ALREADY_ALLOCATED",
+          "RUNTIME_HOST_NO_READY_INSTANCE",
+          "RUNTIME_HOST_INVALID_TRANSITION",
+          "RUNTIME_HOST_SHUTDOWN_IN_PROGRESS",
+          "RUNTIME_HOST_TERMINATED",
+          "RUNTIME_HOST_RESUME_TOKEN_INVALID",
+          "RUNTIME_HOST_IDEMPOTENCY_CONFLICT",
+          "RUNTIME_HOST_REQUEST_INVALID"
+        ]
+      }
+    }
+  }
+}

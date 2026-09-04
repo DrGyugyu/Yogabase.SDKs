@@ -1,5 +1,6 @@
 package io.stackyoga.yogabase.delivery.models;
 
+import com.microsoft.kiota.serialization.ComposedTypeWrapper;
 import com.microsoft.kiota.serialization.Parsable;
 import com.microsoft.kiota.serialization.ParseNode;
 import com.microsoft.kiota.serialization.SerializationWriter;
@@ -9,6 +10,10 @@ import java.util.Objects;
 import java.util.UUID;
 @jakarta.annotation.Generated("com.microsoft.kiota")
 public class DeliveryTemplateResponse implements Parsable {
+    /**
+     * The hostedServicePolicyDigest property
+     */
+    private DeliveryTemplateResponseHostedServicePolicyDigest hostedServicePolicyDigest;
     /**
      * The id property
      */
@@ -53,7 +58,8 @@ public class DeliveryTemplateResponse implements Parsable {
      */
     @jakarta.annotation.Nonnull
     public Map<String, java.util.function.Consumer<ParseNode>> getFieldDeserializers() {
-        final HashMap<String, java.util.function.Consumer<ParseNode>> deserializerMap = new HashMap<String, java.util.function.Consumer<ParseNode>>(7);
+        final HashMap<String, java.util.function.Consumer<ParseNode>> deserializerMap = new HashMap<String, java.util.function.Consumer<ParseNode>>(8);
+        deserializerMap.put("hostedServicePolicyDigest", (n) -> { this.setHostedServicePolicyDigest(n.getObjectValue(DeliveryTemplateResponseHostedServicePolicyDigest::createFromDiscriminatorValue)); });
         deserializerMap.put("id", (n) -> { this.setId(n.getUUIDValue()); });
         deserializerMap.put("name", (n) -> { this.setName(n.getStringValue()); });
         deserializerMap.put("revision", (n) -> { this.setRevision(n.getIntegerValue()); });
@@ -62,6 +68,14 @@ public class DeliveryTemplateResponse implements Parsable {
         deserializerMap.put("templateDigest", (n) -> { this.setTemplateDigest(n.getStringValue()); });
         deserializerMap.put("version", (n) -> { this.setVersion(n.getIntegerValue()); });
         return deserializerMap;
+    }
+    /**
+     * Gets the hostedServicePolicyDigest property value. The hostedServicePolicyDigest property
+     * @return a {@link DeliveryTemplateResponseHostedServicePolicyDigest}
+     */
+    @jakarta.annotation.Nullable
+    public DeliveryTemplateResponseHostedServicePolicyDigest getHostedServicePolicyDigest() {
+        return this.hostedServicePolicyDigest;
     }
     /**
      * Gets the id property value. The id property
@@ -125,6 +139,7 @@ public class DeliveryTemplateResponse implements Parsable {
      */
     public void serialize(@jakarta.annotation.Nonnull final SerializationWriter writer) {
         Objects.requireNonNull(writer);
+        writer.writeObjectValue("hostedServicePolicyDigest", this.getHostedServicePolicyDigest());
         writer.writeUUIDValue("id", this.getId());
         writer.writeStringValue("name", this.getName());
         writer.writeIntegerValue("revision", this.getRevision());
@@ -132,6 +147,13 @@ public class DeliveryTemplateResponse implements Parsable {
         writer.writeUUIDValue("targetId", this.getTargetId());
         writer.writeStringValue("templateDigest", this.getTemplateDigest());
         writer.writeIntegerValue("version", this.getVersion());
+    }
+    /**
+     * Sets the hostedServicePolicyDigest property value. The hostedServicePolicyDigest property
+     * @param value Value to set for the hostedServicePolicyDigest property.
+     */
+    public void setHostedServicePolicyDigest(@jakarta.annotation.Nullable final DeliveryTemplateResponseHostedServicePolicyDigest value) {
+        this.hostedServicePolicyDigest = value;
     }
     /**
      * Sets the id property value. The id property
@@ -181,5 +203,89 @@ public class DeliveryTemplateResponse implements Parsable {
      */
     public void setVersion(@jakarta.annotation.Nullable final Integer value) {
         this.version = value;
+    }
+    /**
+     * Composed type wrapper for classes {@link DeliveryTemplateResponseHostedServicePolicyDigestMember1}, {@link Sha256Digest}
+     */
+    @jakarta.annotation.Generated("com.microsoft.kiota")
+    public static class DeliveryTemplateResponseHostedServicePolicyDigest implements ComposedTypeWrapper, Parsable {
+        /**
+         * Composed type representation for type {@link DeliveryTemplateResponseHostedServicePolicyDigestMember1}
+         */
+        private DeliveryTemplateResponseHostedServicePolicyDigestMember1 deliveryTemplateResponseHostedServicePolicyDigestMember1;
+        /**
+         * Composed type representation for type {@link Sha256Digest}
+         */
+        private Sha256Digest sha256Digest;
+        /**
+         * Creates a new instance of the appropriate class based on discriminator value
+         * @param parseNode The parse node to use to read the discriminator value and create the object
+         * @return a {@link DeliveryTemplateResponseHostedServicePolicyDigest}
+         */
+        @jakarta.annotation.Nonnull
+        public static DeliveryTemplateResponseHostedServicePolicyDigest createFromDiscriminatorValue(@jakarta.annotation.Nonnull final ParseNode parseNode) {
+            Objects.requireNonNull(parseNode);
+            final DeliveryTemplateResponseHostedServicePolicyDigest result = new DeliveryTemplateResponseHostedServicePolicyDigest();
+            final ParseNode mappingValueNode = parseNode.getChildNode("");
+            if (mappingValueNode != null) {
+                final String mappingValue = mappingValueNode.getStringValue();
+            }
+            return result;
+        }
+        /**
+         * Gets the DeliveryTemplateResponse_hostedServicePolicyDigestMember1 property value. Composed type representation for type {@link DeliveryTemplateResponseHostedServicePolicyDigestMember1}
+         * @return a {@link DeliveryTemplateResponseHostedServicePolicyDigestMember1}
+         */
+        @jakarta.annotation.Nullable
+        public DeliveryTemplateResponseHostedServicePolicyDigestMember1 getDeliveryTemplateResponseHostedServicePolicyDigestMember1() {
+            return this.deliveryTemplateResponseHostedServicePolicyDigestMember1;
+        }
+        /**
+         * The deserialization information for the current model
+         * @return a {@link Map<String, java.util.function.Consumer<ParseNode>>}
+         */
+        @jakarta.annotation.Nonnull
+        public Map<String, java.util.function.Consumer<ParseNode>> getFieldDeserializers() {
+            if (this.getDeliveryTemplateResponseHostedServicePolicyDigestMember1() != null) {
+                return this.getDeliveryTemplateResponseHostedServicePolicyDigestMember1().getFieldDeserializers();
+            } else if (this.getSha256Digest() != null) {
+                return this.getSha256Digest().getFieldDeserializers();
+            }
+            return new HashMap<String, java.util.function.Consumer<ParseNode>>();
+        }
+        /**
+         * Gets the Sha256Digest property value. Composed type representation for type {@link Sha256Digest}
+         * @return a {@link Sha256Digest}
+         */
+        @jakarta.annotation.Nullable
+        public Sha256Digest getSha256Digest() {
+            return this.sha256Digest;
+        }
+        /**
+         * Serializes information the current object
+         * @param writer Serialization writer to use to serialize this model
+         */
+        public void serialize(@jakarta.annotation.Nonnull final SerializationWriter writer) {
+            Objects.requireNonNull(writer);
+            if (this.getDeliveryTemplateResponseHostedServicePolicyDigestMember1() != null) {
+                writer.writeObjectValue(null, this.getDeliveryTemplateResponseHostedServicePolicyDigestMember1());
+            } else if (this.getSha256Digest() != null) {
+                writer.writeObjectValue(null, this.getSha256Digest());
+            }
+        }
+        /**
+         * Sets the DeliveryTemplateResponse_hostedServicePolicyDigestMember1 property value. Composed type representation for type {@link DeliveryTemplateResponseHostedServicePolicyDigestMember1}
+         * @param value Value to set for the DeliveryTemplateResponse_hostedServicePolicyDigestMember1 property.
+         */
+        public void setDeliveryTemplateResponseHostedServicePolicyDigestMember1(@jakarta.annotation.Nullable final DeliveryTemplateResponseHostedServicePolicyDigestMember1 value) {
+            this.deliveryTemplateResponseHostedServicePolicyDigestMember1 = value;
+        }
+        /**
+         * Sets the Sha256Digest property value. Composed type representation for type {@link Sha256Digest}
+         * @param value Value to set for the Sha256Digest property.
+         */
+        public void setSha256Digest(@jakarta.annotation.Nullable final Sha256Digest value) {
+            this.sha256Digest = value;
+        }
     }
 }

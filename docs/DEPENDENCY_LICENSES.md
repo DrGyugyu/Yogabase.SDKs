@@ -24,6 +24,7 @@ transitive graph before publication.
 | `microsoft_kiota_bundle` | 0.1.1 | Dart runtime | MIT | Retain the MIT notice; live Dart transport and Flutter integration remain unqualified. |
 | `uuid` | 4.6.0 | Dart delivery UUID value type | MIT | Retain the MIT notice. |
 | Microsoft Kiota generator | 1.34.1 | External source generation | MIT | Generation tool only; source commit and NuGet digest are bound in `MANIFEST.json`. |
+| Agones client SDK loop shape (`v1.60.0`, `67b44a783218f7811084adaa5d9b334fb28e44ba`) | Source-ported, not a package reference | Client loop shape for `Yogabase.Yogabase.RuntimeHost` and its Unity package | Apache-2.0 | Retain the Apache-2.0 licence and the "Copyright Contributors to Agones a Series of LF Projects, LLC" attribution; ship the unmodified licence text at `licenses/Apache-2.0-Agones.txt` and pack it into the package; mark every translated file prominently as a modified derivative. Apache-2.0 imposes no source-disclosure, network-use, or commercial restriction. Copying boundary and modifications are recorded in [`REFERENCE_REVIEW.md`](REFERENCE_REVIEW.md). |
 
 The SDK implementations and package-specific `LICENSE.md` files are proprietary. Third-party
 dependencies do not receive rights to Yogabase source beyond their own license terms.

@@ -787,6 +787,63 @@ public sealed class YogabaseClientTests
     }
 
     [Fact]
+    public async Task DeliveryTemplateWithoutHostedServicePolicyDigestDeserializesAsNull()
+    {
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            var response = Json(HttpStatusCode.OK, JsonSerializer.Serialize(new
+            {
+                id = "22222222-2222-4222-8222-222222222222",
+                name = "web",
+                version = 1,
+                state = "Active",
+                targetId = "33333333-3333-4333-8333-333333333333",
+                templateDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                revision = 1,
+            }));
+            response.Headers.TryAddWithoutValidation("ETag", "W/\"1\"");
+            return Task.FromResult(response);
+        });
+        using var delivery = Delivery(handler);
+
+        var template = await delivery.GetTemplateAsync(
+            Guid.Parse("11111111-1111-4111-8111-111111111111"),
+            Guid.Parse("22222222-2222-4222-8222-222222222222"),
+            TestContext.Current.CancellationToken);
+
+        Assert.Null(template.Value.HostedServicePolicyDigest);
+    }
+
+    [Fact]
+    public async Task DeliveryTemplateWithHostedServicePolicyDigestSurfacesTheExactValue()
+    {
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            var response = Json(HttpStatusCode.OK, JsonSerializer.Serialize(new
+            {
+                id = "22222222-2222-4222-8222-222222222222",
+                name = "web",
+                version = 1,
+                state = "Active",
+                targetId = "33333333-3333-4333-8333-333333333333",
+                templateDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                hostedServicePolicyDigest = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                revision = 1,
+            }));
+            response.Headers.TryAddWithoutValidation("ETag", "W/\"1\"");
+            return Task.FromResult(response);
+        });
+        using var delivery = Delivery(handler);
+
+        var template = await delivery.GetTemplateAsync(
+            Guid.Parse("11111111-1111-4111-8111-111111111111"),
+            Guid.Parse("22222222-2222-4222-8222-222222222222"),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", template.Value.HostedServicePolicyDigest);
+    }
+
+    [Fact]
     public async Task ClearWaitsForAnInFlightRefreshAndRemainsFinal()
     {
         var refreshStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

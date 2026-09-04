@@ -8,7 +8,7 @@
 
 export type Uuid = string;
 export type Sha256Digest = string;
-export const YOGABASE_DELIVERY_CONTRACT_SHA256 = "f34601596e473efd158a2823d4113a04bb8f508515d4efccc0c355f18e480fec";
+export const YOGABASE_DELIVERY_CONTRACT_SHA256 = "1eca152807ed2c6ab834b6ad7fea5fedb514ce359bd8f02f028635b03b8b6cc4";
 export const DELIVERY_TERMINAL_OPERATION_STATES = ["Succeeded", "Failed", "Abandoned", "Cancelled", "Blocked"] as const;
 
 export interface DeliveryEnvironmentPreviewRequest {
@@ -83,6 +83,7 @@ export interface DeliveryTemplateResponse {
     state: string;
     targetId: Uuid;
     templateDigest: Sha256Digest;
+    hostedServicePolicyDigest?: Sha256Digest | null;
     revision: number;
 }
 

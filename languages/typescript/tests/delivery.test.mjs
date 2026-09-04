@@ -94,6 +94,37 @@ test("SSE operation events surface opaque IDs and ignore heartbeat comments", as
     assert.equal(fake.calls[0].init.headers.get("Last-Event-ID"), "0");
 });
 
+test("getTemplate deserializes a response without hostedServicePolicyDigest as absent", async () => {
+    const fake = fakeFetch([jsonResponse({
+        id: "t",
+        name: "web",
+        version: 1,
+        state: "Active",
+        targetId: "target",
+        templateDigest: "sha256:aaaa",
+        revision: 1,
+    })]);
+    const client = new YogabaseDeliveryClient({ deliveryHost: "https://delivery.example.test", accessToken: "token", fetch: fake.fetcher });
+    const result = await client.getTemplate("p", "t");
+    assert.equal(result.data.hostedServicePolicyDigest, undefined);
+});
+
+test("getTemplate surfaces the exact hostedServicePolicyDigest value when present", async () => {
+    const fake = fakeFetch([jsonResponse({
+        id: "t",
+        name: "web",
+        version: 1,
+        state: "Active",
+        targetId: "target",
+        templateDigest: "sha256:aaaa",
+        hostedServicePolicyDigest: "sha256:bbbb",
+        revision: 1,
+    })]);
+    const client = new YogabaseDeliveryClient({ deliveryHost: "https://delivery.example.test", accessToken: "token", fetch: fake.fetcher });
+    const result = await client.getTemplate("p", "t");
+    assert.equal(result.data.hostedServicePolicyDigest, "sha256:bbbb");
+});
+
 test("SSE operation events reject a successful response with the wrong content type", async () => {
     const fake = fakeFetch([new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } })]);
     const client = new YogabaseDeliveryClient({ deliveryHost: "https://delivery.example.test", accessToken: "token", fetch: fake.fetcher });

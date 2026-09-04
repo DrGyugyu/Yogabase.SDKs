@@ -31,7 +31,7 @@ Kubernetes mutation authority.
 | Supabase Kotlin | `3.7.0`, `835bfb0fe8e1d277d28c55548ee54af899fec175` | MIT | Coroutine-friendly modules and explicit install/configuration boundaries. |
 | Supabase C# | `v1.6.0`, `ecf3354116fac924e9aacd7c2f5982bae9140a27`; consolidated comparison `87d451e0e2882be8387dd79f7521d01d6161dc21` | MIT | Options, composed service facades, session lifecycle, and platform-neutral transport seams. |
 | Firebase JavaScript SDK | `50213a1cdba8e3b0f029197ec20f47c1110060a6` | Apache-2.0 | Validated bootstrap, modular capability access, caller-owned persistence, and offline/error semantics. |
-| Agones client SDKs | `v1.60.0`, `67b44a783218f7811084adaa5d9b334fb28e44ba` | Apache-2.0 | Health/readiness lifecycle shape, bounded watches, cancellation, graceful shutdown, and consistent multi-platform concepts. |
+| Agones client SDKs | `v1.60.0`, `67b44a783218f7811084adaa5d9b334fb28e44ba` | Apache-2.0 | Health/readiness lifecycle shape, bounded watches, cancellation, graceful shutdown, and consistent multi-platform concepts. **Adopted, not merely inspected** — the client loop shape is ported into `Yogabase.Yogabase.RuntimeHost`; see the adopted-port record below. |
 | PlayFlow Unity SDK | `v1.0.10`, `e4f8e94bdbfbde688f3b847068134a6817f0773a` | Apache-2.0 | Remote build/service lifecycle requests, bounded polling, errors, and Unity-facing configuration. |
 | Nakama .NET/Unity client | locally installed `3.21.2+437fb84f0d6ce48aaf7bb8aa42a0b6ac034256de`; assembly SHA-256 `8f04cb17affceb10a4958b51573429458ca631deb522cc2750d307f1a4c20218` | Apache-2.0 | Session refresh ownership, HTTP/socket separation, reconnect state, cancellation, and Unity main-thread adapter boundaries. |
 | Nakama Plus runtime modules | `18e4d2cd53d5f546d5684d6f70996c08234afc45` | Apache-2.0 | Fail-closed module discovery, RPC failure boundaries, and lifecycle visibility only; it is not a client SDK. |
@@ -56,14 +56,33 @@ dependency.
 - Keep generated protocol code behind authored, idiomatic facades and preserve those facades during
   regeneration.
 
-## Deliberate boundary: no fabricated host lifecycle
+## Adopted port: the runtime-host client loop
 
-The current Control Plane delivery contract lets an authenticated build workflow create an
-environment, submit immutable artifact evidence, release it, and observe the resulting durable
-operation. That is how a custom build reaches Yogabase's authoritative Control Plane and, through
-its signed fleet and subordinate actuator, Kubernetes.
+This section replaces the earlier "no fabricated host lifecycle" boundary. That boundary rested on
+a premise that has since expired, and it is recorded here as satisfied rather than waived.
 
-The current source does not expose a customer-build runtime API equivalent to Agones health,
-ready, allocate, reserve, or shutdown calls. These SDKs therefore do not invent one. Agones,
-PlayFlow, and Nakama inform the client lifecycle design only. A future runtime-host contract must
-first be implemented and versioned by Yogabase before any SDK can expose those operations.
+The Control Plane delivery contract lets an authenticated build workflow create an environment,
+submit immutable artifact evidence, release it, and observe the resulting durable operation. That
+remains how a custom build reaches Yogabase's authoritative Control Plane and, through its signed
+fleet and subordinate actuator, Kubernetes.
+
+The earlier position was that these SDKs would invent no health, ready, reserve, or shutdown
+operations until Yogabase itself implemented and versioned a runtime-host contract. Yogabase has
+now done so. That contract is checked in at `contracts/yogabase-runtime-host-v1.openapi.json`, and
+the condition the boundary set is therefore met.
+
+| Field | Record |
+|---|---|
+| Adopted source | Agones client SDKs — the client loop shape in `sdks/csharp/sdk/AgonesSDK.cs` and `sdks/unity/AgonesSdk.cs` |
+| Revision | `v1.60.0`, commit `67b44a783218f7811084adaa5d9b334fb28e44ba` |
+| Licence | Apache-2.0; the unmodified text ships at `licenses/Apache-2.0-Agones.txt` |
+| Attribution | Copyright Contributors to Agones a Series of LF Projects, LLC |
+| Adopted | The client loop *shape* only: a background health loop started by a connect call, one-shot ready/reserve/shutdown calls, and an assignment watch. |
+| Not adopted | Agones type or method names, its `proto/sdk` wire contracts, `GameServer`/`Fleet`/allocation resource concepts, host-port policies, and any PlayFlow-compatible hosting API. |
+| Modifications | Retargeted to Yogabase's self-scoped loopback routes `/runtime-host/v1/self/{heartbeat,ready,reserve,shutdown,assignments}`; the client never learns, holds, or asserts an instance id; it sends no credential of any kind; assignments are polled rather than streamed, because the relay is request/response; no allocation call is exposed to a workload, which the relay refuses by construction. |
+| Marking | Every derived file carries a prominent header naming the revision, licence, attribution, its status as a modified derivative, and the modifications above. |
+| Replacement strategy | The module is a thin authored client over an HTTP contract Yogabase owns. Were the Apache grant ever unusable, it could be rewritten directly from `contracts/yogabase-runtime-host-v1.openapi.json` and the relay route allowlist without reference to Agones. |
+
+PlayFlow and Nakama remain reference-only and are not ported. The distinction matters: Agones
+material is now *adopted* under its permissive licence, while those two continue to inform design
+without any material being copied.
