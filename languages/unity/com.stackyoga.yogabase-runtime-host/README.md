@@ -1,11 +1,12 @@
 # Yogabase Runtime Host (Unity)
 
-> **Copies, not a fork.** Everything under `Runtime/*.cs` in this package is a byte-for-byte copy
-> of the corresponding file in `src/dotnet/Yogabase.Yogabase.RuntimeHost` in this repository. The
-> **.NET project is the source of truth** — if you need to change client behavior, change it there
-> first, then re-copy the four files here and re-verify with `diff`. This package exists only to
-> give Unity a UPM-shaped way to consume that already-tested module; it does not re-implement or
-> fork it.
+> **Synced source, not a fork.** The four `Runtime/*.cs` implementation files track the
+> corresponding files in `src/dotnet/Yogabase.Yogabase.RuntimeHost` in this repository. They differ
+> only in C# namespace syntax: the Unity copies use C# 9 braced namespaces because Unity 6000.5.7f1
+> does not accept the .NET source's C# 10 file-scoped namespaces. The **.NET project is the source
+> of truth** for behavior — change it first, then re-copy and perform the same syntax-only
+> conversion if Unity still requires it. This package only gives Unity a UPM-shaped way to consume
+> that module; it does not re-implement client behavior.
 
 A local, unpublished preview UPM package that carries `Yogabase.Yogabase.RuntimeHost` — the
 runtime-host client for a Yogabase-hosted self-contained dedicated server workload — into a Unity
@@ -106,17 +107,22 @@ constructs and disposes without throwing) — it does not port the full .NET beh
 behavioral coverage for this client; treat this package's tests as "does it compile and wire up
 correctly inside a Unity assembly," nothing more.
 
-## Honest limits
+## Verification status and limits
 
-- **No Unity Editor has imported this package.** Nothing here has been opened in the Unity Editor.
-  There is no Unity Editor available in the environment that authored this package.
-- **No IL2CPP build has exercised it.** The `link.xml` preservation directives above are inferred
-  from reading the module's source, not confirmed by an actual stripped IL2CPP Linux Dedicated
-  Server build.
+- **Unity import and compilation succeeded.** Unity 6000.5.7f1 imported this local file package
+  into the AdaptiveSynce project. Its `Yogabase.Yogabase.RuntimeHost` assembly was visible from the
+  dedicated-server assembly, and the project's EditMode suite passed 29/29 tests, including the
+  runtime-host assembly-visibility check.
+- **The package's own test assembly was not discovered by that runner.** The successful 29-test
+  project suite verifies compilation and assembly visibility; it is not a substitute for executing
+  `Yogabase.Yogabase.RuntimeHost.Tests` itself.
+- **The requested ARM64 IL2CPP Dedicated Server build did not produce an artifact.** Unity's Bee
+  input recorded `"Architecture":"x64"`, then hard-stopped with `No Toolchain found for host
+  platform` and `Unable to find an Linux Sysroot`. No x64 fallback, Player build, bundle, signature,
+  or admission was accepted. Accordingly, `link.xml` has not yet been confirmed in a stripped ARM64
+  IL2CPP output.
 - **No live relay session has exercised this package.** The startup sequence above mirrors
-  `docs/UNITY_DEDICATED_SERVER.md`, which is itself derived from reading product source, not from a
-  working Unity export talking to a running Yogabase installation.
-- **The `.asmdef` and `package.json` shapes are believed correct for Unity 6000** based on current
-  UPM/Unity Test Framework documentation and convention, not verified by a real Unity import.
+  `docs/UNITY_DEDICATED_SERVER.md`; live heartbeat, readiness, shutdown, and assignment polling
+  still require a valid ARM64 server artifact and a UDP-capable deployed gateway.
 
 Treat this package as a first attempt to get the packaging right, not a proven integration.
