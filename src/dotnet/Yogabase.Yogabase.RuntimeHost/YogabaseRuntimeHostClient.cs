@@ -259,15 +259,20 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
 #endif
     }
 
+    // Every assignment here is a "do not" -- no redirect, no proxy, no cookie jar, no ambient
+    // credential -- because this handler talks to a loopback runtime host and must not inherit any
+    // machine-wide HTTP behaviour. The flags say all of that on their own; the matching `Proxy` and
+    // `Credentials` nulls said it a second time, and Mono's HttpClientHandler throws
+    // InvalidOperationException from set_Proxy once UseProxy is false. On CoreCLR the redundant
+    // assignment is merely ignored, so this only ever failed in an IL2CPP player -- the Unity
+    // dedicated server died in its own constructor before it could bind a port.
     private static HttpClientHandler CreateDefaultHandler() =>
         new HttpClientHandler
         {
             AllowAutoRedirect = false,
             UseProxy = false,
-            Proxy = null,
             UseCookies = false,
             UseDefaultCredentials = false,
-            Credentials = null,
             PreAuthenticate = false,
         };
 
