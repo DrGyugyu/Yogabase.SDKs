@@ -27,7 +27,8 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Yogabase.Yogabase.RuntimeHost;
+namespace Yogabase.Yogabase.RuntimeHost
+{
 
 /// <summary>
 /// Mirrors AgonesSDK.cs's client loop shape against Yogabase's self-scoped runtime-host relay
@@ -320,4 +321,6 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
             }
         }
     }
+}
+
 }

@@ -18,7 +18,8 @@
 
 using System;
 
-namespace Yogabase.Yogabase.RuntimeHost;
+namespace Yogabase.Yogabase.RuntimeHost
+{
 
 /// <summary>Configures a <see cref="YogabaseRuntimeHostClient"/>.</summary>
 public sealed class YogabaseRuntimeHostOptions
@@ -66,4 +67,6 @@ public sealed class YogabaseRuntimeHostOptions
 
         return new Uri(DefaultEndpoint, UriKind.Absolute);
     }
+}
+
 }

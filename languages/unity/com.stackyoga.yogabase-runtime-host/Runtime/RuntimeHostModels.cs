@@ -20,7 +20,8 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 
-namespace Yogabase.Yogabase.RuntimeHost;
+namespace Yogabase.Yogabase.RuntimeHost
+{
 
 /// <summary>
 /// One heartbeat/ready/reserve/shutdown lease answer, loosely parsed from the runtime-host relay
@@ -109,4 +110,6 @@ public sealed class YogabaseRuntimeHostException : Exception
 
     /// <summary>The raw response body. Never null.</summary>
     public string BodyJson { get; }
+}
+
 }
