@@ -12,32 +12,6 @@ public sealed class YogabaseClientTests
     private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
 
     [Fact]
-    public async Task DataUsesTheExactRouteAndBearerToken()
-    {
-        HttpRequestMessage? observed = null;
-        string? body = null;
-        var handler = new ScriptedHandler(async (request, cancellationToken) =>
-        {
-            observed = CloneRequest(request);
-            body = await request.Content!.ReadAsStringAsync(cancellationToken);
-            return Json(HttpStatusCode.OK, "{\"rows\":[],\"affectedRows\":0}");
-        });
-        var store = await AuthenticatedStoreAsync();
-        await using var client = Client(handler, store);
-
-        var result = await client.Data.SelectAsync(
-            "profiles",
-            new YogabaseSelectRequest { Columns = ["display_name"], PageSize = 25 },
-            TestContext.Current.CancellationToken);
-
-        Assert.Empty(result.Rows);
-        Assert.Equal(HttpMethod.Post, observed!.Method);
-        Assert.Equal("http://localhost/v1/data/profiles/select", observed.RequestUri!.AbsoluteUri);
-        Assert.Equal(new AuthenticationHeaderValue("Bearer", "access-token"), observed.Headers.Authorization);
-        Assert.Contains("\"columns\":[\"display_name\"]", body, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task StorageSendsIntegrityHeadersChecksReceiptAndKeepsCallerStreamOpen()
     {
         var bytes = Encoding.UTF8.GetBytes("hello");
@@ -502,7 +476,7 @@ public sealed class YogabaseClientTests
                     HttpStatusCode.OK,
                     "{\"access_token\":\"new-token\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"refresh_token\":\"new-refresh\"}"));
             }
-            return Task.FromResult(Json(HttpStatusCode.OK, "{\"rows\":[],\"affectedRows\":0}"));
+            return Task.FromResult(Json(HttpStatusCode.OK, "[]"));
         });
         var store = new InMemoryYogabaseSessionStore();
         await store.SaveAsync(new YogabaseTokenSet
@@ -514,8 +488,8 @@ public sealed class YogabaseClientTests
         await using var client = Client(handler, store);
 
         await Task.WhenAll(
-            client.Data.SelectAsync("profiles", new YogabaseSelectRequest(), TestContext.Current.CancellationToken),
-            client.Data.SelectAsync("profiles", new YogabaseSelectRequest(), TestContext.Current.CancellationToken));
+            client.Servers.ListAsync(TestContext.Current.CancellationToken),
+            client.Servers.ListAsync(TestContext.Current.CancellationToken));
 
         Assert.Equal(1, tokenCalls);
     }
@@ -1093,10 +1067,10 @@ public sealed class YogabaseClientTests
             IssuedAt = source.IssuedAt,
         };
 
-    private static IReadOnlyList<YogabaseCapability> Capabilities() =>
+    // The four capabilities an installation publishes now that the Data API module is withdrawn.
+    internal static IReadOnlyList<YogabaseCapability> Capabilities() =>
     [
         new() { Id = "auth", Available = true },
-        new() { Id = "data-rest", Available = true },
         new() { Id = "storage", Available = true },
         new() { Id = "functions-rest", Available = true },
         new() { Id = "realtime-subscribe", Available = false, UnavailableReason = "preview-disabled" },

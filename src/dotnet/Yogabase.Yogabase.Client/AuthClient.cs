@@ -66,7 +66,7 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
 
         using var response = await RequireTransport().SendAsync(
             HttpMethod.Post,
-            "auth/signup",
+            YogabaseRoutes.AuthSignUp,
             new { email, password, invitationToken },
             authenticated: false,
             cancellationToken).ConfigureAwait(false);
@@ -82,7 +82,7 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
         ValidatePassword(password);
         var response = await RequireTransport().SendAsync(
             HttpMethod.Post,
-            "auth/login",
+            YogabaseRoutes.AuthLogin,
             new { email, password },
             authenticated: false,
             cancellationToken,
@@ -107,7 +107,7 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
         YogabaseClient.EnsureCapability(configuration, "auth");
         using var response = await RequireTransport().SendAsync(
             HttpMethod.Post,
-            "auth/logout",
+            YogabaseRoutes.AuthLogout,
             body: null,
             authenticated: false,
             cancellationToken).ConfigureAwait(false);
@@ -124,7 +124,7 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
         ValidateRequiredBoundedValue(token, 8192, nameof(token));
         using var response = await RequireTransport().SendAsync(
             HttpMethod.Post,
-            "auth/email/confirm",
+            YogabaseRoutes.AuthEmailConfirm,
             new { userId, token },
             authenticated: false,
             cancellationToken).ConfigureAwait(false);
@@ -138,7 +138,7 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
         ValidateEmail(email);
         using var response = await RequireTransport().SendAsync(
             HttpMethod.Post,
-            "auth/password/reset/request",
+            YogabaseRoutes.AuthPasswordResetRequest,
             new { email },
             authenticated: false,
             cancellationToken).ConfigureAwait(false);
@@ -156,7 +156,7 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
         ValidatePassword(password);
         using var response = await RequireTransport().SendAsync(
             HttpMethod.Post,
-            "auth/password/reset/complete",
+            YogabaseRoutes.AuthPasswordResetComplete,
             new { userId, token, password },
             authenticated: false,
             cancellationToken).ConfigureAwait(false);
@@ -168,7 +168,7 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
         YogabaseClient.EnsureCapability(configuration, "auth");
         var response = await RequireTransport().SendAsync(
             HttpMethod.Post,
-            "auth/mfa/setup",
+            YogabaseRoutes.AuthMfaSetup,
             body: null,
             authenticated: false,
             cancellationToken).ConfigureAwait(false);
@@ -179,10 +179,10 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
     }
 
     public Task ConfirmMfaAsync(string code, CancellationToken cancellationToken = default) =>
-        SendMfaCodeAsync("auth/mfa/confirm", code, cancellationToken);
+        SendMfaCodeAsync(YogabaseRoutes.AuthMfaConfirm, code, cancellationToken);
 
     public Task VerifyMfaAsync(string code, CancellationToken cancellationToken = default) =>
-        SendMfaCodeAsync("auth/mfa/verify", code, cancellationToken);
+        SendMfaCodeAsync(YogabaseRoutes.AuthMfaVerify, code, cancellationToken);
 
     public async Task<IReadOnlyList<string>> RegenerateRecoveryCodesAsync(
         CancellationToken cancellationToken = default)
@@ -190,7 +190,7 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
         YogabaseClient.EnsureCapability(configuration, "auth");
         var response = await RequireTransport().SendAsync(
             HttpMethod.Post,
-            "auth/mfa/recovery/regenerate",
+            YogabaseRoutes.AuthMfaRecoveryRegenerate,
             body: null,
             authenticated: false,
             cancellationToken).ConfigureAwait(false);
@@ -214,7 +214,7 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
         ValidateRequiredBoundedValue(code, 256, nameof(code));
         using var response = await RequireTransport().SendAsync(
             HttpMethod.Post,
-            "auth/mfa/recovery/use",
+            YogabaseRoutes.AuthMfaRecoveryUse,
             new { code },
             authenticated: false,
             cancellationToken).ConfigureAwait(false);
@@ -232,7 +232,7 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
         ValidateRequiredBoundedValue(state, 2048, nameof(state));
         var response = await RequireTransport().SendAsync(
             HttpMethod.Post,
-            $"auth/external/{Uri.EscapeDataString(provider)}/callback",
+            YogabaseRoutes.AuthExternalCallback(provider),
             new { code, state },
             authenticated: false,
             cancellationToken,
@@ -515,11 +515,11 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
                 || !string.IsNullOrEmpty(authorization.UserInfo)
                 || !string.IsNullOrEmpty(authorization.Query)
                 || !string.IsNullOrEmpty(authorization.Fragment)
-                || !string.Equals(authorization.AbsolutePath, "/connect/authorize", StringComparison.Ordinal)
+                || !string.Equals(authorization.AbsolutePath, YogabaseRoutes.OidcAuthorizePath, StringComparison.Ordinal)
                 || !string.IsNullOrEmpty(token.UserInfo)
                 || !string.IsNullOrEmpty(token.Query)
                 || !string.IsNullOrEmpty(token.Fragment)
-                || !string.Equals(token.AbsolutePath, "/connect/token", StringComparison.Ordinal)
+                || !string.Equals(token.AbsolutePath, YogabaseRoutes.OidcTokenPath, StringComparison.Ordinal)
                 || issuer.Scheme != Uri.UriSchemeHttps && !(options.AllowInsecureLoopback && issuer.IsLoopback))
             {
                 throw new JsonException();

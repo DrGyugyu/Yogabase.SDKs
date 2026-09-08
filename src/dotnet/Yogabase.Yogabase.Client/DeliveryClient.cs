@@ -204,7 +204,7 @@ public sealed class YogabaseDeliveryRollbackPreviewRequest
 /// </summary>
 public sealed class YogabaseDeliveryClient : IDisposable
 {
-    private const string DeliveryPrefix = "api/v1/delivery/projects";
+    private const string DeliveryPrefix = YogabaseRoutes.DeliveryProjectsPrefix;
     private readonly Uri deliveryOrigin;
     private readonly Func<CancellationToken, Task<string?>> bearerToken;
     private readonly HttpClient client;

@@ -46,10 +46,11 @@ internal sealed class YogabaseActorsClient : IYogabaseActors
         var payload = request.InlinePayload
             ?? throw new ArgumentException("An inline actor payload is required.", nameof(request));
         var digest = ExtendedLambdaValidation.ComputeAndValidateDigest(payload, request.PayloadDigest, nameof(request));
-        var path = $"v1/projects/{configuration.ProjectId:D}/actors/"
-            + $"{YogabaseHttpTransport.EscapePath(functionId, nameof(functionId))}/versions/"
-            + $"{YogabaseHttpTransport.EscapePath(functionVersion, nameof(functionVersion))}/instances/"
-            + $"{Uri.EscapeDataString(instanceKey)}/invoke";
+        var path = YogabaseRoutes.ActorInvoke(
+            configuration.ProjectId,
+            YogabaseHttpTransport.EscapePath(functionId, nameof(functionId)),
+            YogabaseHttpTransport.EscapePath(functionVersion, nameof(functionVersion)),
+            Uri.EscapeDataString(instanceKey));
         var response = await transport.SendAsync(
             HttpMethod.Post,
             path,
@@ -157,9 +158,10 @@ internal sealed class YogabaseWorkflowsClient : IYogabaseWorkflows
         var input = request.InlineInput
             ?? throw new ArgumentException("An inline workflow input is required.", nameof(request));
         var digest = ExtendedLambdaValidation.ComputeAndValidateDigest(input, request.PayloadDigest, nameof(request));
-        var path = $"v1/projects/{configuration.ProjectId:D}/workflows/"
-            + $"{YogabaseHttpTransport.EscapePath(workflowId, nameof(workflowId))}/versions/"
-            + $"{Uri.EscapeDataString(definitionVersion)}/start";
+        var path = YogabaseRoutes.WorkflowStart(
+            configuration.ProjectId,
+            YogabaseHttpTransport.EscapePath(workflowId, nameof(workflowId)),
+            Uri.EscapeDataString(definitionVersion));
         var response = await transport.SendAsync(
             HttpMethod.Post,
             path,
@@ -201,8 +203,9 @@ internal sealed class YogabaseWorkflowsClient : IYogabaseWorkflows
         var payload = request.InlinePayload
             ?? throw new ArgumentException("An inline workflow cancellation payload is required.", nameof(request));
         var digest = ExtendedLambdaValidation.ComputeAndValidateDigest(payload, request.PayloadDigest, nameof(request));
-        var path = $"v1/projects/{configuration.ProjectId:D}/workflows/instances/"
-            + $"{workflowInstanceId:D}/cancel";
+        var path = YogabaseRoutes.WorkflowCancel(
+            configuration.ProjectId,
+            workflowInstanceId.ToString("D", System.Globalization.CultureInfo.InvariantCulture));
         using var response = await transport.SendAsync(
             HttpMethod.Post,
             path,

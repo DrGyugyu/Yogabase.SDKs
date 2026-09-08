@@ -29,8 +29,8 @@ public sealed class YogabaseClient : IDisposable, IAsyncDisposable
             options,
             auth.GetValidAccessTokenAsync);
         auth.AttachTransport(transport);
-        Data = new YogabaseDataClient(Configuration, transport);
         Storage = new YogabaseStorageClient(Configuration, transport);
+        Servers = new YogabaseServersClient(transport);
         Functions = new YogabaseFunctionsClient(Configuration, transport);
         Actors = new YogabaseActorsClient(Configuration, transport);
         Workflows = new YogabaseWorkflowsClient(Configuration, transport);
@@ -40,12 +40,31 @@ public sealed class YogabaseClient : IDisposable, IAsyncDisposable
 
     public YogabaseClientConfiguration Configuration { get; }
     public IYogabaseAuth Auth { get; }
-    public IYogabaseData Data { get; }
     public IYogabaseRealtime Realtime { get; }
     public IYogabaseStorage Storage { get; }
     public IYogabaseFunctions Functions { get; }
     public IYogabaseActors Actors { get; }
     public IYogabaseWorkflows Workflows { get; }
+
+    /// <summary>
+    /// Game-server allocation for the signed-in player: start, list, inspect, and stop instances of
+    /// this project's hosted services. The bootstrap document carries no capability identifier for
+    /// this surface yet, so the client does not pretend to know whether the installation enables
+    /// it; an installation without it answers the gateway's own refusal.
+    /// </summary>
+    public IYogabaseServers Servers { get; }
+
+    /// <summary>
+    /// Creates a client for the Control Plane's build surface. It deliberately takes a separate
+    /// origin and credential from the application client: the Control Plane API and a
+    /// project-scoped developer token issued from the console's Settings page. A developer tool
+    /// (the Unity Editor, a CLI, CI) calls this; a shipped game client never does.
+    /// </summary>
+    public static YogabaseBuildsClient Builds(
+        Uri controlPlaneEndpoint,
+        string developerToken,
+        YogabaseBuildsClientOptions? options = null) =>
+        new(controlPlaneEndpoint, developerToken, options);
 
     public static async Task<YogabaseClient> CreateAsync(
         Uri gatewayEndpoint,
@@ -63,7 +82,7 @@ public sealed class YogabaseClient : IDisposable, IAsyncDisposable
         ValidatePublishableKey(publishableKey);
 
         using var client = YogabaseHttpClientFactory.Create(options);
-        var path = $"v1/client-config/{Uri.EscapeDataString(publishableKey)}";
+        var path = YogabaseRoutes.ClientConfig(publishableKey);
         HttpResponseMessage? response = null;
         for (var attempt = 0; attempt < 2; attempt++)
         {
@@ -248,7 +267,7 @@ public sealed class YogabaseClient : IDisposable, IAsyncDisposable
             || !string.IsNullOrEmpty(discovery.Fragment)
             || !string.Equals(
                 discovery.AbsolutePath,
-                "/.well-known/openid-configuration",
+                YogabaseRoutes.OidcDiscoveryPath,
                 StringComparison.Ordinal))
         {
             throw new ArgumentException("Yogabase client configuration has an invalid OIDC discovery endpoint.", nameof(configuration));
@@ -271,17 +290,21 @@ public sealed class YogabaseClient : IDisposable, IAsyncDisposable
                 || !string.IsNullOrEmpty(redirect.Query)
                 || !string.IsNullOrEmpty(redirect.Fragment))
             || configuration.Capabilities is null
-            || configuration.Capabilities.Count != 5
+            // The Data API module is withdrawn, so an installation now publishes four capabilities
+            // and one that predates the removal still publishes five. Accept both rather than
+            // refusing to start against either side of that rollout.
+            || configuration.Capabilities.Count is < 4 or > 5
             || configuration.Capabilities.Any(static item => item is null)
             || configuration.Capabilities.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count()
                 != configuration.Capabilities.Count
             || configuration.Capabilities.Any(item =>
-                item.Id is not ("auth" or "data-rest" or "storage" or "functions-rest" or "realtime-subscribe")
+                item.Id is not ("auth" or "storage" or "functions-rest" or "realtime-subscribe"
+                    or YogabaseCapability.WithdrawnDataRest)
                 || item.UnavailableReason?.Length > 256)
             || string.IsNullOrWhiteSpace(configuration.RealtimePath)
             || !configuration.RealtimePath.StartsWith("/", StringComparison.Ordinal)
             || configuration.RealtimePath.Contains("//", StringComparison.Ordinal)
-            || !string.Equals(configuration.RealtimePath, "/v1/realtime", StringComparison.Ordinal)
+            || !string.Equals(configuration.RealtimePath, YogabaseRoutes.RealtimePath, StringComparison.Ordinal)
             || configuration.IssuedAt == default
             || configuration.IssuedAt.Offset != TimeSpan.Zero)
         {

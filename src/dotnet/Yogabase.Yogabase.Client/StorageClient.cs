@@ -42,7 +42,7 @@ internal sealed class YogabaseStorageClient : IYogabaseStorage
         ValidateDigest(sha256Digest);
         ValidateIdempotencyKey(idempotencyKey);
 
-        var path = $"v1/storage/objects/{EscapeLogicalKey(key)}";
+        var path = YogabaseRoutes.StorageObject(EscapeLogicalKey(key));
         var response = await transport.SendAsync(
             HttpMethod.Put,
             path,
@@ -100,7 +100,7 @@ internal sealed class YogabaseStorageClient : IYogabaseStorage
     public async Task<YogabaseObjectRead> GetAsync(string key, CancellationToken cancellationToken = default)
     {
         YogabaseClient.EnsureCapability(configuration, "storage");
-        var path = $"v1/storage/objects/{EscapeLogicalKey(key)}";
+        var path = YogabaseRoutes.StorageObject(EscapeLogicalKey(key));
         var response = await transport.SendAsync(
             HttpMethod.Get,
             path,
@@ -188,26 +188,4 @@ internal sealed class YogabaseStorageClient : IYogabaseStorage
         return new string(chars);
     }
 
-    private sealed class NonDisposingReadStream : Stream
-    {
-        private readonly Stream inner;
-
-        internal NonDisposingReadStream(Stream inner) => this.inner = inner;
-        public override bool CanRead => inner.CanRead;
-        public override bool CanSeek => inner.CanSeek;
-        public override bool CanWrite => false;
-        public override long Length => inner.Length;
-        public override long Position { get => inner.Position; set => inner.Position = value; }
-        public override void Flush() => inner.Flush();
-        public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, count);
-        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
-            inner.ReadAsync(buffer, offset, count, cancellationToken);
-        public override int Read(Span<byte> buffer) => inner.Read(buffer);
-        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
-            inner.ReadAsync(buffer, cancellationToken);
-        public override long Seek(long offset, SeekOrigin origin) => inner.Seek(offset, origin);
-        public override void SetLength(long value) => throw new NotSupportedException();
-        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-        protected override void Dispose(bool disposing) => base.Dispose(disposing);
-    }
 }

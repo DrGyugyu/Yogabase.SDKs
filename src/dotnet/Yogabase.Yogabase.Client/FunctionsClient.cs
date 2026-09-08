@@ -97,9 +97,10 @@ internal sealed class YogabaseFunctionsClient : IYogabaseFunctions
             throw new ArgumentException("Function identity is outside the gateway limits.");
         }
 
-        var path = $"v1/projects/{configuration.ProjectId:D}/functions/"
-            + $"{YogabaseHttpTransport.EscapePath(functionId, nameof(functionId))}/versions/"
-            + $"{YogabaseHttpTransport.EscapePath(functionVersion, nameof(functionVersion))}/invoke";
+        var path = YogabaseRoutes.FunctionInvoke(
+            configuration.ProjectId,
+            YogabaseHttpTransport.EscapePath(functionId, nameof(functionId)),
+            YogabaseHttpTransport.EscapePath(functionVersion, nameof(functionVersion)));
         var body = new
         {
             request.IdempotencyKey,

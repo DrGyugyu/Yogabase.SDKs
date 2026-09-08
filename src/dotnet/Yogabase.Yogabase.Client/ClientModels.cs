@@ -9,8 +9,10 @@ namespace Yogabase.Yogabase;
 
 public sealed class YogabaseClientConfiguration
 {
+    // "data-rest" is deliberately absent: the Data API module is withdrawn, so IsAvailable answers
+    // false for it even on an installation that still publishes the capability row.
     private static readonly HashSet<string> KnownCapabilities = new(
-        new[] { "auth", "data-rest", "storage", "functions-rest", "realtime-subscribe" },
+        new[] { "auth", "storage", "functions-rest", "realtime-subscribe" },
         StringComparer.Ordinal);
 
     public string Schema { get; init; } = string.Empty;
@@ -48,6 +50,14 @@ public sealed class YogabaseClientConfiguration
 
 public sealed class YogabaseCapability
 {
+    /// <summary>
+    /// The withdrawn client-facing Data API capability. An installation predating its removal still
+    /// publishes this row; the client accepts it in the bootstrap document and ignores it, and
+    /// <see cref="YogabaseClientConfiguration.IsAvailable"/> answers <see langword="false"/> for it.
+    /// Applications reach data through a Lambda instead.
+    /// </summary>
+    public const string WithdrawnDataRest = "data-rest";
+
     public string Id { get; init; } = string.Empty;
     public bool Available { get; init; }
     public string? UnavailableReason { get; init; }
@@ -208,100 +218,6 @@ public enum YogabaseInteractiveSignInOutcome
 public sealed class YogabaseMfaSetupResult
 {
     public string SharedKey { get; set; } = string.Empty;
-}
-
-public sealed class YogabaseDataValue
-{
-    public string Type { get; set; } = string.Empty;
-    public JsonElement Value { get; set; }
-
-    public static YogabaseDataValue Null() => Create("null", (object?)null);
-    public static YogabaseDataValue FromText(string value) => Create("string", value);
-    public static YogabaseDataValue FromBoolean(bool value) => Create("bool", value);
-    public static YogabaseDataValue FromInteger(long value) => Create("int64", value);
-    public static YogabaseDataValue FromFixedPoint(decimal value) => Create("decimal", value);
-    public static YogabaseDataValue FromFloatingPoint(double value) => Create("double", value);
-    public static YogabaseDataValue FromIdentifier(Guid value) => Create("guid", value.ToString("D"));
-    public static YogabaseDataValue FromTimestamp(DateTimeOffset value) => Create("timestamp", value.ToString("O"));
-    public static YogabaseDataValue FromJson(JsonElement value) => new() { Type = "json", Value = value.Clone() };
-
-    private static YogabaseDataValue Create(string type, object? value) => new()
-    {
-        Type = type,
-        Value = JsonSerializer.SerializeToElement(value, YogabaseJson.Options),
-    };
-}
-
-public sealed class YogabaseFilter
-{
-    public string Column { get; set; } = string.Empty;
-    public string Operator { get; set; } = "eq";
-    public IReadOnlyList<YogabaseDataValue> Values { get; set; } = Array.Empty<YogabaseDataValue>();
-}
-
-public sealed class YogabaseOrdering
-{
-    public string Column { get; set; } = string.Empty;
-    public bool Descending { get; set; }
-}
-
-public sealed class YogabaseCursor
-{
-    public string Column { get; set; } = string.Empty;
-    public YogabaseDataValue LastValue { get; set; } = YogabaseDataValue.Null();
-    public bool Descending { get; set; }
-}
-
-public sealed class YogabaseSelectRequest
-{
-    public IReadOnlyList<string> Columns { get; set; } = Array.Empty<string>();
-    public IReadOnlyList<YogabaseFilter> Filters { get; set; } = Array.Empty<YogabaseFilter>();
-    public IReadOnlyList<YogabaseOrdering> Ordering { get; set; } = Array.Empty<YogabaseOrdering>();
-    public int PageSize { get; set; }
-    public int QueryDepth { get; set; } = 1;
-    public YogabaseCursor? Cursor { get; set; }
-}
-
-public sealed class YogabaseMutationRequest
-{
-    public IReadOnlyDictionary<string, YogabaseDataValue> Values { get; set; } =
-        new Dictionary<string, YogabaseDataValue>(StringComparer.Ordinal);
-    public IReadOnlyList<YogabaseFilter> Filters { get; set; } = Array.Empty<YogabaseFilter>();
-    public IReadOnlyList<string> ReturningColumns { get; set; } = Array.Empty<string>();
-}
-
-public sealed class YogabaseDataResult
-{
-    public IReadOnlyList<JsonElement> Rows { get; set; } = Array.Empty<JsonElement>();
-    public int AffectedRows { get; set; }
-
-    public IReadOnlyList<T> DeserializeRows<T>(System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo)
-    {
-        if (typeInfo is null)
-        {
-            throw new ArgumentNullException(nameof(typeInfo));
-        }
-
-        var rows = new List<T>(Rows.Count);
-        foreach (var row in Rows)
-        {
-            var item = row.Deserialize(typeInfo);
-            if (item is not null)
-            {
-                rows.Add(item);
-            }
-        }
-
-        return rows;
-    }
-}
-
-public interface IYogabaseData
-{
-    Task<YogabaseDataResult> SelectAsync(string resource, YogabaseSelectRequest request, CancellationToken cancellationToken = default);
-    Task<YogabaseDataResult> InsertAsync(string resource, YogabaseMutationRequest request, CancellationToken cancellationToken = default);
-    Task<YogabaseDataResult> UpdateAsync(string resource, YogabaseMutationRequest request, CancellationToken cancellationToken = default);
-    Task<YogabaseDataResult> DeleteAsync(string resource, YogabaseMutationRequest request, CancellationToken cancellationToken = default);
 }
 
 public sealed class YogabaseObjectWriteResult
