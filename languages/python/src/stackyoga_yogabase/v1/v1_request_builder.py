@@ -7,7 +7,6 @@ from typing import Any, Optional, TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from .client_config.client_config_request_builder import ClientConfigRequestBuilder
-    from .data.data_request_builder import DataRequestBuilder
     from .projects.projects_request_builder import ProjectsRequestBuilder
     from .storage.storage_request_builder import StorageRequestBuilder
 
@@ -32,15 +31,6 @@ class V1RequestBuilder(BaseRequestBuilder):
         from .client_config.client_config_request_builder import ClientConfigRequestBuilder
 
         return ClientConfigRequestBuilder(self.request_adapter, self.path_parameters)
-    
-    @property
-    def data(self) -> DataRequestBuilder:
-        """
-        The data property
-        """
-        from .data.data_request_builder import DataRequestBuilder
-
-        return DataRequestBuilder(self.request_adapter, self.path_parameters)
     
     @property
     def projects(self) -> ProjectsRequestBuilder:

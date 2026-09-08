@@ -268,62 +268,6 @@
         }
       }
     },
-    "/v1/data/{resource}/select": {
-      "post": {
-        "operationId": "selectYogabaseData",
-        "parameters": [{ "$ref": "#/components/parameters/Resource" }],
-        "requestBody": { "$ref": "#/components/requestBodies/DataSelect" },
-        "responses": {
-          "200": { "$ref": "#/components/responses/DataResult" },
-          "400": { "$ref": "#/components/responses/Problem" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Problem" },
-          "503": { "$ref": "#/components/responses/Problem" }
-        }
-      }
-    },
-    "/v1/data/{resource}/insert": {
-      "post": {
-        "operationId": "insertYogabaseData",
-        "parameters": [{ "$ref": "#/components/parameters/Resource" }],
-        "requestBody": { "$ref": "#/components/requestBodies/DataMutation" },
-        "responses": {
-          "200": { "$ref": "#/components/responses/DataResult" },
-          "400": { "$ref": "#/components/responses/Problem" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Problem" },
-          "503": { "$ref": "#/components/responses/Problem" }
-        }
-      }
-    },
-    "/v1/data/{resource}/update": {
-      "post": {
-        "operationId": "updateYogabaseData",
-        "parameters": [{ "$ref": "#/components/parameters/Resource" }],
-        "requestBody": { "$ref": "#/components/requestBodies/DataMutation" },
-        "responses": {
-          "200": { "$ref": "#/components/responses/DataResult" },
-          "400": { "$ref": "#/components/responses/Problem" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Problem" },
-          "503": { "$ref": "#/components/responses/Problem" }
-        }
-      }
-    },
-    "/v1/data/{resource}/delete": {
-      "post": {
-        "operationId": "deleteYogabaseData",
-        "parameters": [{ "$ref": "#/components/parameters/Resource" }],
-        "requestBody": { "$ref": "#/components/requestBodies/DataMutation" },
-        "responses": {
-          "200": { "$ref": "#/components/responses/DataResult" },
-          "400": { "$ref": "#/components/responses/Problem" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Problem" },
-          "503": { "$ref": "#/components/responses/Problem" }
-        }
-      }
-    },
     "/v1/storage/objects/{key}": {
       "put": {
         "operationId": "putYogabaseObject",
@@ -510,12 +454,6 @@
         "required": true,
         "schema": { "type": "string", "pattern": "^sy_pub_[!-~]{9,153}$", "maxLength": 160 }
       },
-      "Resource": {
-        "name": "resource",
-        "in": "path",
-        "required": true,
-        "schema": { "type": "string", "minLength": 1, "maxLength": 256 }
-      },
       "ObjectKey": {
         "name": "key",
         "in": "path",
@@ -579,20 +517,6 @@
         "schema": { "type": "string", "format": "uuid" }
       }
     },
-    "requestBodies": {
-      "DataSelect": {
-        "required": true,
-        "content": {
-          "application/json": { "schema": { "$ref": "#/components/schemas/DataSelectRequest" } }
-        }
-      },
-      "DataMutation": {
-        "required": true,
-        "content": {
-          "application/json": { "schema": { "$ref": "#/components/schemas/DataMutationRequest" } }
-        }
-      }
-    },
     "responses": {
       "ClientConfiguration": {
         "description": "Secret-free configuration and capability facts.",
@@ -610,12 +534,6 @@
         },
         "content": {
           "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } }
-        }
-      },
-      "DataResult": {
-        "description": "Bounded rows or mutation count.",
-        "content": {
-          "application/json": { "schema": { "$ref": "#/components/schemas/DataResult" } }
         }
       },
       "ObjectWrite": {
@@ -699,8 +617,9 @@
           "realtimePath": { "type": "string", "const": "/v1/realtime" },
           "capabilities": {
             "type": "array",
-            "minItems": 5,
+            "minItems": 4,
             "maxItems": 5,
+            "description": "The withdrawn data-rest capability may still appear on an installation that predates the Data API removal. Clients accept it and ignore it.",
             "items": { "$ref": "#/components/schemas/Capability" }
           },
           "issuedAt": { "type": "string", "format": "date-time" }
@@ -809,76 +728,6 @@
             "maxItems": 10,
             "items": { "type": "string", "minLength": 1, "maxLength": 256 }
           }
-        }
-      },
-      "DataValue": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["type", "value"],
-        "properties": {
-          "type": { "type": "string", "enum": ["null", "string", "bool", "int64", "decimal", "double", "guid", "timestamp", "json"] },
-          "value": {}
-        }
-      },
-      "DataFilter": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["column", "operator", "values"],
-        "properties": {
-          "column": { "type": "string" },
-          "operator": { "type": "string" },
-          "values": { "type": "array", "items": { "$ref": "#/components/schemas/DataValue" } }
-        }
-      },
-      "DataOrdering": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["column", "descending"],
-        "properties": {
-          "column": { "type": "string" },
-          "descending": { "type": "boolean" }
-        }
-      },
-      "DataCursor": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["column", "lastValue", "descending"],
-        "properties": {
-          "column": { "type": "string" },
-          "lastValue": { "$ref": "#/components/schemas/DataValue" },
-          "descending": { "type": "boolean" }
-        }
-      },
-      "DataSelectRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["columns", "filters", "ordering", "pageSize", "queryDepth"],
-        "properties": {
-          "columns": { "type": "array", "maxItems": 256, "items": { "type": "string" } },
-          "filters": { "type": "array", "maxItems": 64, "items": { "$ref": "#/components/schemas/DataFilter" } },
-          "ordering": { "type": "array", "maxItems": 8, "items": { "$ref": "#/components/schemas/DataOrdering" } },
-          "pageSize": { "type": "integer", "format": "int32", "minimum": 0, "maximum": 1000 },
-          "queryDepth": { "type": "integer", "format": "int32", "minimum": 1, "maximum": 5 },
-          "cursor": { "oneOf": [{ "$ref": "#/components/schemas/DataCursor" }, { "type": "null" }] }
-        }
-      },
-      "DataMutationRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["values", "filters", "returningColumns"],
-        "properties": {
-          "values": { "type": "object", "additionalProperties": { "$ref": "#/components/schemas/DataValue" } },
-          "filters": { "type": "array", "maxItems": 64, "items": { "$ref": "#/components/schemas/DataFilter" } },
-          "returningColumns": { "type": "array", "maxItems": 256, "items": { "type": "string" } }
-        }
-      },
-      "DataResult": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["rows", "affectedRows"],
-        "properties": {
-          "rows": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
-          "affectedRows": { "type": "integer", "format": "int32", "minimum": 0 }
         }
       },
       "ObjectWriteResult": {

@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class ClientConfiguration(Parsable):
-    # The capabilities property
+    # The withdrawn data-rest capability may still appear on an installation that predates the Data API removal. Clients accept it and ignore it.
     capabilities: Optional[list[Capability]] = None
     # The environmentId property
     environment_id: Optional[UUID] = None

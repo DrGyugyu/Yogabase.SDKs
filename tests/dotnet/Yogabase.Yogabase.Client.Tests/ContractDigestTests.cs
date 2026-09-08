@@ -56,6 +56,51 @@ public sealed class ContractDigestTests
     }
 
     /// <summary>
+    /// The two documents under <c>contracts/planned/</c> are written in this repository from the
+    /// agreed contract while the product implements those surfaces, so they are checksum-pinned the
+    /// same way — but deliberately not published in <c>MANIFEST.json</c>'s mirrored-contract records
+    /// or in the READMEs' snapshot line, because they are not product snapshots. This test pins
+    /// their sidecars and the marker that says so, so a planned document cannot quietly start
+    /// looking authoritative.
+    /// </summary>
+    [Theory]
+    [InlineData("yogabase-builds-v1.openapi.json")]
+    [InlineData("yogabase-servers-v1.openapi.json")]
+    public async Task PlannedContractMatchesItsSidecarAndStaysMarkedPlanned(string contractFileName)
+    {
+        var repoRoot = FindRepoRoot();
+        var contractPath = Path.Combine(repoRoot, "contracts", "planned", contractFileName);
+        var sidecarPath = Path.ChangeExtension(contractPath, ".sha256");
+
+        Assert.True(File.Exists(contractPath), $"Missing planned contract: {contractPath}");
+        Assert.True(File.Exists(sidecarPath), $"Missing sha256 sidecar: {sidecarPath}");
+
+        var sidecarLine = (await File.ReadAllTextAsync(sidecarPath, TestContext.Current.CancellationToken)).Trim();
+        Assert.Equal(contractFileName, ParseShasumFileName(sidecarLine));
+        Assert.Equal(ParseShasumLine(sidecarLine), await ComputeSha256Async(contractPath), StringComparer.OrdinalIgnoreCase);
+
+        var contractText = await File.ReadAllTextAsync(contractPath, TestContext.Current.CancellationToken);
+        Assert.Contains("\"x-yogabase-status\": \"planned\"", contractText, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The Data API module is withdrawn, so no mirrored contract may still declare it. Nothing else
+    /// in the repository would catch a re-synced product snapshot that reintroduced the routes.
+    /// </summary>
+    [Fact]
+    public async Task TheMirroredApplicationContractDeclaresNoDataApi()
+    {
+        var repoRoot = FindRepoRoot();
+        var contractText = await File.ReadAllTextAsync(
+            Path.Combine(repoRoot, "contracts", "yogabase-client-v1.openapi.json"),
+            TestContext.Current.CancellationToken);
+
+        Assert.DoesNotContain("/v1/data/", contractText, StringComparison.Ordinal);
+        Assert.DoesNotContain("DataSelectRequest", contractText, StringComparison.Ordinal);
+        Assert.DoesNotContain("DataMutationRequest", contractText, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// The TypeScript and Python delivery clients each export the delivery contract's SHA-256 as a
     /// public constant so a consumer can assert which contract revision the client was authored
     /// against. Those constants are hand-maintained and live outside <c>contracts/</c>, which is

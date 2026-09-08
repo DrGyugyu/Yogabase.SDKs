@@ -1,0 +1,186 @@
+{
+  "openapi": "3.1.0",
+  "x-yogabase-status": "planned",
+  "x-yogabase-authority": "This document is written in this SDK repository from the agreed game-server contract while the Yogabase product repository implements it. It is not a mirrored product snapshot and it is not authoritative. When the product publishes this surface inside docs/api/yogabase-client-v1.openapi.json, that document supersedes this one and this file is deleted rather than reconciled.",
+  "info": {
+    "title": "Yogabase Game Server API (planned)",
+    "version": "v1-planned",
+    "description": "Client-facing game-server allocation on the application gateway. Each hosted-service instance is one Pod with a host port (NodePort-per-instance fallback) and its node address; this surface allocates a Ready instance and returns host:port. A client is provider-neutral and shard-oblivious: it never receives a cloud selector, credential, Kubernetes identity, or placement map."
+  },
+  "servers": [
+    {
+      "url": "https://{gatewayHost}",
+      "variables": {
+        "gatewayHost": {
+          "default": "yogabase.yogabase.invalid",
+          "description": "The exact TLS gateway origin returned by the client bootstrap document."
+        }
+      }
+    }
+  ],
+  "security": [{ "playerToken": [] }],
+  "paths": {
+    "/v1/servers/start": {
+      "post": {
+        "operationId": "startYogabaseServer",
+        "summary": "Allocate a Ready instance of one hosted service.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/ServerStartRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Server" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Problem" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/Problem" },
+          "503": {
+            "$ref": "#/components/responses/Problem",
+            "description": "No Ready instance is available and none could be started."
+          }
+        }
+      }
+    },
+    "/v1/servers": {
+      "get": {
+        "operationId": "listYogabaseServers",
+        "summary": "List the instances this caller may see.",
+        "responses": {
+          "200": { "$ref": "#/components/responses/ServerList" },
+          "401": { "$ref": "#/components/responses/Problem" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/servers/{serverId}": {
+      "get": {
+        "operationId": "getYogabaseServer",
+        "summary": "Read one instance.",
+        "parameters": [{ "$ref": "#/components/parameters/ServerId" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Server" },
+          "401": { "$ref": "#/components/responses/Problem" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/servers/{serverId}/stop": {
+      "post": {
+        "operationId": "stopYogabaseServer",
+        "summary": "Stop one instance.",
+        "parameters": [{ "$ref": "#/components/parameters/ServerId" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Server" },
+          "204": { "description": "Stopped, with no body." },
+          "401": { "$ref": "#/components/responses/Problem" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "playerToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "The signed-in application user's OIDC access token. This surface accepts no developer, delivery, workload, or runtime-host credential."
+      }
+    },
+    "parameters": {
+      "ServerId": {
+        "name": "serverId",
+        "in": "path",
+        "required": true,
+        "description": "Opaque instance identifier. A client treats it as a bounded token rather than parsing it.",
+        "schema": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    },
+    "responses": {
+      "Server": {
+        "description": "One instance and the addresses a client may connect to.",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/Server" } }
+        }
+      },
+      "ServerList": {
+        "description": "The instances this caller may see.",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/ServerList" } }
+        }
+      },
+      "Problem": {
+        "description": "RFC 7807 refusal carrying a stable code.",
+        "content": {
+          "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } }
+        }
+      }
+    },
+    "schemas": {
+      "ServerStartRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["service"],
+        "properties": {
+          "service": { "type": "string", "minLength": 1, "maxLength": 253 },
+          "customData": {
+            "type": ["object", "null"],
+            "maxProperties": 32,
+            "description": "Bounded string map handed to the allocated instance. It travels to customer code, so it must never carry a credential or another player's identity.",
+            "additionalProperties": { "type": "string", "maxLength": 1024 }
+          }
+        }
+      },
+      "Server": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["serverId", "state", "networkPorts"],
+        "properties": {
+          "serverId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "state": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "networkPorts": { "type": "array", "maxItems": 32, "items": { "$ref": "#/components/schemas/NetworkPort" } }
+        }
+      },
+      "NetworkPort": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "internalPort", "externalPort", "protocol", "host"],
+        "description": "An allocation missing a usable address is worse than a failed one: a client that trusts an empty host dials its own machine. Every field here is required and bounded for that reason.",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 63 },
+          "internalPort": { "type": "integer", "format": "int32", "minimum": 1, "maximum": 65535 },
+          "externalPort": { "type": "integer", "format": "int32", "minimum": 1, "maximum": 65535 },
+          "protocol": { "type": "string", "enum": ["udp", "tcp"] },
+          "host": { "type": "string", "minLength": 1, "maxLength": 253, "description": "Node address a client connects to." }
+        }
+      },
+      "ServerList": {
+        "type": "array",
+        "maxItems": 1000,
+        "items": { "$ref": "#/components/schemas/Server" }
+      },
+      "Problem": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "type": { "type": "string" },
+          "title": { "type": "string" },
+          "status": { "type": "integer", "format": "int32" },
+          "detail": { "type": "string" },
+          "traceId": { "type": "string" },
+          "code": { "type": "string" }
+        }
+      }
+    }
+  }
+}

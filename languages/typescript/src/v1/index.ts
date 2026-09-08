@@ -4,8 +4,6 @@
 // @ts-ignore
 import { ClientConfigRequestBuilderNavigationMetadata, type ClientConfigRequestBuilder } from './clientConfig/index.js';
 // @ts-ignore
-import { DataRequestBuilderNavigationMetadata, type DataRequestBuilder } from './data/index.js';
-// @ts-ignore
 import { ProjectsRequestBuilderNavigationMetadata, type ProjectsRequestBuilder } from './projects/index.js';
 // @ts-ignore
 import { StorageRequestBuilderNavigationMetadata, type StorageRequestBuilder } from './storage/index.js';
@@ -20,10 +18,6 @@ export interface V1RequestBuilder extends BaseRequestBuilder<V1RequestBuilder> {
      * The clientConfig property
      */
     get clientConfig(): ClientConfigRequestBuilder;
-    /**
-     * The data property
-     */
-    get data(): DataRequestBuilder;
     /**
      * The projects property
      */
@@ -43,9 +37,6 @@ export const V1RequestBuilderUriTemplate = "{+baseurl}/v1";
 export const V1RequestBuilderNavigationMetadata: Record<Exclude<keyof V1RequestBuilder, KeysToExcludeForNavigationMetadata>, NavigationMetadata> = {
     clientConfig: {
         navigationMetadata: ClientConfigRequestBuilderNavigationMetadata,
-    },
-    data: {
-        navigationMetadata: DataRequestBuilderNavigationMetadata,
     },
     projects: {
         navigationMetadata: ProjectsRequestBuilderNavigationMetadata,

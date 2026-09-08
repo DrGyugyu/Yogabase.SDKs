@@ -5,7 +5,7 @@ import './capability.dart';
 
 /// auto generated
 class ClientConfiguration implements Parsable {
-    ///  The capabilities property
+    ///  The withdrawn data-rest capability may still appear on an installation that predates the Data API removal. Clients accept it and ignore it.
     Iterable<Capability>? capabilities;
     ///  The environmentId property
     UuidValue? environmentId;

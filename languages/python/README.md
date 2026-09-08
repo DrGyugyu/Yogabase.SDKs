@@ -5,11 +5,29 @@ or newer is required by the pinned Kiota runtime. Callers provide a Kiota reques
 base URL is the validated Yogabase REST gateway and whose authentication provider supplies a
 project bearer token for protected operations.
 
-The generated REST surface includes bootstrap, signup and interactive auth endpoints, Data,
+The generated REST surface includes bootstrap, signup and interactive auth endpoints,
 Storage, stateless Function invocation, Actor Lambda invocation, and Workflow start/cancel. The
 contract returns a separate realtime origin, but this package does not yet include or qualify a
 Python SignalR wrapper. This source preview is local, unpublished, and not production-qualified.
 
+## The Data API is withdrawn, and Builds/Servers are not here yet
+
+The client-facing Data API module is withdrawn (owner decision, 2026-09-08). An application reaches
+its project's data through a Lambda — which runs server-side with a full-access database context —
+and through Auth, Storage and Realtime. `/v1/data/*` and its `Data*` models are gone from the
+contract and from this generated client; nothing replaces them on the client side.
+
+Two surfaces did replace it, and neither has a client in this language yet:
+
+- **Game servers** (`/v1/servers/start`, `/v1/servers`, `/v1/servers/{id}`, `/v1/servers/{id}/stop` on the application gateway, player token)
+- **Builds** (`/api/v1/projects/{p}/environments/{e}/builds` on the Control Plane, developer token)
+
+Both are implemented today only in `src/dotnet/Yogabase.Yogabase.Client`
+(`YogabaseClient.Servers` and `YogabaseClient.Builds(...)`). Clients for this language are later
+scope. The planned shapes are written down in `contracts/planned/yogabase-servers-v1.openapi.json`
+and `contracts/planned/yogabase-builds-v1.openapi.json`, both marked
+`"x-yogabase-status": "planned"` because the product is implementing them in parallel; they are not
+mirrored product snapshots and must not be generated from as if they were.
 ## Hierarchical storage keys
 
 Generated `objects.by_key(...)` is single-segment-only. For a logical key containing `/`, import

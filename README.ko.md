@@ -102,7 +102,7 @@ Yogabase는 승인된 애플리케이션 작업을 위한 대상 로컬 애플�
 
 - Bootstrap은 Secret이 아닌 프로젝트 바인딩 REST, ID 및 별도 배포된 realtime 엔드포인트 구성을 반환합니다.
 - 인증은 회원가입, 로그인/로그아웃, 이메일 확인, 비밀번호 재설정, MFA 및 복구 코드, 외부 ID 콜백과 함께 PKCE authorization code 및 순환 refresh token을 지원합니다. SDK에는 기밀 클라이언트 자격 증명이 포함되지 않습니다.
-- 데이터는 승인된 형식화 작업만 노출합니다. 임의 SQL은 클라이언트 표면의 일부가 아닙니다.
+- **클라이언트 측 데이터 표면은 없습니다.** Data API 모듈은 철회되었습니다(소유자 결정, 2026-09-08). 애플리케이션은 서버 측에서 전체 접근 권한의 데이터베이스 컨텍스트로 실행되는 Lambda, 그리고 Auth, Storage, Realtime을 통해서만 프로젝트 데이터에 접근합니다.
 - 스토리지는 매개되며 digest 및 idempotency에 바인딩되고, 공급자 자격 증명이나 서명된 URL을 반환하지 않습니다.
 - Stateless Functions는 제한된 공개 계약으로 정확히 등록된 버전을 호출합니다.
 - Actor Lambdas는 버전이 지정된 프로젝트 로컬 인스턴스 하나를 대상으로 하며, Workflow Lambdas는 변경 불가능한 정의 버전 하나를 시작하고 v1 cancel 작업만 노출합니다.
@@ -131,15 +131,18 @@ Yogabase는 서명된 관찰과 릴리스에 고정된 증거를 통해 모듈 �
 
 | 플랫폼 | 위치 | 현재 패키지 ID | 적격성 |
 |---|---|---|---|
-| .NET | `src/dotnet/Yogabase.Yogabase.Client` | `Yogabase.Yogabase.Client` `0.3.0-preview.1` | 작성된 애플리케이션, PKCE, SignalR 및 Delivery 클라이언트; `netstandard2.1` 및 `net10.0` |
+| .NET | `src/dotnet/Yogabase.Yogabase.Client` | `Yogabase.Yogabase.Client` `0.3.0-preview.1` | 작성된 애플리케이션, PKCE, SignalR, Delivery, 게임 서버 및 빌드 클라이언트; `netstandard2.1` 및 `net10.0` |
 | TypeScript | `languages/typescript` | `@stackyoga/yogabase-client-preview` `0.3.0-preview.1` | 생성된 애플리케이션 클라이언트와 작성된 Delivery/storage-key facade |
 | Python | `languages/python` | `stackyoga-yogabase-client-preview` `0.3.0.dev1` | 생성된 애플리케이션 클라이언트와 작성된 비동기 Delivery/storage-key facade |
 | Java/JVM | `languages/java` | `io.stackyoga:yogabase-client-preview` `0.3.0-preview.1` | 생성된 애플리케이션/Delivery 클라이언트와 작성된 JVM facade; Kotlin/JVM 상호 운용 경로 |
 | Dart | `languages/dart` | `stackyoga_yogabase_client_preview` `0.3.0-dev.1` | 실험적 생성 애플리케이션/Delivery 소스와 작성된 facade |
+| .NET Lambda 컨텍스트 | `src/dotnet/Yogabase.Lambda` | `Yogabase.Lambda` `0.1.0-preview.1` | Lambda 번들을 위한 작성된 런타임 컨텍스트 래퍼; `netstandard2.1` 및 `net10.0`(데이터베이스 핸들은 `net10.0`에만 존재); fake provider 테스트만 있으며 실제 설치 증거 없음 |
 | .NET runtime host | `src/dotnet/Yogabase.Yogabase.RuntimeHost` | `Yogabase.Yogabase.RuntimeHost` `0.1.0-preview.1` | 작성된 self-scoped runtime-host 클라이언트; `netstandard2.1` 및 `net10.0`; fake transport 테스트만 있으며 live-gateway 증거 없음 |
 | Unity | `languages/unity/com.stackyoga.yogabase-runtime-host` | `com.stackyoga.yogabase-runtime-host` `0.1.0-preview.1` | runtime-host 모듈과 `link.xml`을 담은 import 형태의 UPM 패키지; Unity Editor import나 IL2CPP 빌드로 검증한 적 없음 |
 
-변경 불가능한 애플리케이션 스냅샷은 `contracts/yogabase-client-v1.openapi.json`이며 SHA-256은 `a5f0e01985dc0e6ef8ecdbb26b9505eff02dd083a529a83e3f97f19826d96497`입니다. 워크로드 스냅샷은 `contracts/yogabase-delivery-v1.openapi.json`이며 SHA-256은 `1eca152807ed2c6ab834b6ad7fea5fedb514ce359bd8f02f028635b03b8b6cc4`입니다. runtime-host 스냅샷은 `contracts/yogabase-runtime-host-v1.openapi.json`이며 SHA-256은 `e0393d8dd7962a0bf2447fd5a79ee22dbaa3f271f6bb98b92d8e4749365967e7`입니다. 이 문서는 수명 주기 상태와 오류 코드를 위한 서버 측 참조로만 체크인되며 의도적으로 코드 생성을 하지 않습니다. 워크로드는 그 문서가 선언한 instance 주소 경로가 아니라 self-scoped relay 경로를 호출하기 때문입니다. 인접한 checksum, Kiota lock 및 `MANIFEST.json`은 이 저장소를 정확한 계약과 generator에 바인딩합니다.
+변경 불가능한 애플리케이션 스냅샷은 `contracts/yogabase-client-v1.openapi.json`이며 SHA-256은 `4aa4820d15e76f68aa2840fa02be3b110e7a1fd850d8100c050f8cd421f7d1cf`입니다. 워크로드 스냅샷은 `contracts/yogabase-delivery-v1.openapi.json`이며 SHA-256은 `1eca152807ed2c6ab834b6ad7fea5fedb514ce359bd8f02f028635b03b8b6cc4`입니다. runtime-host 스냅샷은 `contracts/yogabase-runtime-host-v1.openapi.json`이며 SHA-256은 `e0393d8dd7962a0bf2447fd5a79ee22dbaa3f271f6bb98b92d8e4749365967e7`입니다. 이 문서는 수명 주기 상태와 오류 코드를 위한 서버 측 참조로만 체크인되며 의도적으로 코드 생성을 하지 않습니다. 워크로드는 그 문서가 선언한 instance 주소 경로가 아니라 self-scoped relay 경로를 호출하기 때문입니다. 인접한 checksum, Kiota lock 및 `MANIFEST.json`은 이 저장소를 정확한 계약과 generator에 바인딩합니다.
+
+게임 서버 할당과 빌드 수집이라는 두 가지 표면은 이 저장소의 `contracts/planned/` 아래에 `"x-yogabase-status": "planned"`로 표시되어 기술되어 있습니다. 이 문서들은 제품이 병렬로 구현하는 동안 합의된 계약으로부터 여기에서 작성된 것입니다. 미러링된 제품 스냅샷이 **아니며** 권위가 없습니다. 제품이 이를 게시하면 제품 문서가 이를 대체하고 planned 파일은 조정되지 않고 삭제됩니다. .NET 클라이언트는 현재 두 가지를 모두 구현하며 다른 언어는 구현하지 않습니다.
 
 ## 로컬 검증
 

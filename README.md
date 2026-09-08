@@ -101,7 +101,9 @@ Yogabase can expose a target-local application gateway for approved application 
 
 - Bootstrap returns non-secret, project-bound REST, identity, and separately deployed realtime endpoint configuration.
 - Authentication covers signup, login/logout, email confirmation, password reset, MFA and recovery codes, external-identity callbacks, plus authorization code with PKCE and rotating refresh tokens. SDKs never contain confidential client credentials.
-- Data exposes only approved typed operations; arbitrary SQL is not part of the client surface.
+- **There is no client-facing data surface.** The Data API module is withdrawn (owner decision,
+  2026-09-08). An application reaches its project's data through a Lambda, which runs server-side
+  with a full-access database context, and through Auth, Storage and Realtime.
 - Storage is mediated, digest- and idempotency-bound, and never returns provider credentials or signed URLs.
 - Stateless Functions invoke an exact registered version through the bounded public contract.
 - Actor Lambdas address one versioned, project-local instance; Workflow Lambdas start one immutable definition version and expose only the v1 cancel operation.
@@ -130,15 +132,18 @@ The non-.NET package identifiers retain their existing preview names for continu
 
 | Platform | Location | Current package identity | Qualification |
 |---|---|---|---|
-| .NET | `src/dotnet/Yogabase.Yogabase.Client` | `Yogabase.Yogabase.Client` `0.3.0-preview.1` | Authored application, PKCE, SignalR, and Delivery clients; `netstandard2.1` and `net10.0` |
+| .NET | `src/dotnet/Yogabase.Yogabase.Client` | `Yogabase.Yogabase.Client` `0.3.0-preview.1` | Authored application, PKCE, SignalR, Delivery, game-server, and build clients; `netstandard2.1` and `net10.0` |
 | TypeScript | `languages/typescript` | `@stackyoga/yogabase-client-preview` `0.3.0-preview.1` | Generated application client plus authored Delivery and storage-key facades |
 | Python | `languages/python` | `stackyoga-yogabase-client-preview` `0.3.0.dev1` | Generated application client plus authored async Delivery and storage-key facades |
 | Java/JVM | `languages/java` | `io.stackyoga:yogabase-client-preview` `0.3.0-preview.1` | Generated application/Delivery clients plus authored JVM facades; Kotlin/JVM interop path |
 | Dart | `languages/dart` | `stackyoga_yogabase_client_preview` `0.3.0-dev.1` | Experimental generated application/Delivery source plus authored facades |
+| .NET Lambda context | `src/dotnet/Yogabase.Lambda` | `Yogabase.Lambda` `0.1.0-preview.1` | Authored runtime-context wrapper for a Lambda bundle; `netstandard2.1` and `net10.0` (the database handle only on `net10.0`); fake-provider tests only, no live installation evidence |
 | .NET runtime host | `src/dotnet/Yogabase.Yogabase.RuntimeHost` | `Yogabase.Yogabase.RuntimeHost` `0.1.0-preview.1` | Authored self-scoped runtime-host client; `netstandard2.1` and `net10.0`; fake-transport tests only, no live-gateway evidence |
 | Unity | `languages/unity/com.stackyoga.yogabase-runtime-host` | `com.stackyoga.yogabase-runtime-host` `0.1.0-preview.1` | Import-shaped UPM package carrying the runtime-host module and its `link.xml`; no Unity Editor import or IL2CPP build has verified it |
 
-The immutable application snapshot is `contracts/yogabase-client-v1.openapi.json` (SHA-256 `a5f0e01985dc0e6ef8ecdbb26b9505eff02dd083a529a83e3f97f19826d96497`). The workload snapshot is `contracts/yogabase-delivery-v1.openapi.json` (SHA-256 `1eca152807ed2c6ab834b6ad7fea5fedb514ce359bd8f02f028635b03b8b6cc4`). The runtime-host snapshot is `contracts/yogabase-runtime-host-v1.openapi.json` (SHA-256 `e0393d8dd7962a0bf2447fd5a79ee22dbaa3f271f6bb98b92d8e4749365967e7`); it is checked in as the server-side reference for the lifecycle states and error codes and is deliberately never code-generated, because a workload calls the self-scoped relay routes rather than the instance-addressed paths that document declares. Their adjacent checksums, Kiota locks, and `MANIFEST.json` bind this repository to the exact contracts and generator.
+The immutable application snapshot is `contracts/yogabase-client-v1.openapi.json` (SHA-256 `4aa4820d15e76f68aa2840fa02be3b110e7a1fd850d8100c050f8cd421f7d1cf`). The workload snapshot is `contracts/yogabase-delivery-v1.openapi.json` (SHA-256 `1eca152807ed2c6ab834b6ad7fea5fedb514ce359bd8f02f028635b03b8b6cc4`). The runtime-host snapshot is `contracts/yogabase-runtime-host-v1.openapi.json` (SHA-256 `e0393d8dd7962a0bf2447fd5a79ee22dbaa3f271f6bb98b92d8e4749365967e7`); it is checked in as the server-side reference for the lifecycle states and error codes and is deliberately never code-generated, because a workload calls the self-scoped relay routes rather than the instance-addressed paths that document declares. Their adjacent checksums, Kiota locks, and `MANIFEST.json` bind this repository to the exact contracts and generator.
+
+Two further surfaces — game-server allocation and build ingest — are described in this repository under `contracts/planned/`, marked `"x-yogabase-status": "planned"`. Those documents are written here from the agreed contract while the product implements it in parallel. They are **not** mirrored product snapshots and are not authoritative: when the product publishes them, its documents supersede these and the planned files are deleted rather than reconciled. The .NET client implements both today; the other languages do not.
 
 ## Local verification
 

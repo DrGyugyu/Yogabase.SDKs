@@ -29,10 +29,11 @@
   "contract": {
     "path": "contracts/yogabase-client-v1.openapi.json",
     "sourcePath": "Yogabase product repository: docs/api/yogabase-client-v1.openapi.json",
-    "sha256": "a5f0e01985dc0e6ef8ecdbb26b9505eff02dd083a529a83e3f97f19826d96497",
-    "pathCount": 22,
-    "operationCount": 23,
-    "schemaCount": 30
+    "sha256": "4aa4820d15e76f68aa2840fa02be3b110e7a1fd850d8100c050f8cd421f7d1cf",
+    "pathCount": 18,
+    "operationCount": 19,
+    "schemaCount": 23,
+    "dataApiRemoved": "The client-facing Data API module is withdrawn (owner decision, 2026-09-08). /v1/data/* and the Data* schemas were removed from this mirror ahead of the product document; the product will re-sync docs/api/yogabase-client-v1.openapi.json and this mirror is replaced by that snapshot when it lands."
   },
   "deliveryContract": {
     "path": "contracts/yogabase-delivery-v1.openapi.json",
@@ -51,6 +52,26 @@
     "schemaCount": 10,
     "generated": false,
     "notGeneratedReason": "The document declares instance-addressed paths (/instances/{instanceId}/...), but a hosted workload calls the self-scoped relay routes /runtime-host/v1/self/{heartbeat,ready,reserve,shutdown,assignments} and never learns or asserts its own instance id. Generating from this document would emit the wrong surface for a workload, so it is checked in and checksum-verified as the server-side reference for lifecycle states and error codes only; the workload module is hand-authored."
+  },
+  "plannedContracts": {
+    "status": "planned-not-mirrored",
+    "authority": "Written in this repository from the agreed contract while the Yogabase product repository implements these surfaces in parallel. They are not product snapshots and carry no authority. When the product publishes them, its documents supersede these and the planned files are deleted rather than reconciled.",
+    "documents": [
+      {
+        "path": "contracts/planned/yogabase-builds-v1.openapi.json",
+        "sha256": "7f6619f71b7f70d91db9d1411ecf883c09afb7eb6644c8a2ee5293db82681375",
+        "surface": "Control Plane build ingest, developer token",
+        "generated": false,
+        "notGeneratedReason": "A planned document must never be code-generated from: doing so would ship a client for a surface the product has not published."
+      },
+      {
+        "path": "contracts/planned/yogabase-servers-v1.openapi.json",
+        "sha256": "be267bec46daf0a2be1bf3931fb342f2880d4ea5cfa1dd6a5263c77b2e9bffe6",
+        "surface": "Application-gateway game-server allocation, player token",
+        "generated": false,
+        "notGeneratedReason": "A planned document must never be code-generated from: doing so would ship a client for a surface the product has not published."
+      }
+    ]
   },
   "generator": {
     "package": "Microsoft.OpenApi.Kiota",
@@ -122,6 +143,13 @@
       "packageId": "com.stackyoga.yogabase-runtime-host",
       "version": "0.1.0-preview.1",
       "qualification": "authored-upm-layout-only-no-unity-editor-import-no-il2cpp-build-and-no-live-relay-session"
+    },
+    {
+      "language": "CSharp",
+      "source": "src/dotnet/Yogabase.Lambda",
+      "packageId": "Yogabase.Lambda",
+      "version": "0.1.0-preview.1",
+      "qualification": "locked-restore-release-dual-target-build-and-fake-provider-unit-tests-passed-no-live-installation-and-no-sandbox-load-context-evidence"
     }
   ],
   "publicationAuthorized": false
