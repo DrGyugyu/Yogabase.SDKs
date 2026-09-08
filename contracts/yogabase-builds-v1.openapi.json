@@ -1,0 +1,308 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Yogabase Builds API",
+    "version": "v1",
+    "description": "Send one build archive, ask what the checks found, ask again. Yogabase derives the service layout and the software inventory from the archive itself, and the member's isolated admission Job derives the security scan; a producer that already signs may pass its own manifest through unchanged. Two credentials reach these routes and no third: the console session of a signed-in seat with project-management permission, and a project-scoped developer token. The workload delivery bearer is deliberately not accepted."
+  },
+  "servers": [
+    {
+      "url": "https://{controlPlaneHost}",
+      "variables": {
+        "controlPlaneHost": {
+          "default": "yogabase.invalid",
+          "description": "The installation's own Control Plane origin."
+        }
+      }
+    }
+  ],
+  "security": [
+    { "developerToken": [] },
+    { "consoleSession": [] }
+  ],
+  "paths": {
+    "/api/v1/projects/{projectId}/environments/{environmentId}/builds": {
+      "post": {
+        "operationId": "uploadBuild",
+        "summary": "Upload one build archive and start its checks.",
+        "description": "The bundle is the only required part. Every field beside it is a hint, needed only where the archive is genuinely ambiguous: which executable to launch when more than one is present, and which ports it listens on. Absent hints are derived — the executable from the single root ELF or the Unity player, the architecture from that ELF's machine type, the name from the executable, the version from a fixed default, and the ports from one UDP listener on 7777.",
+        "parameters": [
+          { "$ref": "#/components/parameters/projectId" },
+          { "$ref": "#/components/parameters/environmentId" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["bundle"],
+                "properties": {
+                  "bundle": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The build archive (ZIP)."
+                  },
+                  "manifest": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Optional detached signed manifest, passed through unchanged."
+                  },
+                  "executable": {
+                    "type": "string",
+                    "description": "Archive-relative path of the process to launch."
+                  },
+                  "ports": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Repeatable port declarations in the name=7777/udp spelling."
+                  },
+                  "name": { "type": "string" },
+                  "version": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The build is recorded and its checks are queued.",
+            "headers": {
+              "Location": {
+                "description": "The build's own resource.",
+                "schema": { "type": "string" }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Build" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Refused" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/ScopeRequired" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "415": { "$ref": "#/components/responses/Refused" }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/environments/{environmentId}/builds/{buildId}": {
+      "get": {
+        "operationId": "getBuild",
+        "summary": "Read one build and what its checks found.",
+        "parameters": [
+          { "$ref": "#/components/parameters/projectId" },
+          { "$ref": "#/components/parameters/environmentId" },
+          { "$ref": "#/components/parameters/buildId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "The build.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Build" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/ScopeRequired" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/environments/{environmentId}/builds/{buildId}/recheck": {
+      "post": {
+        "operationId": "recheckBuild",
+        "summary": "Run the checks again for the same bytes.",
+        "description": "The digest never changes, so this is a re-check of one build rather than a new one: the case it exists for is a build refused by a vulnerability database that has since moved on, or by a dependency that was briefly unavailable.",
+        "parameters": [
+          { "$ref": "#/components/parameters/projectId" },
+          { "$ref": "#/components/parameters/environmentId" },
+          { "$ref": "#/components/parameters/buildId" }
+        ],
+        "responses": {
+          "202": {
+            "description": "The checks were asked again.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Build" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Refused" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/ScopeRequired" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "developerToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "A project-scoped developer token, issued from the console's Settings page and prefixed 'ybt_'. It carries the builds:write and/or builds:read scope and has no authority outside its own project's builds. Yogabase stores only its SHA-256, so a lost token is revoked and reissued rather than recovered."
+      },
+      "consoleSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-Yogabase",
+        "description": "The signed-in console seat's session. It must carry project-management permission."
+      }
+    },
+    "parameters": {
+      "projectId": {
+        "name": "projectId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "environmentId": {
+        "name": "environmentId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "buildId": {
+        "name": "buildId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      }
+    },
+    "responses": {
+      "Refused": {
+        "description": "The request was refused. The problem names the field a person can correct.",
+        "content": {
+          "application/problem+json": {
+            "schema": { "$ref": "#/components/schemas/Problem" }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "No accepted credential was presented.",
+        "content": {
+          "application/problem+json": {
+            "schema": { "$ref": "#/components/schemas/Problem" }
+          }
+        }
+      },
+      "ScopeRequired": {
+        "description": "The developer token does not carry the scope this verb needs.",
+        "content": {
+          "application/problem+json": {
+            "schema": { "$ref": "#/components/schemas/Problem" }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "No such build in this environment. A developer token scoped to another project receives this rather than a forbidden, so it cannot be used to discover which project ids exist.",
+        "content": {
+          "application/problem+json": {
+            "schema": { "$ref": "#/components/schemas/Problem" }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Build": {
+        "type": "object",
+        "required": ["buildId", "digest", "state", "check"],
+        "properties": {
+          "buildId": { "type": "string", "format": "uuid" },
+          "digest": {
+            "type": "string",
+            "description": "The archive's exact SHA-256, 'sha256:' prefixed."
+          },
+          "state": {
+            "type": "string",
+            "enum": ["checking", "admitted", "refused"]
+          },
+          "identity": {
+            "type": "string",
+            "description": "The build's own identity and version, as functionId:version or serviceId:version."
+          },
+          "attempt": {
+            "type": "integer",
+            "description": "Which upload of this identity this is, starting at 1. A corrected re-upload takes the next attempt and supersedes the refused one."
+          },
+          "kind": { "type": "string" },
+          "check": { "$ref": "#/components/schemas/Check" }
+        }
+      },
+      "Check": {
+        "type": "object",
+        "required": ["evidenceOrigin", "passed", "findings", "refusals"],
+        "properties": {
+          "evidenceOrigin": {
+            "type": "string",
+            "enum": ["customer-supplied", "yogabase-derived"],
+            "description": "Whether the inventory and scan came with the build or were derived from it."
+          },
+          "inventoryDigest": { "type": "string" },
+          "scanDigest": { "type": "string" },
+          "databaseDigest": {
+            "type": "string",
+            "description": "Digest of the vulnerability snapshot the scan was matched against, when reported."
+          },
+          "passed": {
+            "type": "boolean",
+            "description": "False until the checks report. An absent result is never reported as a clean one."
+          },
+          "observedAt": { "type": "string", "format": "date-time" },
+          "findings": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Finding" }
+          },
+          "refusals": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Refusal" }
+          }
+        }
+      },
+      "Finding": {
+        "type": "object",
+        "required": ["id", "package", "version", "severity"],
+        "properties": {
+          "id": { "type": "string", "description": "The advisory identifier, e.g. a CVE or GHSA id." },
+          "package": { "type": "string" },
+          "version": { "type": "string", "description": "The version present in the build." },
+          "fixedIn": { "type": "string", "description": "First fixed version, or empty when none is published." },
+          "severity": { "type": "string" },
+          "entry": { "type": "string", "description": "The archive entry the component was catalogued from." }
+        }
+      },
+      "Refusal": {
+        "type": "object",
+        "required": ["code"],
+        "properties": {
+          "code": { "type": "string", "description": "Stable machine code." },
+          "field": { "type": "string", "description": "The field the refusal is about, or empty." },
+          "cause": { "type": "string", "description": "A bounded cause token, never a message or a value." }
+        }
+      },
+      "Problem": {
+        "type": "object",
+        "description": "RFC 7807 problem details, extended with a stable machine 'code' and the correlation id.",
+        "required": ["type", "title", "status", "code"],
+        "properties": {
+          "type": { "type": "string", "format": "uri" },
+          "title": { "type": "string" },
+          "status": { "type": "integer" },
+          "detail": { "type": "string" },
+          "code": { "type": "string" },
+          "correlationId": { "type": "string" },
+          "fieldErrors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

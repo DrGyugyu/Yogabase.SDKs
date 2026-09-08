@@ -1,11 +1,28 @@
 # Generated client regeneration
 
 `scripts/regenerate-clients.sh` is the single regeneration entry point for the generated protocol
-clients. It verifies all three checked-in OpenAPI checksums, restores the repository-local
+clients. It verifies all four checked-in OpenAPI checksums, restores the repository-local
 Microsoft Kiota 1.34.1 tool, generates into an isolated repository-local staging directory, and
-synchronizes only generated source roots. The application contract generates TypeScript, Python,
-Java, and Dart clients. The delivery contract additionally generates the Java and Dart low-level
-protocol clients used by their authored delivery facades.
+synchronizes only generated source roots. The application contract — which carries the
+`/v1/servers/*` game-server surface — generates TypeScript, Python, Java, and Dart clients. The
+delivery contract additionally generates the Java and Dart low-level protocol clients used by their
+authored delivery facades.
+
+Every document under `contracts/` is a byte-identical copy of the product repository's
+`docs/api/` file of the same name. Re-syncing one means copying the product file, regenerating its
+`.sha256` sidecar with `shasum -a 256`, and updating the digest wherever `ContractDigestTests` pins
+it (`MANIFEST.json`, both READMEs, and the `YOGABASE_DELIVERY_CONTRACT_SHA256` constants for the
+delivery contract). A contract is never edited by hand here.
+
+### `contracts/yogabase-builds-v1.openapi.json` is checked in but not generated
+
+The Control Plane's build-ingest surface (upload, read, re-check; developer token) is mirrored and
+checksum-verified but deliberately not wired into a `generate_*` call. It is a developer-tool
+surface — the Unity Editor, a CLI, CI — rather than something a shipped game client calls, and the
+two consumers that exist (`src/dotnet/Yogabase.Yogabase.Client/BuildsClient.cs` and the Unity
+package's `YogabaseBuildUploader`) are hand-authored because the multipart upload with a streamed
+bundle, the bounded polling, and the UUID build-id rule are simpler to state directly than through
+a generated multipart body. Generate a client from it only when a language actually needs one.
 
 ### `contracts/yogabase-runtime-host-v1.openapi.json` is checked in but not generated
 

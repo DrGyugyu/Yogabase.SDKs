@@ -11,7 +11,7 @@ import java.util.UUID;
 @jakarta.annotation.Generated("com.microsoft.kiota")
 public class ClientConfiguration implements Parsable {
     /**
-     * The withdrawn data-rest capability may still appear on an installation that predates the Data API removal. Clients accept it and ignore it.
+     * The capabilities property
      */
     private java.util.List<Capability> capabilities;
     /**
@@ -73,7 +73,7 @@ public class ClientConfiguration implements Parsable {
         return new ClientConfiguration();
     }
     /**
-     * Gets the capabilities property value. The withdrawn data-rest capability may still appear on an installation that predates the Data API removal. Clients accept it and ignore it.
+     * Gets the capabilities property value. The capabilities property
      * @return a {@link java.util.List<Capability>}
      */
     @jakarta.annotation.Nullable
@@ -219,7 +219,7 @@ public class ClientConfiguration implements Parsable {
         writer.writeStringValue("schema", this.getSchema());
     }
     /**
-     * Sets the capabilities property value. The withdrawn data-rest capability may still appear on an installation that predates the Data API removal. Clients accept it and ignore it.
+     * Sets the capabilities property value. The capabilities property
      * @param value Value to set for the capabilities property.
      */
     public void setCapabilities(@jakarta.annotation.Nullable final java.util.List<Capability> value) {

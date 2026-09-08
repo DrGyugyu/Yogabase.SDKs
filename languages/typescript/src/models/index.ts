@@ -70,7 +70,7 @@ export interface Capability extends Parsable {
 export type Capability_id = (typeof Capability_idObject)[keyof typeof Capability_idObject];
 export interface ClientConfiguration extends Parsable {
     /**
-     * The withdrawn data-rest capability may still appear on an installation that predates the Data API removal. Clients accept it and ignore it.
+     * The capabilities property
      */
     capabilities?: Capability[] | null;
     /**
@@ -175,6 +175,42 @@ export function createEmailConfirmationRequestFromDiscriminatorValue(parseNode: 
 // @ts-ignore
 export function createExternalIdentityCallbackRequestFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
     return deserializeIntoExternalIdentityCallbackRequest;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {GameServer}
+ */
+// @ts-ignore
+export function createGameServerFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoGameServer;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {GameServerPort}
+ */
+// @ts-ignore
+export function createGameServerPortFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoGameServerPort;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {GameServerStartRequest_customData}
+ */
+// @ts-ignore
+export function createGameServerStartRequest_customDataFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoGameServerStartRequest_customData;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {GameServerStartRequest}
+ */
+// @ts-ignore
+export function createGameServerStartRequestFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoGameServerStartRequest;
 }
 /**
  * Creates a new instance of the appropriate class based on discriminator value
@@ -440,6 +476,56 @@ export function deserializeIntoExternalIdentityCallbackRequest(externalIdentityC
 }
 /**
  * The deserialization information for the current model
+ * @param GameServer The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoGameServer(gameServer: Partial<GameServer> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "networkPorts": n => { gameServer.networkPorts = n.getCollectionOfObjectValues<GameServerPort>(createGameServerPortFromDiscriminatorValue); },
+        "serverId": n => { gameServer.serverId = n.getStringValue(); },
+        "state": n => { gameServer.state = n.getStringValue(); },
+    }
+}
+/**
+ * The deserialization information for the current model
+ * @param GameServerPort The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoGameServerPort(gameServerPort: Partial<GameServerPort> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "externalPort": n => { gameServerPort.externalPort = n.getNumberValue(); },
+        "host": n => { gameServerPort.host = n.getStringValue(); },
+        "internalPort": n => { gameServerPort.internalPort = n.getNumberValue(); },
+        "name": n => { gameServerPort.name = n.getStringValue(); },
+        "protocol": n => { gameServerPort.protocol = n.getEnumValue<GameServerPort_protocol>(GameServerPort_protocolObject); },
+    }
+}
+/**
+ * The deserialization information for the current model
+ * @param GameServerStartRequest The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoGameServerStartRequest(gameServerStartRequest: Partial<GameServerStartRequest> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "customData": n => { gameServerStartRequest.customData = n.getObjectValue<GameServerStartRequest_customData>(createGameServerStartRequest_customDataFromDiscriminatorValue); },
+        "service": n => { gameServerStartRequest.service = n.getStringValue(); },
+    }
+}
+/**
+ * The deserialization information for the current model
+ * @param GameServerStartRequest_customData The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoGameServerStartRequest_customData(gameServerStartRequest_customData: Partial<GameServerStartRequest_customData> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+    }
+}
+/**
+ * The deserialization information for the current model
  * @param InvocationRequest The instance to deserialize into.
  * @returns {Record<string, (node: ParseNode) => void>}
  */
@@ -696,6 +782,58 @@ export interface ExternalIdentityCallbackRequest extends Parsable {
      * The state property
      */
     state?: string | null;
+}
+export interface GameServer extends Parsable {
+    /**
+     * Empty when no member has observed an address for this instance; a client must not connect to such an instance.
+     */
+    networkPorts?: GameServerPort[] | null;
+    /**
+     * The serverId property
+     */
+    serverId?: string | null;
+    /**
+     * Lifecycle state, verbatim. Read it as text: a state Yogabase adds later must stay readable rather than fail a client.
+     */
+    state?: string | null;
+}
+export interface GameServerPort extends Parsable {
+    /**
+     * Port to connect to on host.
+     */
+    externalPort?: number | null;
+    /**
+     * Node address the member observed. Never composed by the Control Plane.
+     */
+    host?: string | null;
+    /**
+     * Port the workload listens on inside its Pod.
+     */
+    internalPort?: number | null;
+    /**
+     * The name property
+     */
+    name?: string | null;
+    /**
+     * The protocol property
+     */
+    protocol?: GameServerPort_protocol | null;
+}
+export type GameServerPort_protocol = (typeof GameServerPort_protocolObject)[keyof typeof GameServerPort_protocolObject];
+export interface GameServerStartRequest extends Parsable {
+    /**
+     * Bounded string map recorded on the allocation and carried to the instance. At most 4096 bytes as canonical JSON. It reaches customer code, so it must never carry a credential or another player's identity.
+     */
+    customData?: GameServerStartRequest_customData | null;
+    /**
+     * Canonical hosted-service id to allocate an instance of.
+     */
+    service?: string | null;
+}
+/**
+ * Bounded string map recorded on the allocation and carried to the instance. At most 4096 bytes as canonical JSON. It reaches customer code, so it must never carry a credential or another player's identity.
+ */
+export interface GameServerStartRequest_customData extends AdditionalDataHolder, Parsable {
 }
 export interface InvocationRequest extends Parsable {
     /**
@@ -964,6 +1102,57 @@ export function serializeExternalIdentityCallbackRequest(writer: SerializationWr
     if (!externalIdentityCallbackRequest || isSerializingDerivedType) { return; }
     writer.writeStringValue("code", externalIdentityCallbackRequest.code);
     writer.writeStringValue("state", externalIdentityCallbackRequest.state);
+}
+/**
+ * Serializes information the current object
+ * @param GameServer The instance to serialize from.
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeGameServer(writer: SerializationWriter, gameServer: Partial<GameServer> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!gameServer || isSerializingDerivedType) { return; }
+    writer.writeCollectionOfObjectValues<GameServerPort>("networkPorts", gameServer.networkPorts, serializeGameServerPort);
+    writer.writeStringValue("serverId", gameServer.serverId);
+    writer.writeStringValue("state", gameServer.state);
+}
+/**
+ * Serializes information the current object
+ * @param GameServerPort The instance to serialize from.
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeGameServerPort(writer: SerializationWriter, gameServerPort: Partial<GameServerPort> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!gameServerPort || isSerializingDerivedType) { return; }
+    writer.writeNumberValue("externalPort", gameServerPort.externalPort);
+    writer.writeStringValue("host", gameServerPort.host);
+    writer.writeNumberValue("internalPort", gameServerPort.internalPort);
+    writer.writeStringValue("name", gameServerPort.name);
+    writer.writeEnumValue<GameServerPort_protocol>("protocol", gameServerPort.protocol);
+}
+/**
+ * Serializes information the current object
+ * @param GameServerStartRequest The instance to serialize from.
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeGameServerStartRequest(writer: SerializationWriter, gameServerStartRequest: Partial<GameServerStartRequest> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!gameServerStartRequest || isSerializingDerivedType) { return; }
+    writer.writeObjectValue<GameServerStartRequest_customData>("customData", gameServerStartRequest.customData, serializeGameServerStartRequest_customData);
+    writer.writeStringValue("service", gameServerStartRequest.service);
+}
+/**
+ * Serializes information the current object
+ * @param GameServerStartRequest_customData The instance to serialize from.
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeGameServerStartRequest_customData(writer: SerializationWriter, gameServerStartRequest_customData: Partial<GameServerStartRequest_customData> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!gameServerStartRequest_customData || isSerializingDerivedType) { return; }
+    writer.writeAdditionalData(gameServerStartRequest_customData.additionalData);
 }
 /**
  * Serializes information the current object
@@ -1261,10 +1450,13 @@ export const ActorInvocationResult_statusObject = {
 } as const;
 export const Capability_idObject = {
     Auth: "auth",
-    DataRest: "data-rest",
     Storage: "storage",
     FunctionsRest: "functions-rest",
     RealtimeSubscribe: "realtime-subscribe",
+} as const;
+export const GameServerPort_protocolObject = {
+    Tcp: "tcp",
+    Udp: "udp",
 } as const;
 /* tslint:enable */
 /* eslint-enable */

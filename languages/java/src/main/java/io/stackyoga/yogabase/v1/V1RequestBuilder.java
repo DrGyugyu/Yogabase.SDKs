@@ -4,6 +4,7 @@ import com.microsoft.kiota.BaseRequestBuilder;
 import com.microsoft.kiota.RequestAdapter;
 import io.stackyoga.yogabase.v1.clientconfig.ClientConfigRequestBuilder;
 import io.stackyoga.yogabase.v1.projects.ProjectsRequestBuilder;
+import io.stackyoga.yogabase.v1.servers.ServersRequestBuilder;
 import io.stackyoga.yogabase.v1.storage.StorageRequestBuilder;
 import java.util.HashMap;
 import java.util.Objects;
@@ -27,6 +28,14 @@ public class V1RequestBuilder extends BaseRequestBuilder {
     @jakarta.annotation.Nonnull
     public ProjectsRequestBuilder projects() {
         return new ProjectsRequestBuilder(pathParameters, requestAdapter);
+    }
+    /**
+     * The servers property
+     * @return a {@link ServersRequestBuilder}
+     */
+    @jakarta.annotation.Nonnull
+    public ServersRequestBuilder servers() {
+        return new ServersRequestBuilder(pathParameters, requestAdapter);
     }
     /**
      * The storage property

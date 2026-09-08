@@ -20,6 +20,7 @@ if ! command -v "$dotnet_exe" >/dev/null 2>&1; then
 fi
 
 (cd "$repo_root/contracts" && shasum -a 256 -c yogabase-client-v1.openapi.sha256)
+(cd "$repo_root/contracts" && shasum -a 256 -c yogabase-builds-v1.openapi.sha256)
 (cd "$repo_root/contracts" && shasum -a 256 -c yogabase-delivery-v1.openapi.sha256)
 (cd "$repo_root/contracts" && shasum -a 256 -c yogabase-runtime-host-v1.openapi.sha256)
 (cd "$repo_root" && "$dotnet_exe" tool restore --tool-manifest "$tool_manifest")

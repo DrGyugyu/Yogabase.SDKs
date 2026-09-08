@@ -6,7 +6,6 @@ import java.util.Objects;
 @jakarta.annotation.Generated("com.microsoft.kiota")
 public enum CapabilityId implements ValuedEnum {
     Auth("auth"),
-    DataRest("data-rest"),
     Storage("storage"),
     FunctionsRest("functions-rest"),
     RealtimeSubscribe("realtime-subscribe");
@@ -21,7 +20,6 @@ public enum CapabilityId implements ValuedEnum {
         Objects.requireNonNull(searchValue);
         switch(searchValue) {
             case "auth": return Auth;
-            case "data-rest": return DataRest;
             case "storage": return Storage;
             case "functions-rest": return FunctionsRest;
             case "realtime-subscribe": return RealtimeSubscribe;

@@ -12,11 +12,14 @@ inventory with its own scanner against a digest-pinned advisory snapshot, and si
 inventory, and scan together with the installation admission key. A customer signature is optional
 and lives under the console's Advanced area.
 
-> **Status.** The publish flow described here is being implemented across the product and this SDK
-> repository at the same time. The Unity Editor window exists and compiles; the Control Plane build
-> surface it posts to is landing in parallel. Nothing below has been driven end to end by a Unity
-> Editor against a live installation. See [Honest limits](#honest-limits) — it is short, and it is
-> the part to read before planning around this.
+> **Status.** The Control Plane build surface this window posts to and the `/v1/servers/*` surface
+> a client calls have both landed in the product repository (branch `claude/platform-refactor`,
+> `f899f98`), and this SDK is aligned to them: `contracts/yogabase-builds-v1.openapi.json` and the
+> game-server half of `contracts/yogabase-client-v1.openapi.json` are byte-identical product
+> snapshots, and the Editor scripts read exactly the shapes those routes write. Nothing below has
+> yet been driven end to end by a Unity Editor against a live installation. See
+> [Honest limits](#honest-limits) — it is short, and it is the part to read before planning around
+> this.
 
 ## The publish flow
 
@@ -56,27 +59,47 @@ Both paths post the same multipart form to the same route:
 POST /api/v1/projects/{projectId}/environments/{environmentId}/builds
 Authorization: Bearer <developer token>
 
-bundle      the zip
+bundle      the zip — the only required part
+manifest    optional pre-signed manifest; neither the Editor nor the .NET client sends one
 executable  path inside the zip, optional
 ports       repeated, one per port, name=7777/udp
 name        optional build name
 version     optional version label
 
-202 { "buildId": "...", "digest": "sha256:...", "state": "checking" }
+202 Location: /api/v1/projects/{p}/environments/{e}/builds/{buildId}
+    { "buildId": "<uuid>", "digest": "sha256:...", "state": "checking",
+      "identity": "battle:1.4.0", "attempt": 1, "kind": "SelfContainedService",
+      "check": { "evidenceOrigin": "yogabase-derived", "passed": false, ... } }
 ```
 
-and then poll every three seconds with backoff:
+The developer token starts with `ybt_` and is at most 128 characters; any other bearer is not a
+developer token to the Control Plane and gets a bare `401`. The build id is a UUID — the route
+constrains it to one — and the Editor refuses anything else before sending it.
+
+Then poll every three seconds with backoff:
 
 ```text
 GET /api/v1/projects/{p}/environments/{e}/builds/{buildId}
 200 { "buildId", "digest", "state": "checking|admitted|refused",
-      "check": { "passed", "findings": [...], "refusals": [...] } }
+      "identity", "attempt", "kind",
+      "check": { "evidenceOrigin": "customer-supplied|yogabase-derived",
+                 "inventoryDigest", "scanDigest", "databaseDigest",
+                 "passed", "observedAt",
+                 "findings":  [ { "id", "package", "version", "fixedIn", "severity", "entry" } ],
+                 "refusals":  [ { "code", "field", "cause" } ] } }
+
+POST /api/v1/projects/{p}/environments/{e}/builds/{buildId}/recheck
+202 the same build, checking again for the same bytes
 ```
 
-The full shape is written down in
-[`contracts/planned/yogabase-builds-v1.openapi.json`](../contracts/planned/yogabase-builds-v1.openapi.json)
-— marked `planned` because the product is implementing it in parallel, so it is a description of the
-agreed contract rather than a mirrored product snapshot.
+A refusal of the request itself (a bundle that is not a readable zip, a missing token scope, an
+unknown build) is an RFC 7807 problem with a stable upper-case `code` such as
+`BUILD_BUNDLE_UNRECOGNIZED`, `BUILD_TOKEN_SCOPE_REQUIRED` or `BUILD_NOT_FOUND`, the `detail`, a
+`correlationId`, and `fieldErrors` naming the multipart field to correct.
+
+The full shape is
+[`contracts/yogabase-builds-v1.openapi.json`](../contracts/yogabase-builds-v1.openapi.json), a
+byte-identical snapshot of the product's `docs/api/yogabase-builds-v1.openapi.json`.
 
 ## What "Build check" means
 
@@ -95,10 +118,12 @@ secure. Nothing in the bundle is executed. Statically linked and `dlopen`ed libr
 Native OS packages are matched only once an OS-package database is carried. Anything uncatalogued is
 reported as uncatalogued, never as clean.
 
-**A refusal names what to fix.** A structural refusal carries a code, the failing field or bundle
-path, and a message. A vulnerability refusal carries the advisory id, the package, the version
-found, the first fixed version, and the bundle entry it came from. Correct the build and publish
-again — a corrected build is a new upload, not an override.
+**A refusal names what to fix.** A structural refusal carries a stable `code`, the `field` it is
+about (or empty), and a bounded `cause` token — never prose and never a value from your bundle. A
+vulnerability refusal carries the advisory id, the package, the version found, the first fixed
+version, and the bundle entry it came from. Correct the build and publish again — a corrected build
+is a new upload that takes the next `attempt` of the same identity and supersedes the refused one;
+a build refused only because the advisory snapshot has since moved on can be re-checked in place.
 
 The scanner is a C# translation of OSV-Scanner's version comparison and affected-range matching and
 of Syft's .NET/ELF cataloguing approach. **No foreign scanner image ships or runs**: Yogabase runs
@@ -148,21 +173,32 @@ A hosted-service instance is one Pod with a host port (NodePort per instance whe
 forbidden) and its node's address. A game client asks the application gateway for one:
 
 ```text
-POST /v1/servers/start   { "service": "battle" }
+POST /v1/servers/start   { "service": "battle", "customData": { "mode": "ranked" } }
 200  { "serverId": "...", "state": "Allocated",
        "networkPorts": [ { "name": "game", "internalPort": 7777,
                            "externalPort": 31245, "protocol": "udp",
                            "host": "10.0.0.7" } ] }
 ```
 
-`GET /v1/servers`, `GET /v1/servers/{id}`, and `POST /v1/servers/{id}/stop` complete the surface.
-Authentication is the **player's** access token — a different credential and a different origin from
-the developer token above. The .NET client implements this as `YogabaseClient.Servers`; the shape is
-written down in
-[`contracts/planned/yogabase-servers-v1.openapi.json`](../contracts/planned/yogabase-servers-v1.openapi.json).
+`GET /v1/servers` (a bare array, ordered by server id), `GET /v1/servers/{serverId}`, and
+`POST /v1/servers/{serverId}/stop` (the instance's state after the release; never a deletion)
+complete the surface. Authentication is the **player's** access token — a different credential and
+a different origin from the developer token above. A refusal is an RFC 7807 problem whose `code`
+is `server_none_available`, `server_contended`, `server_not_found`,
+`server_address_not_observed`, `server_stop_not_available`, `server_request_invalid`,
+`server_authentication_required` or `server_unavailable`. The `service` is the hosted service's
+canonical id; `customData` is at most 32 entries and 4 KiB, and it reaches your server process, so
+it must never carry a credential or another player's identity.
 
-An allocation that arrives without a usable address is refused by the client rather than returned: a
-caller that trusts an empty host dials its own machine.
+The .NET client implements this as `YogabaseClient.Servers`, and every generated client
+(TypeScript, Python, Java, Dart) carries it under `v1.servers`, because the surface is part of the
+mirrored application contract
+[`contracts/yogabase-client-v1.openapi.json`](../contracts/yogabase-client-v1.openapi.json).
+
+An allocation that arrives without a usable address is refused by the .NET client rather than
+returned: a caller that trusts an empty host dials its own machine. A start never answers such an
+instance anyway — the Control Plane refuses with `server_none_available` instead — but a listing
+does include instances whose address no member has observed yet, with empty `networkPorts`.
 
 ## Readiness: the SDK is optional
 
@@ -278,12 +314,10 @@ the stripper to silently break.
   6000.5.7f1 Editor reference set (`scripts/compile-unity-editor.sh`, C# 9, warnings as errors) and
   that is the whole of its verification. No Unity Editor has opened it, no build has been driven
   through it, and no bundle has been uploaded by it.
-- **Its two upstream dependencies are landing in parallel.** The Control Plane build surface this
-  posts to and the `/v1/servers/*` allocation surface a client calls are being implemented in the
-  product repository at the same time as this document. Their shapes live under
-  `contracts/planned/` and are marked `planned` for exactly that reason: they describe the agreed
-  contract, not a published product snapshot. If a field name here disagrees with the product when
-  it lands, the product wins.
+- **Its two upstream surfaces have landed, on a branch.** The Control Plane build surface and the
+  `/v1/servers/*` allocation surface exist in the product repository on `claude/platform-refactor`
+  (`f899f98`), and `contracts/` mirrors their documents byte for byte. What has not happened is a
+  Unity Editor publishing through them, or a game client dialing an address they returned.
 - **Per-instance addressing is new.** Each instance getting a host port and its node's address, and
   a client-facing `/v1/servers/*` surface returning `host:port`, is the 2026-09-08 owner decision —
   it supersedes the earlier position that only the service as a whole was reachable through a small
@@ -307,6 +341,13 @@ The bundle rules and runtime-host contract below were read out of the product re
 publish flow above comes from the 2026-09-08 owner decisions recorded in that repository's
 `docs/PRODUCT_CONTEXT.md`, whose implementation is in progress:
 
+- `src/Yogabase.ControlPlane/Api/BuildEndpoints.cs`, `Services/Builds/BuildIngestService.cs`,
+  `Services/Builds/BuildCheckProjection.cs`, `Auth/DeveloperTokenAuthentication.cs`, and
+  `docs/api/yogabase-builds-v1.openapi.json` — the build routes, their multipart fields, the
+  response shape, and the developer-token rule
+- `src/Yogabase.Tasks/AppPlatform/Gateway/GameServers/GameServerEndpoints.cs`,
+  `src/Yogabase.Core/RuntimeHost/GameServerContracts.cs`, and
+  `docs/api/yogabase-client-v1.openapi.json` — the `/v1/servers/*` routes, bounds, and codes
 - `src/Yogabase.Core/Delivery/HostedServiceBundleContract.cs`
 - `src/Yogabase.Core/Delivery/HostedServiceBaseLibraryAllowlist.cs`
 - `src/Yogabase.Core/AppPlatform/Apps/AppArtifactContracts.cs`

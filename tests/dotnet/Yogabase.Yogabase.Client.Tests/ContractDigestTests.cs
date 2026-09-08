@@ -16,6 +16,7 @@ public sealed class ContractDigestTests
 
     [Theory]
     [InlineData("yogabase-client-v1.openapi.json")]
+    [InlineData("yogabase-builds-v1.openapi.json")]
     [InlineData("yogabase-delivery-v1.openapi.json")]
     [InlineData("yogabase-runtime-host-v1.openapi.json")]
     public async Task ContractFileMatchesItsSha256Sidecar(string contractFileName)
@@ -37,6 +38,7 @@ public sealed class ContractDigestTests
 
     [Theory]
     [InlineData("yogabase-client-v1.openapi.json")]
+    [InlineData("yogabase-builds-v1.openapi.json")]
     [InlineData("yogabase-delivery-v1.openapi.json")]
     [InlineData("yogabase-runtime-host-v1.openapi.json")]
     public async Task RecordedDigestAppearsInManifestAndBothReadmes(string contractFileName)
@@ -56,48 +58,80 @@ public sealed class ContractDigestTests
     }
 
     /// <summary>
-    /// The two documents under <c>contracts/planned/</c> are written in this repository from the
-    /// agreed contract while the product implements those surfaces, so they are checksum-pinned the
-    /// same way — but deliberately not published in <c>MANIFEST.json</c>'s mirrored-contract records
-    /// or in the READMEs' snapshot line, because they are not product snapshots. This test pins
-    /// their sidecars and the marker that says so, so a planned document cannot quietly start
-    /// looking authoritative.
+    /// Every document under <c>contracts/</c> is a byte-identical snapshot of the product's
+    /// <c>docs/api/</c> file of the same name. The former <c>contracts/planned/</c> documents were
+    /// written here while the product implemented the build and game-server surfaces; the product
+    /// has published both (game servers inside the application contract, builds as its own
+    /// document), so the planned files were deleted rather than reconciled, and nothing may
+    /// reintroduce a planned marker under <c>contracts/</c>.
     /// </summary>
-    [Theory]
-    [InlineData("yogabase-builds-v1.openapi.json")]
-    [InlineData("yogabase-servers-v1.openapi.json")]
-    public async Task PlannedContractMatchesItsSidecarAndStaysMarkedPlanned(string contractFileName)
+    [Fact]
+    public async Task NoContractIsMarkedPlannedAndThePlannedDirectoryIsGone()
     {
         var repoRoot = FindRepoRoot();
-        var contractPath = Path.Combine(repoRoot, "contracts", "planned", contractFileName);
-        var sidecarPath = Path.ChangeExtension(contractPath, ".sha256");
+        var contracts = Path.Combine(repoRoot, "contracts");
 
-        Assert.True(File.Exists(contractPath), $"Missing planned contract: {contractPath}");
-        Assert.True(File.Exists(sidecarPath), $"Missing sha256 sidecar: {sidecarPath}");
-
-        var sidecarLine = (await File.ReadAllTextAsync(sidecarPath, TestContext.Current.CancellationToken)).Trim();
-        Assert.Equal(contractFileName, ParseShasumFileName(sidecarLine));
-        Assert.Equal(ParseShasumLine(sidecarLine), await ComputeSha256Async(contractPath), StringComparer.OrdinalIgnoreCase);
-
-        var contractText = await File.ReadAllTextAsync(contractPath, TestContext.Current.CancellationToken);
-        Assert.Contains("\"x-yogabase-status\": \"planned\"", contractText, StringComparison.Ordinal);
+        Assert.False(Directory.Exists(Path.Combine(contracts, "planned")), "contracts/planned must not exist.");
+        foreach (var contract in Directory.GetFiles(contracts, "*.openapi.json"))
+        {
+            var text = await File.ReadAllTextAsync(contract, TestContext.Current.CancellationToken);
+            Assert.DoesNotContain("x-yogabase-status", text, StringComparison.Ordinal);
+        }
     }
 
     /// <summary>
-    /// The Data API module is withdrawn, so no mirrored contract may still declare it. Nothing else
-    /// in the repository would catch a re-synced product snapshot that reintroduced the routes.
+    /// The application contract carries the game-server surface and the builds contract carries
+    /// the three build routes, exactly as the product's endpoints map them. Pinned so a re-sync
+    /// that silently dropped a route the authored .NET client calls is caught here rather than by
+    /// a consumer.
+    /// </summary>
+    [Fact]
+    public async Task TheMirroredContractsDeclareTheRoutesTheAuthoredClientsCall()
+    {
+        var repoRoot = FindRepoRoot();
+        var client = await File.ReadAllTextAsync(
+            Path.Combine(repoRoot, "contracts", "yogabase-client-v1.openapi.json"),
+            TestContext.Current.CancellationToken);
+        var builds = await File.ReadAllTextAsync(
+            Path.Combine(repoRoot, "contracts", "yogabase-builds-v1.openapi.json"),
+            TestContext.Current.CancellationToken);
+
+        Assert.Contains("\"/v1/servers/start\"", client, StringComparison.Ordinal);
+        Assert.Contains("\"/v1/servers\"", client, StringComparison.Ordinal);
+        Assert.Contains("\"/v1/servers/{serverId}\"", client, StringComparison.Ordinal);
+        Assert.Contains("\"/v1/servers/{serverId}/stop\"", client, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/projects/{projectId}/environments/{environmentId}/builds\"", builds, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/projects/{projectId}/environments/{environmentId}/builds/{buildId}\"", builds, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/projects/{projectId}/environments/{environmentId}/builds/{buildId}/recheck\"", builds, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The Data API module is withdrawn, so no mirrored contract may still declare it. Read
+    /// structurally rather than as text: the product's own document explains the withdrawal in its
+    /// description, and that prose must not count as a declaration.
     /// </summary>
     [Fact]
     public async Task TheMirroredApplicationContractDeclaresNoDataApi()
     {
         var repoRoot = FindRepoRoot();
-        var contractText = await File.ReadAllTextAsync(
+        using var document = System.Text.Json.JsonDocument.Parse(await File.ReadAllTextAsync(
             Path.Combine(repoRoot, "contracts", "yogabase-client-v1.openapi.json"),
-            TestContext.Current.CancellationToken);
+            TestContext.Current.CancellationToken));
+        var root = document.RootElement;
 
-        Assert.DoesNotContain("/v1/data/", contractText, StringComparison.Ordinal);
-        Assert.DoesNotContain("DataSelectRequest", contractText, StringComparison.Ordinal);
-        Assert.DoesNotContain("DataMutationRequest", contractText, StringComparison.Ordinal);
+        foreach (var path in root.GetProperty("paths").EnumerateObject())
+        {
+            Assert.False(path.Name.StartsWith("/v1/data", StringComparison.Ordinal), $"Data route declared: {path.Name}");
+        }
+        foreach (var schema in root.GetProperty("components").GetProperty("schemas").EnumerateObject())
+        {
+            Assert.False(schema.Name.StartsWith("Data", StringComparison.Ordinal), $"Data schema declared: {schema.Name}");
+        }
+        var capabilityIds = root.GetProperty("components").GetProperty("schemas").GetProperty("Capability")
+            .GetProperty("properties").GetProperty("id").GetProperty("enum")
+            .EnumerateArray().Select(static value => value.GetString()).ToArray();
+        Assert.DoesNotContain("data-rest", capabilityIds);
+        Assert.Equal(["auth", "storage", "functions-rest", "realtime-subscribe"], capabilityIds);
     }
 
     /// <summary>

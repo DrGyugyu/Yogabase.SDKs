@@ -2,7 +2,6 @@
 /// auto generated
 enum CapabilityId {
     auth('auth'),
-    dataRest('data-rest'),
     storage('storage'),
     functionsRest('functions-rest'),
     realtimeSubscribe('realtime-subscribe');

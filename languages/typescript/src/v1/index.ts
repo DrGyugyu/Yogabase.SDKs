@@ -6,6 +6,8 @@ import { ClientConfigRequestBuilderNavigationMetadata, type ClientConfigRequestB
 // @ts-ignore
 import { ProjectsRequestBuilderNavigationMetadata, type ProjectsRequestBuilder } from './projects/index.js';
 // @ts-ignore
+import { ServersRequestBuilderNavigationMetadata, ServersRequestBuilderRequestsMetadata, type ServersRequestBuilder } from './servers/index.js';
+// @ts-ignore
 import { StorageRequestBuilderNavigationMetadata, type StorageRequestBuilder } from './storage/index.js';
 // @ts-ignore
 import { type BaseRequestBuilder, type KeysToExcludeForNavigationMetadata, type NavigationMetadata } from '@microsoft/kiota-abstractions';
@@ -22,6 +24,10 @@ export interface V1RequestBuilder extends BaseRequestBuilder<V1RequestBuilder> {
      * The projects property
      */
     get projects(): ProjectsRequestBuilder;
+    /**
+     * The servers property
+     */
+    get servers(): ServersRequestBuilder;
     /**
      * The storage property
      */
@@ -40,6 +46,10 @@ export const V1RequestBuilderNavigationMetadata: Record<Exclude<keyof V1RequestB
     },
     projects: {
         navigationMetadata: ProjectsRequestBuilderNavigationMetadata,
+    },
+    servers: {
+        requestsMetadata: ServersRequestBuilderRequestsMetadata,
+        navigationMetadata: ServersRequestBuilderNavigationMetadata,
     },
     storage: {
         navigationMetadata: StorageRequestBuilderNavigationMetadata,

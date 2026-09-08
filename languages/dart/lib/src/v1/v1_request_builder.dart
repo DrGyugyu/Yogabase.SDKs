@@ -2,6 +2,7 @@
 import 'package:microsoft_kiota_abstractions/microsoft_kiota_abstractions.dart';
 import './clientConfig/client_config_request_builder.dart';
 import './projects/projects_request_builder.dart';
+import './servers/servers_request_builder.dart';
 import './storage/storage_request_builder.dart';
 
 /// auto generated
@@ -14,6 +15,10 @@ class V1RequestBuilder extends BaseRequestBuilder<V1RequestBuilder> {
     ///  The projects property
     ProjectsRequestBuilder get projects {
         return ProjectsRequestBuilder(pathParameters, requestAdapter);
+    }
+    ///  The servers property
+    ServersRequestBuilder get servers {
+        return ServersRequestBuilder(pathParameters, requestAdapter);
     }
     ///  The storage property
     StorageRequestBuilder get storage {

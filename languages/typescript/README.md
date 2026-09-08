@@ -11,24 +11,34 @@ contract returns a separate realtime origin, but this package does not yet inclu
 TypeScript SignalR wrapper. This source preview is unpublished and not production-qualified;
 TypeScript generation and its Kiota runtime are themselves preview dependencies.
 
-## The Data API is withdrawn, and Builds/Servers are not here yet
+## The Data API is withdrawn; game servers are generated, builds are not
 
 The client-facing Data API module is withdrawn (owner decision, 2026-09-08). An application reaches
 its project's data through a Lambda — which runs server-side with a full-access database context —
-and through Auth, Storage and Realtime. `/v1/data/*` and its `Data*` models are gone from the
-contract and from this generated client; nothing replaces them on the client side.
+and through Auth, Storage and Realtime. `/v1/data/*`, its `Data*` models and the `data-rest`
+capability id are gone from the mirrored contract and from this generated client; nothing replaces
+them on the client side.
 
-Two surfaces did replace it, and neither has a client in this language yet:
+Two surfaces replaced it:
 
-- **Game servers** (`/v1/servers/start`, `/v1/servers`, `/v1/servers/{id}`, `/v1/servers/{id}/stop` on the application gateway, player token)
-- **Builds** (`/api/v1/projects/{p}/environments/{e}/builds` on the Control Plane, developer token)
+- **Game servers** — `POST /v1/servers/start`, `GET /v1/servers`, `GET /v1/servers/{serverId}`
+  and `POST /v1/servers/{serverId}/stop` on the application gateway, authenticated with the
+  signed-in player's access token. They are part of the mirrored application contract, so this
+  client carries them as generated code: `client.v1.servers` (`start.post(body)`, `get()`, `byServerId(id).get()`, `byServerId(id).stop.post()`). The list answers a bare array; a `GameServer` is
+  `serverId`, `state` and `networkPorts[{name, internalPort, externalPort, protocol, host}]`; a
+  refusal is an RFC 7807 problem whose `code` is one of `server_request_invalid`,
+  `server_authentication_required`, `server_none_available`, `server_contended`,
+  `server_not_found`, `server_address_not_observed`, `server_stop_not_available` or
+  `server_unavailable`. An instance listed with empty `networkPorts` has no observed address yet;
+  do not connect to it. The start request names the hosted service by its canonical id
+  (`[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?`) and may carry at most 32 `customData` entries, 64-byte
+  keys, 1024-byte values, 4 KiB as canonical JSON.
+- **Builds** — `POST`/`GET` `/api/v1/projects/{p}/environments/{e}/builds[/{buildId}[/recheck]]`
+  on the Control Plane, authenticated with a project-scoped `ybt_` developer token. This is a
+  developer-tool surface (the Unity Editor, a CLI, CI), not a shipped-client surface. It is
+  mirrored at `contracts/yogabase-builds-v1.openapi.json` and implemented by the .NET
+  `YogabaseBuildsClient` and the Unity package; no client is generated for it in this language.
 
-Both are implemented today only in `src/dotnet/Yogabase.Yogabase.Client`
-(`YogabaseClient.Servers` and `YogabaseClient.Builds(...)`). Clients for this language are later
-scope. The planned shapes are written down in `contracts/planned/yogabase-servers-v1.openapi.json`
-and `contracts/planned/yogabase-builds-v1.openapi.json`, both marked
-`"x-yogabase-status": "planned"` because the product is implementing them in parallel; they are not
-mirrored product snapshots and must not be generated from as if they were.
 ## Hierarchical storage keys
 
 `objects.byKey(...)` is generated from an OpenAPI path parameter and is safe only for a validated

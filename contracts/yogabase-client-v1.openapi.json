@@ -3,7 +3,7 @@
   "info": {
     "title": "Yogabase Yogabase Application API",
     "version": "v1-preview",
-    "description": "Target-local Yogabase application-plane API. This contract excludes Yogabase management, delivery, provisioning, CRDs, raw SQL, provider coordinates, and GameSessions."
+    "description": "Target-local Yogabase application-plane API. This contract excludes Yogabase management, delivery, provisioning, CRDs, raw SQL, provider coordinates, and GameSessions. The client-facing Data API was withdrawn on 2026-09-08: the /v1/data/{resource}/* operations and the data-rest capability id are gone, and a client reaches data through a Lambda, Auth, Storage or Realtime instead. A server that still serves them is older than this document."
   },
   "servers": [
     {
@@ -428,6 +428,78 @@
           "503": { "$ref": "#/components/responses/Problem" }
         }
       }
+    },
+    "/v1/servers/start": {
+      "post": {
+        "operationId": "startYogabaseGameServer",
+        "description": "Allocates one Ready instance of a hosted service to the signed-in player and returns the address to connect to. The Control Plane decides which instance; the gateway relays. A project with no Ready instance carrying an observed address is refused with server_none_available rather than given an address nothing answers on.",
+        "security": [{ "projectOAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/GameServerStartRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/GameServer" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "429": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/servers": {
+      "get": {
+        "operationId": "listYogabaseGameServers",
+        "description": "Every instance of the caller's environment as a bare array, ordered by server id. An instance whose address no member has observed is listed with an empty networkPorts rather than omitted or given a composed host.",
+        "security": [{ "projectOAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "The instances this caller may see.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/GameServer" }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/servers/{serverId}": {
+      "get": {
+        "operationId": "getYogabaseGameServer",
+        "description": "One instance of the caller's environment. A server id from another project is answered exactly as one that does not exist.",
+        "security": [{ "projectOAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/ServerId" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/GameServer" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/servers/{serverId}/stop": {
+      "post": {
+        "operationId": "stopYogabaseGameServer",
+        "description": "Releases the allocation this caller holds on one instance, returning it to the pool. It is never a deletion: retirement is decided by the environment's own capacity policy, and an instance allocated to a different caller is refused with server_stop_not_available.",
+        "security": [{ "projectOAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/ServerId" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/GameServer" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
     }
   },
   "components": {
@@ -453,6 +525,13 @@
         "in": "path",
         "required": true,
         "schema": { "type": "string", "pattern": "^sy_pub_[!-~]{9,153}$", "maxLength": 160 }
+      },
+      "ServerId": {
+        "name": "serverId",
+        "in": "path",
+        "required": true,
+        "description": "Opaque game-server instance identifier, as returned by start or list.",
+        "schema": { "type": "string", "minLength": 1, "maxLength": 128 }
       },
       "ObjectKey": {
         "name": "key",
@@ -542,6 +621,12 @@
           "application/json": { "schema": { "$ref": "#/components/schemas/ObjectWriteResult" } }
         }
       },
+      "GameServer": {
+        "description": "One game-server instance and the addresses a client may connect to.",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/GameServer" } }
+        }
+      },
       "InvocationResult": {
         "description": "Typed invocation outcome. Expected domain failures retain this shape on non-2xx statuses.",
         "content": {
@@ -581,6 +666,57 @@
       }
     },
     "schemas": {
+      "GameServerStartRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["service"],
+        "properties": {
+          "service": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63,
+            "description": "Canonical hosted-service id to allocate an instance of."
+          },
+          "customData": {
+            "type": "object",
+            "maxProperties": 32,
+            "additionalProperties": { "type": "string", "maxLength": 1024 },
+            "propertyNames": { "maxLength": 64 },
+            "description": "Bounded string map recorded on the allocation and carried to the instance. At most 4096 bytes as canonical JSON. It reaches customer code, so it must never carry a credential or another player's identity."
+          }
+        }
+      },
+      "GameServerPort": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "internalPort", "externalPort", "protocol", "host"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 15 },
+          "internalPort": { "type": "integer", "minimum": 1, "maximum": 65535, "description": "Port the workload listens on inside its Pod." },
+          "externalPort": { "type": "integer", "minimum": 1, "maximum": 65535, "description": "Port to connect to on host." },
+          "protocol": { "type": "string", "enum": ["tcp", "udp"] },
+          "host": { "type": "string", "minLength": 1, "maxLength": 45, "description": "Node address the member observed. Never composed by the Control Plane." }
+        }
+      },
+      "GameServer": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["serverId", "state", "networkPorts"],
+        "properties": {
+          "serverId": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "state": {
+            "type": "string",
+            "maxLength": 32,
+            "description": "Lifecycle state, verbatim. Read it as text: a state Yogabase adds later must stay readable rather than fail a client."
+          },
+          "networkPorts": {
+            "type": "array",
+            "maxItems": 16,
+            "items": { "$ref": "#/components/schemas/GameServerPort" },
+            "description": "Empty when no member has observed an address for this instance; a client must not connect to such an instance."
+          }
+        }
+      },
       "ClientConfiguration": {
         "type": "object",
         "additionalProperties": false,
@@ -617,9 +753,8 @@
           "realtimePath": { "type": "string", "const": "/v1/realtime" },
           "capabilities": {
             "type": "array",
-            "minItems": 4,
+            "minItems": 5,
             "maxItems": 5,
-            "description": "The withdrawn data-rest capability may still appear on an installation that predates the Data API removal. Clients accept it and ignore it.",
             "items": { "$ref": "#/components/schemas/Capability" }
           },
           "issuedAt": { "type": "string", "format": "date-time" }
@@ -632,7 +767,7 @@
         "properties": {
           "id": {
             "type": "string",
-            "enum": ["auth", "data-rest", "storage", "functions-rest", "realtime-subscribe"]
+            "enum": ["auth", "storage", "functions-rest", "realtime-subscribe"]
           },
           "available": { "type": "boolean" },
           "unavailableReason": { "type": ["string", "null"], "maxLength": 256 }
