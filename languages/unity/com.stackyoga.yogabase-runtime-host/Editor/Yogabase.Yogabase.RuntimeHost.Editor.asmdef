@@ -1,0 +1,16 @@
+{
+  "name": "Yogabase.Yogabase.RuntimeHost.Editor",
+  "rootNamespace": "Yogabase.Editor",
+  "references": [],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

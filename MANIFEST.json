@@ -88,7 +88,8 @@
     "python": "3.13.12",
     "javaCompiler": "21.0.10 with --release 17",
     "dartSdk": "3.13.2 stable, revision 60a57cd42d64dc03e9f07aa60a2e250755c1ef28",
-    "dartSdkArchiveSha256": "1e79f51341937f84cc1563a3fcad4a91706e35dee72bda69f4e955065c0e373a"
+    "dartSdkArchiveSha256": "1e79f51341937f84cc1563a3fcad4a91706e35dee72bda69f4e955065c0e373a",
+    "unityEditorCompileCheck": "Unity 6000.5.7f1 Editor reference assemblies, driven by scripts/compile-unity-editor.sh through the .NET SDK Roslyn compiler at -langversion:9.0 with warnings as errors. Unity itself is not run: this checks compilation only."
   },
   "packages": [
     {
@@ -141,8 +142,8 @@
       "language": "Unity",
       "source": "languages/unity/com.stackyoga.yogabase-runtime-host",
       "packageId": "com.stackyoga.yogabase-runtime-host",
-      "version": "0.1.0-preview.1",
-      "qualification": "authored-upm-layout-only-no-unity-editor-import-no-il2cpp-build-and-no-live-relay-session"
+      "version": "0.2.0-preview.1",
+      "qualification": "editor-scripts-compile-checked-against-a-real-unity-6000.5.7f1-editor-reference-set-at-csharp-9-warnings-as-errors; no-unity-editor-import-of-this-version, no-il2cpp-build, no-publish-window-run, and-no-live-relay-session"
     },
     {
       "language": "CSharp",

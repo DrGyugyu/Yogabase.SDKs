@@ -139,7 +139,7 @@ The non-.NET package identifiers retain their existing preview names for continu
 | Dart | `languages/dart` | `stackyoga_yogabase_client_preview` `0.3.0-dev.1` | Experimental generated application/Delivery source plus authored facades |
 | .NET Lambda context | `src/dotnet/Yogabase.Lambda` | `Yogabase.Lambda` `0.1.0-preview.1` | Authored runtime-context wrapper for a Lambda bundle; `netstandard2.1` and `net10.0` (the database handle only on `net10.0`); fake-provider tests only, no live installation evidence |
 | .NET runtime host | `src/dotnet/Yogabase.Yogabase.RuntimeHost` | `Yogabase.Yogabase.RuntimeHost` `0.1.0-preview.1` | Authored self-scoped runtime-host client; `netstandard2.1` and `net10.0`; fake-transport tests only, no live-gateway evidence |
-| Unity | `languages/unity/com.stackyoga.yogabase-runtime-host` | `com.stackyoga.yogabase-runtime-host` `0.1.0-preview.1` | Import-shaped UPM package carrying the runtime-host module and its `link.xml`; no Unity Editor import or IL2CPP build has verified it |
+| Unity | `languages/unity/com.stackyoga.yogabase-runtime-host` | `com.stackyoga.yogabase-runtime-host` `0.2.0-preview.1` | UPM package carrying the runtime-host module, its `link.xml`, and the Editor publish flow (`Yogabase ▸ Publish Server`); the Editor scripts compile against a real Unity 6000.5.7f1 reference set at C# 9, but no Editor has run the window and no IL2CPP build has verified the runtime module |
 
 The immutable application snapshot is `contracts/yogabase-client-v1.openapi.json` (SHA-256 `4aa4820d15e76f68aa2840fa02be3b110e7a1fd850d8100c050f8cd421f7d1cf`). The workload snapshot is `contracts/yogabase-delivery-v1.openapi.json` (SHA-256 `1eca152807ed2c6ab834b6ad7fea5fedb514ce359bd8f02f028635b03b8b6cc4`). The runtime-host snapshot is `contracts/yogabase-runtime-host-v1.openapi.json` (SHA-256 `e0393d8dd7962a0bf2447fd5a79ee22dbaa3f271f6bb98b92d8e4749365967e7`); it is checked in as the server-side reference for the lifecycle states and error codes and is deliberately never code-generated, because a workload calls the self-scoped relay routes rather than the instance-addressed paths that document declares. Their adjacent checksums, Kiota locks, and `MANIFEST.json` bind this repository to the exact contracts and generator.
 
@@ -157,7 +157,15 @@ cd languages/typescript && npm ci && npm test
 cd languages/python && python -m unittest discover -s tests
 cd languages/java && mvn test
 cd languages/dart && dart analyze
+
+scripts/compile-unity-editor.sh
 ```
+
+`scripts/compile-unity-editor.sh` compile-checks the Unity package's Editor scripts in a real Unity
+Editor compile environment: it reuses a response file Unity's own Bee build already wrote for an
+Editor assembly, keeps its Editor-installation references, defines and language version, and swaps
+in this package's sources. Set `UNITY_RSP` to point at one. With no response file it exits 2 and
+says the scripts were not checked, rather than reporting a pass it did not perform.
 
 Run `scripts/regenerate-clients.sh` to verify all three contracts, restore pinned Kiota 1.34.1, regenerate all four application clients, and regenerate the Java and Dart delivery protocol clients. The runtime-host contract is checksum-verified but never generated, and the authored runtime-host module is not regenerated source. Authored delivery facades are preserved. Each generated-language folder retains its own package manifest, dependency lock where available, Kiota lock, source, documentation, and conformance helper. Downloaded tools, caches, dependency trees, and build intermediates are excluded. Historical imported artifacts remain unchanged under `artifacts/imported`; current sibling-repository builds belong under `artifacts/local`.
 

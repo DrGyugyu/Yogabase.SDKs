@@ -1,0 +1,75 @@
+// C# 9 only. Braced namespace, no file-scoped namespaces, no records, no collection expressions:
+// Unity compiles this file itself, and the Editor's language version is fixed.
+
+namespace Yogabase.Editor
+{
+    /// <summary>
+    /// Every Yogabase route this package's Editor tooling calls, in one place.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// These are the Control Plane's build-ingest routes, reached with a project-scoped developer
+    /// token. They are a different origin and a different credential from the application gateway
+    /// that a shipped game client talks to, and from the Pod-local runtime-host relay that the
+    /// dedicated server itself talks to.
+    /// </para>
+    /// <para>
+    /// The same names exist in <c>src/dotnet/Yogabase.Yogabase.Client/YogabaseRoutes.cs</c>. This
+    /// file is a deliberate second copy rather than a reference to that assembly: the Editor tool
+    /// speaks the multipart request itself with <c>HttpClient</c>, so the package carries no NuGet
+    /// dependency closure into Unity. Keeping the routes in exactly one file per side means a
+    /// rename on the server is one findable edit here.
+    /// </para>
+    /// <para>
+    /// Every route is relative and must be combined with the Control Plane origin; a leading slash
+    /// would discard a base path.
+    /// </para>
+    /// </remarks>
+    public static class YogabaseEditorRoutes
+    {
+        /// <summary>Build collection route of one environment.</summary>
+        public static string Builds(string projectId, string environmentId)
+        {
+            return "api/v1/projects/" + projectId + "/environments/" + environmentId + "/builds";
+        }
+
+        /// <summary>Route of one build, carrying its state and its Build check result.</summary>
+        public static string Build(string projectId, string environmentId, string buildId)
+        {
+            return Builds(projectId, environmentId) + "/" + System.Uri.EscapeDataString(buildId);
+        }
+
+        /// <summary>Multipart field names of the build upload form.</summary>
+        public const string FieldBundle = "bundle";
+
+        /// <inheritdoc cref="FieldBundle"/>
+        public const string FieldExecutable = "executable";
+
+        /// <inheritdoc cref="FieldBundle"/>
+        public const string FieldPorts = "ports";
+
+        /// <inheritdoc cref="FieldBundle"/>
+        public const string FieldName = "name";
+
+        /// <inheritdoc cref="FieldBundle"/>
+        public const string FieldVersion = "version";
+
+        /// <summary>The states a Build check stops at.</summary>
+        public const string StateChecking = "checking";
+
+        /// <inheritdoc cref="StateChecking"/>
+        public const string StateAdmitted = "admitted";
+
+        /// <inheritdoc cref="StateChecking"/>
+        public const string StateRefused = "refused";
+
+        /// <summary>
+        /// EditorPrefs key holding the developer token for one project. The token is a secret and
+        /// never enters the settings asset, so it is never committed with the project.
+        /// </summary>
+        public static string DeveloperTokenPreferenceKey(string projectId)
+        {
+            return "Yogabase.DeveloperToken." + projectId;
+        }
+    }
+}
