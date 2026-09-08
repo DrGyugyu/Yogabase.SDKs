@@ -753,8 +753,8 @@
           "realtimePath": { "type": "string", "const": "/v1/realtime" },
           "capabilities": {
             "type": "array",
-            "minItems": 5,
-            "maxItems": 5,
+            "minItems": 4,
+            "maxItems": 4,
             "items": { "$ref": "#/components/schemas/Capability" }
           },
           "issuedAt": { "type": "string", "format": "date-time" }

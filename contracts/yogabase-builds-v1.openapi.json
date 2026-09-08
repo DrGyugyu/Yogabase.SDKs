@@ -209,7 +209,7 @@
     "schemas": {
       "Build": {
         "type": "object",
-        "required": ["buildId", "digest", "state", "check"],
+        "required": ["buildId", "digest", "state", "identity", "attempt", "kind", "check"],
         "properties": {
           "buildId": { "type": "string", "format": "uuid" },
           "digest": {
@@ -264,7 +264,7 @@
       },
       "Finding": {
         "type": "object",
-        "required": ["id", "package", "version", "severity"],
+        "required": ["id", "package", "version", "fixedIn", "severity", "entry"],
         "properties": {
           "id": { "type": "string", "description": "The advisory identifier, e.g. a CVE or GHSA id." },
           "package": { "type": "string" },

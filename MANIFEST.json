@@ -29,16 +29,16 @@
   "contract": {
     "path": "contracts/yogabase-client-v1.openapi.json",
     "sourcePath": "Yogabase product repository: docs/api/yogabase-client-v1.openapi.json",
-    "sha256": "6c7dd174f13230e3885949cd0fa9f8d0078b72d2d2e507eb6bf72cced99ee05b",
+    "sha256": "e1fe951a95e2da44efffbd4b4dc2985aa8ca09118d89a5360a1eebddb04d8582",
     "pathCount": 22,
     "operationCount": 23,
     "schemaCount": 26,
-    "mirroredFrom": "Byte-identical to the product document on branch claude/platform-refactor at f899f98 (2026-09-09). It carries the player-facing /v1/servers/* game-server surface and no /v1/data/* route, Data* schema, or data-rest capability id: the client-facing Data API module is withdrawn (owner decision, 2026-09-08)."
+    "mirroredFrom": "Byte-identical to the product document on branch claude/platform-refactor at 83e6e19 (2026-09-09). It carries the player-facing /v1/servers/* game-server surface and no /v1/data/* route, Data* schema, or data-rest capability id: the client-facing Data API module is withdrawn (owner decision, 2026-09-08)."
   },
   "buildsContract": {
     "path": "contracts/yogabase-builds-v1.openapi.json",
     "sourcePath": "Yogabase product repository: docs/api/yogabase-builds-v1.openapi.json",
-    "sha256": "8a8a8a5d3935bafcf40e75d01dab83be9c1b00e4f580d7ea4bec91c7efd0e53b",
+    "sha256": "8b2aa93166f0f0990c78c1983ee9bb54b7d6dbb10748da504b572c0d9a63efd6",
     "pathCount": 3,
     "operationCount": 3,
     "schemaCount": 5,
