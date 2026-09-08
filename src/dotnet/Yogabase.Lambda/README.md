@@ -79,8 +79,8 @@ incompatible major of it is refused at admission naming the version. Only `DbDat
 | Member | What it is |
 |---|---|
 | `Database` | `System.Data.Common.DbDataSource` for the project, under the full-access `yogabase_lambda` identity. Open a connection per unit of work and dispose it; the runtime owns the pool. |
-| `Storage` | `PutAsync`, `GetAsync`, `TryGetAsync`, `DeleteAsync`, `ListAsync` over the project's mediated object store. Keys are logical; provider coordinates and signed URLs never reach customer code. The store is content-addressed and create-if-absent: the same bytes at the same key are acknowledged, different bytes at an existing key are refused with `object_conflict`. An object is one byte to 32 MiB. |
-| `Users` | `GetAsync`, `CreateAsync`, `UpdateAsync`, `BanAsync`, `IssueTokenAsync` over this project's application users. A subject is a UUID (any spelling is normalised to the lower-case `D` form the gateway requires). An issued token speaks for that one user, never for the project, and needs one to sixteen scopes from the realm's admitted set. |
+| `Storage` | `PutAsync`, `ReplaceAsync`, `GetAsync`, `TryGetAsync`, `DeleteAsync`, `ListAsync`, `ListAllAsync` over the project's mediated object store. Keys are logical and project-local; provider coordinates and signed URLs never reach customer code. See [Storage semantics](#storage-semantics). |
+| `Users` | `GetAsync`, `CreateAsync`, `UpdateAsync`, `BanAsync`, `IssueTokenAsync` over this project's application users. A subject is a UUID (any spelling is normalised to the lower-case `D` form the gateway requires). See [Issuing a user token](#issuing-a-user-token). |
 | `Realtime` | `PublishAsync(topic, payload)` and `PublishJsonAsync(topic, json)`. A topic is a Realtime binding id — `[a-z][a-z0-9._-]{0,95}` — and a payload is at most 64 KiB; both are checked here so a publish the gateway would refuse never leaves the Lambda. A Lambda publishes; it does not subscribe or hold a Hub. |
 | `Caller` | The `ClaimsPrincipal`, its raw `Subject`, and `TryGetSubjectId` / `RequireSubjectId`. |
 | `Logger` | The runtime's `ILogger` for this invocation. |
@@ -89,6 +89,59 @@ incompatible major of it is refused at admission naming the version. Only `DbDat
 Every service except `Logger`, `Caller`, and `Invocation` is resolved on first use, so a Lambda that
 only publishes to Realtime never touches the database, and a missing service is reported when it is
 actually needed, naming the service.
+
+### Storage semantics
+
+The mediated store is content-addressed and **create-if-absent**; there is no overwrite.
+
+- `PutAsync(key, bytes, contentType)` creates the key (201). A retry of this same invocation's
+  write of the same bytes is acknowledged as the existing object (200). Any other write to an
+  existing key — different bytes, or the same bytes from a different invocation — is refused with
+  a `LambdaApiException` of status 409 and code `object_conflict`.
+- `ReplaceAsync(key, bytes, contentType)` is `DeleteAsync` then `PutAsync`: two operations, not
+  one. Another writer creating the key between them is reported by the write as `object_conflict`.
+- `DeleteAsync(key)` is idempotent: the gateway answers 204 whether or not the key existed, so a
+  retried invocation's delete succeeds exactly as its first attempt did.
+- `ListAsync(prefix, cursor, limit)` returns one page — `Keys` in ordinal order plus `NextCursor`,
+  `null` on the last page — of up to 500 keys (the gateway's default page is 100). Pass
+  `NextCursor` back unchanged. `ListAllAsync(prefix)` walks every page for you; for a large
+  namespace, page with `ListAsync` instead so the whole listing is never held at once.
+- A key is one byte to 32 MiB under a media type without parameters, and follows the gateway's
+  own rules, checked here before transport: not empty, absolute, or longer than 1024 characters;
+  no backslash, percent sign, NUL, empty segment, or `.`/`..` segment; not a physical `projects/`
+  path or a URL. Segments are percent-encoded individually on the wire (a key's `/` travels as a
+  `/`), so keys may contain spaces, `?`, `#`, and non-ASCII characters.
+- `environments/…` is reserved for the product's own artifact layout. A key under it, or a listing
+  prefix that would enumerate it (`environments`, `environments/`, or a separator-less prefix such
+  as `environment` that string-matches into it), is refused before transport with the same
+  `LambdaApiException` the gateway answers: status 403, code `key_reserved_prefix`. A directory
+  that merely starts the same way — `environment/settings.json` — is an ordinary key, and
+  `environment/` an ordinary prefix.
+
+### Issuing a user token
+
+`Users.IssueTokenAsync(subject, scopes)` returns a real project-user access token minted by the
+project realm on the Lambda's authority. Every client-facing route validates it exactly as a token
+from `/connect/token`; it differs in carrying `yogabase_issued_by = lambda:<functionId>` and in
+never coming with a refresh or identity token. It lives for the realm's configured access-token
+lifetime (`ExpiresAt`). It speaks for that one user, never for the project.
+
+The scope set is one to sixteen distinct scopes from the realm's admitted set; duplicates are
+collapsed. `openid` and `offline_access` are never issuable and are refused here, before transport,
+with the same `LambdaApiException` the gateway answers: status 400, code `scope_not_allowed`. The
+gateway answers that code for a scope outside the admitted set, `user_not_found` (404) for a subject
+that is not in this project, `user_banned` and `user_email_unconfirmed` (403) for one that could not
+sign in, and `user_token_issuance_failed` / `user_token_issuance_unavailable` (503) when the realm
+could not issue or the host has no realm issuer.
+
+### Refusals
+
+Every failure the gateway reports is a `LambdaApiException` carrying its HTTP `StatusCode` and the
+gateway's stable `Code`; `LambdaRefusalCodes` names every code the routes this package calls can
+answer. Two refusals the wrapper can decide locally — a reserved storage key and a never-issuable
+scope — throw that same exception before any request is sent, with exactly the status and code the
+gateway would have answered, so one catch path covers both. Argument-shape problems (an empty key,
+an oversized payload, a subject that is not a UUID) are `ArgumentException`s.
 
 ### Scheduled, actor, and workflow invocations have no player
 
@@ -113,16 +166,11 @@ secrets: this package never logs them, and neither should the Lambda.
 - `Database` exists only on the `net10.0` build. `System.Data.Common.DbDataSource` was introduced in
   .NET 7 and has no .NET Standard 2.1 form. A Lambda bundle targets the sandbox's own .NET runtime,
   so the `netstandard2.1` build is for sharing non-database code, not for running a Lambda.
-- Three routes are mapped by the gateway and honestly unavailable in the current product release;
-  each surfaces as `LambdaApiException` with status 501 and the product's own code:
-  `Storage.DeleteAsync` (`storage_delete_unavailable`) and `Storage.ListAsync`
-  (`storage_list_unavailable`), because the mediated store is create-only and has no enumeration
-  yet, and `Users.IssueTokenAsync` (`user_token_issuance_unavailable`), because the project realm
-  exposes no first-party issuance grant yet. The routes, requests and response shapes are the
-  contract; the wrapper keeps them so a Lambda written today answers for real when the product does.
-- The internal Lambda runtime API is not a published contract. Listing shapes are read tolerantly
-  (a bare array or a `{ "objects": [...] }` envelope), unmodelled user fields are kept rather than
-  dropped, and an unrecognized shape is refused rather than silently read as empty.
+- The internal Lambda runtime API is not a published contract. This package speaks the route table
+  and shapes the gateway's `LambdaRuntimeApiEndpoints` serves on 2026-09-09 (the product
+  repository's `docs/SIGNALR_LAMBDA_ORLEANS_BOUNDARIES.md` §5 records them): an object listing is
+  read strictly as `{ "objects": [{ "key" }], "nextCursor" }` and any other shape is refused rather
+  than read as empty, while unmodelled user fields are kept rather than dropped.
 - No live installation has exercised this package. Its coverage is fake-provider and fake-transport
   unit tests only.
 

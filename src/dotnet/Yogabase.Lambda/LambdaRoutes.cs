@@ -1,9 +1,12 @@
 using System;
+using System.Globalization;
+using System.Text;
 
 namespace Yogabase.Lambda;
 
 /// <summary>
-/// Every internal Lambda runtime API route this package calls, in one place.
+/// Every internal Lambda runtime API route this package calls, in one place, together with the
+/// gateway's own spelling of what it accepts on each.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -31,27 +34,92 @@ public static class LambdaRoutes
     public const string RealtimeClientName = "yogabase-realtime";
 
     /// <summary>
-    /// Object collection; <c>?prefix=</c> filters a listing. The mediated store this release ships
-    /// exposes no enumeration, so the gateway answers <c>501 storage_list_unavailable</c> here.
+    /// Object collection. <see cref="StorageObjectListing"/> spells its paged, prefix-filtered
+    /// listing; <see cref="StorageObject"/> spells one object under it.
     /// </summary>
     public const string StorageObjects = "objects";
 
     /// <summary>Application-user collection.</summary>
     public const string Users = "users";
 
-    /// <summary>One object, by logical key.</summary>
-    public static string StorageObject(string escapedKey) => "objects/" + escapedKey;
+    /// <summary>
+    /// The first logical key segment the product reserves for its own per-environment artifact
+    /// layout (<c>projects/{project}/environments/…</c> in the self-hosted store). The gateway
+    /// refuses a key or listing prefix entering it for every verb with <c>key_reserved_prefix</c>
+    /// and filters it out of every listing page; this wrapper refuses it before transport with the
+    /// same code.
+    /// </summary>
+    public const string ReservedStorageSegment = "environments";
 
-    /// <summary>A prefix-filtered object listing.</summary>
-    public static string StorageObjectsWithPrefix(string prefix) =>
-        "objects?prefix=" + Uri.EscapeDataString(prefix);
+    /// <summary>The gateway's bound on one logical object key.</summary>
+    public const int MaximumStorageKeyLength = 1024;
+
+    /// <summary>The gateway's bound on a listing cursor; a longer one is refused as <c>cursor_invalid</c>.</summary>
+    public const int MaximumStorageCursorLength = 2048;
+
+    /// <summary>
+    /// One object, by logical key, spelled as the gateway's <c>objects/{**key}</c> catch-all route
+    /// receives it: each segment percent-encoded on its own and the separators kept. Kestrel leaves
+    /// an encoded separator (<c>%2F</c>) encoded all the way into the route value, and the gateway
+    /// refuses any key containing <c>%</c>, so encoding the whole key as one segment would turn
+    /// every nested key into a <c>key_percent_encoded</c> refusal.
+    /// </summary>
+    /// <param name="key">A key that passed <see cref="StorageKey"/>.</param>
+    public static string StorageObject(string key)
+    {
+        if (key is null)
+        {
+            throw new ArgumentNullException(nameof(key));
+        }
+
+        var segments = key.Split('/');
+        var route = new StringBuilder(StorageObjects).Append('/');
+        for (var index = 0; index < segments.Length; index++)
+        {
+            if (index > 0)
+            {
+                route.Append('/');
+            }
+
+            route.Append(Uri.EscapeDataString(segments[index]));
+        }
+
+        return route.ToString();
+    }
+
+    /// <summary>
+    /// The paged object listing, <c>objects?prefix=&amp;cursor=&amp;limit=</c>, with each
+    /// parameter present only when given. The gateway lists the whole project namespace without a
+    /// prefix, starts from the beginning without a cursor, and pages by 100 without a limit.
+    /// </summary>
+    public static string StorageObjectListing(string? prefix, string? cursor, int? limit)
+    {
+        var route = new StringBuilder(StorageObjects);
+        var separator = '?';
+        if (!string.IsNullOrEmpty(prefix))
+        {
+            route.Append(separator).Append("prefix=").Append(Uri.EscapeDataString(prefix));
+            separator = '&';
+        }
+        if (!string.IsNullOrEmpty(cursor))
+        {
+            route.Append(separator).Append("cursor=").Append(Uri.EscapeDataString(cursor));
+            separator = '&';
+        }
+        if (limit is { } pageSize)
+        {
+            route.Append(separator).Append("limit=").Append(pageSize.ToString(CultureInfo.InvariantCulture));
+        }
+
+        return route.ToString();
+    }
 
     /// <summary>One application user, by canonical subject (a lower-case <c>D</c>-form UUID).</summary>
     public static string User(string canonicalSubject) => "users/" + canonicalSubject;
 
     /// <summary>
-    /// Access-token issuance for one application user. The project realm exposes no first-party
-    /// issuance grant yet, so this release answers <c>501 user_token_issuance_unavailable</c>.
+    /// Access-token issuance for one application user, through the project realm's own first-party
+    /// Lambda grant.
     /// </summary>
     public static string UserTokens(string canonicalSubject) => "users/" + canonicalSubject + "/tokens";
 
@@ -103,7 +171,101 @@ public static class LambdaRoutes
             throw new ArgumentException("An application-user subject is a non-empty UUID.", parameterName);
         }
 
-        return parsed.ToString("D", System.Globalization.CultureInfo.InvariantCulture);
+        return parsed.ToString("D", CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// A logical object key as the gateway accepts it, checked here with the gateway's own rules so
+    /// a key it would refuse never leaves the Lambda. A key is project-local: it may not be empty,
+    /// longer than <see cref="MaximumStorageKeyLength"/>, or absolute; may not contain a backslash,
+    /// a percent sign (the gateway refuses percent-encoding outright rather than guessing how many
+    /// times a key will be decoded), a NUL, an empty segment, or a <c>.</c> or <c>..</c> segment;
+    /// may not already be a physical <c>projects/</c> path or carry a scheme; and may not enter the
+    /// reserved <see cref="ReservedStorageSegment"/>. Shape problems are argument errors; the
+    /// reserved segment is refused as the gateway refuses it, with a <see cref="LambdaApiException"/>
+    /// carrying <see cref="LambdaRefusalCodes.KeyReservedPrefix"/>.
+    /// </summary>
+    /// <returns>The key, unchanged.</returns>
+    public static string StorageKey(string key, string parameterName)
+    {
+        if (key is null)
+        {
+            throw new ArgumentNullException(parameterName);
+        }
+
+        var problem = KeyShapeProblem(key) ?? LogicalKeyProblem(key);
+        if (problem is not null)
+        {
+            throw new ArgumentException(problem, parameterName);
+        }
+        if (IsReservedStorageKey(key))
+        {
+            throw Reserved("The object key starts with a segment the product reserves for its own artifacts.");
+        }
+
+        return key;
+    }
+
+    /// <summary>
+    /// A logical listing prefix as the gateway accepts it: <see langword="null"/> or empty for the
+    /// whole project namespace, otherwise a key-shaped value that may additionally end in a
+    /// separator. A prefix entering the reserved segment is refused before transport with
+    /// <see cref="LambdaRefusalCodes.KeyReservedPrefix"/> — including one without a separator that
+    /// merely spells the start of it (<c>environment</c>), because a listing under it would
+    /// enumerate the reserved layout by plain string match. <c>environment/</c>, a directory of the
+    /// application's own, is an ordinary prefix.
+    /// </summary>
+    /// <returns>The prefix, or <see langword="null"/> when none was given.</returns>
+    public static string? StoragePrefix(string? prefix, string parameterName)
+    {
+        if (string.IsNullOrEmpty(prefix))
+        {
+            return null;
+        }
+
+        var shape = prefix!.EndsWith("/", StringComparison.Ordinal)
+            ? prefix.Substring(0, prefix.Length - 1)
+            : prefix;
+        var problem = KeyShapeProblem(shape) ?? LogicalKeyProblem(prefix);
+        if (problem is not null)
+        {
+            throw new ArgumentException(problem, parameterName);
+        }
+        if (IsReservedStoragePrefix(prefix))
+        {
+            throw Reserved("The listing prefix enters a segment the product reserves for its own artifacts.");
+        }
+
+        return prefix;
+    }
+
+    /// <summary>Whether a key's first segment is the reserved <see cref="ReservedStorageSegment"/>.</summary>
+    public static bool IsReservedStorageKey(string key)
+    {
+        if (key is null)
+        {
+            throw new ArgumentNullException(nameof(key));
+        }
+
+        return string.Equals(FirstSegment(key), ReservedStorageSegment, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Whether a listing prefix would enumerate the reserved layout: its first segment is the
+    /// reserved segment, or it has no separator and the reserved segment starts with it.
+    /// </summary>
+    public static bool IsReservedStoragePrefix(string prefix)
+    {
+        if (prefix is null)
+        {
+            throw new ArgumentNullException(nameof(prefix));
+        }
+
+        var first = FirstSegment(prefix);
+        return first.Length > 0
+            && (string.Equals(first, ReservedStorageSegment, StringComparison.Ordinal)
+                || (prefix.IndexOf('/') < 0
+                    && ReservedStorageSegment.StartsWith(first, StringComparison.Ordinal)));
     }
 
     /// <summary>
@@ -123,4 +285,62 @@ public static class LambdaRoutes
     /// actor tick, or a workflow step. The remainder is the function id.
     /// </summary>
     public const string SystemSubjectPrefix = "lambda:";
+
+    private static string FirstSegment(string value)
+    {
+        var separator = value.IndexOf('/');
+        return separator < 0 ? value : value.Substring(0, separator);
+    }
+
+    /// <summary>The gateway's key-shape rules, spelled in its order; null when the key passes.</summary>
+    private static string? KeyShapeProblem(string key)
+    {
+        if (key.Length == 0)
+        {
+            return "An object key is required.";
+        }
+        if (key.Length > MaximumStorageKeyLength)
+        {
+            return "An object key is at most 1024 characters.";
+        }
+        if (key[0] == '/')
+        {
+            return "An object key may not be absolute.";
+        }
+        if (key.Contains('\\'))
+        {
+            return "An object key may not contain a backslash.";
+        }
+        if (key.Contains('%'))
+        {
+            return "An object key may not contain percent-encoding.";
+        }
+        if (key.Contains('\0'))
+        {
+            return "An object key may not contain a NUL.";
+        }
+
+        foreach (var segment in key.Split('/'))
+        {
+            if (segment.Length == 0)
+            {
+                return "An object key may not contain an empty segment.";
+            }
+            if (segment == "." || segment == "..")
+            {
+                return "An object key may not contain a relative path segment.";
+            }
+        }
+
+        return null;
+    }
+
+    private static string? LogicalKeyProblem(string keyOrPrefix) =>
+        keyOrPrefix.StartsWith("projects/", StringComparison.Ordinal)
+            || keyOrPrefix.Contains("://", StringComparison.Ordinal)
+            ? "A project-local logical key is required, not a physical path or a URL."
+            : null;
+
+    private static LambdaApiException Reserved(string message) =>
+        new(403, LambdaRefusalCodes.KeyReservedPrefix, message);
 }

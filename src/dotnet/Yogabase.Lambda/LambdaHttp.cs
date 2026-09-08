@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Net.Http;
@@ -13,8 +12,11 @@ using System.Threading.Tasks;
 namespace Yogabase.Lambda;
 
 /// <summary>
-/// Failure reported by the Yogabase Lambda runtime API. It carries the HTTP status and, when the
-/// gateway answered RFC 7807, the stable refusal code and detail.
+/// A refusal from the Yogabase Lambda runtime API. It carries the HTTP status and, when the
+/// gateway answered RFC 7807, the stable refusal code and detail; <see cref="LambdaRefusalCodes"/>
+/// names the codes. The wrapper throws the same exception before transport for the two refusals it
+/// can decide locally — a reserved storage key and a never-issuable scope — with exactly the status
+/// and code the gateway would have answered, so one catch path covers both.
 /// </summary>
 public sealed class LambdaApiException : Exception
 {
@@ -31,6 +33,132 @@ public sealed class LambdaApiException : Exception
 
     /// <summary>Stable refusal code, or a status-derived one when the body carried none.</summary>
     public string Code { get; }
+}
+
+/// <summary>
+/// The refusal codes the Lambda runtime API answers on the routes this package calls, as
+/// <see cref="LambdaApiException.Code"/> carries them. Every code is the gateway's own spelling;
+/// the wrapper never invents one except the three response-shape codes at the end.
+/// </summary>
+public static class LambdaRefusalCodes
+{
+    // ---- runtime token (401): the per-invocation bearer the runtime attached was not accepted.
+
+    /// <summary>No bearer was presented.</summary>
+    public const string RuntimeTokenRequired = "runtime_token_required";
+
+    /// <summary>The invocation's five-minute token has expired.</summary>
+    public const string RuntimeTokenExpired = "runtime_token_expired";
+
+    /// <summary>The token's validity has not begun.</summary>
+    public const string RuntimeTokenNotYetValid = "runtime_token_not_yet_valid";
+
+    /// <summary>The token names another project.</summary>
+    public const string RuntimeTokenForeignProject = "runtime_token_foreign_project";
+
+    /// <summary>The token names another environment.</summary>
+    public const string RuntimeTokenForeignEnvironment = "runtime_token_foreign_environment";
+
+    /// <summary>The token's signature did not verify.</summary>
+    public const string RuntimeTokenSignatureInvalid = "runtime_token_signature_invalid";
+
+    /// <summary>The token could not be read.</summary>
+    public const string RuntimeTokenMalformed = "runtime_token_malformed";
+
+    // ---- storage
+
+    /// <summary>404: no object under the key.</summary>
+    public const string ObjectNotFound = "object_not_found";
+
+    /// <summary>409: the key already identifies an object this write may not replace.</summary>
+    public const string ObjectConflict = "object_conflict";
+
+    /// <summary>403: the key or prefix enters the reserved <c>environments/</c> layout. Also refused before transport.</summary>
+    public const string KeyReservedPrefix = "key_reserved_prefix";
+
+    /// <summary>413: a bounded positive Content-Length is required.</summary>
+    public const string ObjectLengthInvalid = "object_length_invalid";
+
+    /// <summary>400: the body did not match its Content-Length.</summary>
+    public const string ObjectLengthMismatch = "object_length_mismatch";
+
+    /// <summary>403: the media type is not permitted, or carries parameters.</summary>
+    public const string ContentTypeNotAllowed = "content_type_not_allowed";
+
+    /// <summary>400: a listing <c>limit</c> that is not a positive integer.</summary>
+    public const string LimitInvalid = "limit_invalid";
+
+    /// <summary>400: a listing <c>cursor</c> the gateway did not issue.</summary>
+    public const string CursorInvalid = "cursor_invalid";
+
+    /// <summary>503: the project's storage is not configured.</summary>
+    public const string StorageUnavailable = "storage_unavailable";
+
+    /// <summary>503: the installation's storage provider could not be reached.</summary>
+    public const string StorageProviderUnavailable = "storage_provider_unavailable";
+
+    // ---- users
+
+    /// <summary>400: a subject that is not a canonical UUID. Also refused before transport, as an argument error.</summary>
+    public const string SubjectInvalid = "subject_invalid";
+
+    /// <summary>404: no such user in this project.</summary>
+    public const string UserNotFound = "user_not_found";
+
+    /// <summary>400: a create or update outside the bounded contract.</summary>
+    public const string UserRequestInvalid = "user_request_invalid";
+
+    /// <summary>409: the realm did not create the user.</summary>
+    public const string UserNotCreated = "user_not_created";
+
+    /// <summary>409: the realm did not update the user.</summary>
+    public const string UserNotUpdated = "user_not_updated";
+
+    /// <summary>400: the scope set is empty, larger than sixteen, outside the realm's admitted set, or names <c>openid</c> or <c>offline_access</c>. The last two are also refused before transport.</summary>
+    public const string ScopeNotAllowed = "scope_not_allowed";
+
+    /// <summary>403: the user is banned or locked out.</summary>
+    public const string UserBanned = "user_banned";
+
+    /// <summary>403: the user has not confirmed the email address the realm requires.</summary>
+    public const string UserEmailUnconfirmed = "user_email_unconfirmed";
+
+    /// <summary>503: the realm refused to issue, or produced no token.</summary>
+    public const string UserTokenIssuanceFailed = "user_token_issuance_failed";
+
+    /// <summary>503: this host composed the runtime API without the realm's issuer.</summary>
+    public const string UserTokenIssuanceUnavailable = "user_token_issuance_unavailable";
+
+    // ---- realtime
+
+    /// <summary>400: the topic is not a Realtime binding id. Also refused before transport, as an argument error.</summary>
+    public const string TopicInvalid = "topic_invalid";
+
+    /// <summary>413: the payload is empty or larger than 64 KiB. Also refused before transport, as an argument error.</summary>
+    public const string PayloadTooLarge = "payload_too_large";
+
+    /// <summary>400: the payload is not JSON.</summary>
+    public const string PayloadNotJson = "payload_not_json";
+
+    /// <summary>503: the durable Realtime outbox is not configured for this runtime.</summary>
+    public const string RealtimeOutboxUnavailable = "realtime_outbox_unavailable";
+
+    /// <summary>409: the invocation this token names is no longer running.</summary>
+    public const string InvocationNotInProgress = "invocation_not_in_progress";
+
+    /// <summary>429: this invocation has emitted its maximum number of Realtime events.</summary>
+    public const string RealtimePublishLimitExhausted = "realtime_publish_limit_exhausted";
+
+    // ---- this wrapper's own, for a response it could not use (502)
+
+    /// <summary>The response was empty, unreadable, or not the shape the gateway serves.</summary>
+    public const string ResponseInvalid = "response_invalid";
+
+    /// <summary>The response was larger than the wrapper will read.</summary>
+    public const string ResponseTooLarge = "response_too_large";
+
+    /// <summary>A failure with a body that carried no code; <see cref="LambdaApiException.Code"/> is then status-derived.</summary>
+    public const string RequestFailed = "request_failed";
 }
 
 /// <summary>
@@ -146,14 +274,14 @@ internal static class LambdaTransport
                 return JsonSerializer.Deserialize<T>(payload, LambdaJson.Options)
                     ?? throw new LambdaApiException(
                         (int)response.StatusCode,
-                        "response_invalid",
+                        LambdaRefusalCodes.ResponseInvalid,
                         "The Yogabase Lambda runtime API returned an empty response.");
             }
             catch (JsonException)
             {
                 throw new LambdaApiException(
                     (int)response.StatusCode,
-                    "response_invalid",
+                    LambdaRefusalCodes.ResponseInvalid,
                     "The Yogabase Lambda runtime API returned an unreadable response.");
             }
         }
@@ -169,25 +297,13 @@ internal static class LambdaTransport
         }
     }
 
-    internal static string EscapeSegment(string value, string parameterName)
-    {
-        if (string.IsNullOrWhiteSpace(value)
-            || value.Length > 512
-            || !string.Equals(value, value.Trim(), StringComparison.Ordinal))
-        {
-            throw new ArgumentException("A bounded non-empty value is required.", parameterName);
-        }
-
-        return Uri.EscapeDataString(value);
-    }
-
     private static async Task<byte[]> ReadBoundedBytesAsync(
         HttpContent content,
         CancellationToken cancellationToken)
     {
         if (content.Headers.ContentLength is long declared && declared > MaximumResponseBytes)
         {
-            throw new LambdaApiException(502, "response_too_large", "The Yogabase Lambda runtime API returned an oversized response.");
+            throw new LambdaApiException(502, LambdaRefusalCodes.ResponseTooLarge, "The Yogabase Lambda runtime API returned an oversized response.");
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -209,7 +325,7 @@ internal static class LambdaTransport
             }
             if (read > remaining)
             {
-                throw new LambdaApiException(502, "response_too_large", "The Yogabase Lambda runtime API returned an oversized response.");
+                throw new LambdaApiException(502, LambdaRefusalCodes.ResponseTooLarge, "The Yogabase Lambda runtime API returned an oversized response.");
             }
 
             output.Write(buffer, 0, read);
@@ -228,7 +344,7 @@ internal static class LambdaTransport
             404 => "not_found",
             409 => "conflict",
             429 => "rate_limited",
-            _ => "request_failed",
+            _ => LambdaRefusalCodes.RequestFailed,
         };
         var message = "The Yogabase Lambda runtime API returned HTTP "
             + status.ToString(CultureInfo.InvariantCulture) + ".";
@@ -268,46 +384,5 @@ internal static class LambdaTransport
         }
 
         return new LambdaApiException(status, code, message);
-    }
-}
-
-/// <summary>
-/// Reads a listing that may arrive as a bare array or wrapped in an object, because the internal
-/// Lambda API is not a published contract and its envelope is still settling.
-/// </summary>
-internal static class LambdaListing
-{
-    internal static IReadOnlyList<JsonElement> Items(JsonElement root, params string[] propertyNames)
-    {
-        if (root.ValueKind == JsonValueKind.Array)
-        {
-            return Collect(root);
-        }
-        if (root.ValueKind == JsonValueKind.Object)
-        {
-            foreach (var name in propertyNames)
-            {
-                if (root.TryGetProperty(name, out var array) && array.ValueKind == JsonValueKind.Array)
-                {
-                    return Collect(array);
-                }
-            }
-        }
-
-        throw new LambdaApiException(
-            502,
-            "response_invalid",
-            "The Yogabase Lambda runtime API returned an unrecognized listing shape.");
-    }
-
-    private static List<JsonElement> Collect(JsonElement array)
-    {
-        var items = new List<JsonElement>();
-        foreach (var item in array.EnumerateArray())
-        {
-            items.Add(item.Clone());
-        }
-
-        return items;
     }
 }

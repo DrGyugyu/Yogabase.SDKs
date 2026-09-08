@@ -140,7 +140,7 @@
       "source": "src/dotnet/Yogabase.Lambda",
       "packageId": "Yogabase.Lambda",
       "version": "0.1.0-preview.1",
-      "qualification": "locked-restore-release-dual-target-build-and-53-fake-provider-unit-tests-passed-2026-09-09-no-live-installation-and-no-sandbox-load-context-evidence"
+      "qualification": "locked-restore-release-dual-target-build-and-96-fake-provider-unit-tests-passed-2026-09-09-against-the-runtime-api-route-table-of-that-date-no-live-installation-and-no-sandbox-load-context-evidence"
     }
   ],
   "publicationAuthorized": false

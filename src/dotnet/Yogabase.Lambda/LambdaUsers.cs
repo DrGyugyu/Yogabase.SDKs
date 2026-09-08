@@ -88,6 +88,9 @@ public sealed class LambdaAccessToken
 /// </summary>
 public sealed class LambdaUsers
 {
+    /// <summary>The most scopes one issuance may name, after duplicates are collapsed.</summary>
+    public const int MaximumTokenScopes = 16;
+
     private readonly HttpClient client;
 
     internal LambdaUsers(HttpClient client)
@@ -170,45 +173,43 @@ public sealed class LambdaUsers
         UpdateAsync(subject, new LambdaUserUpdate { Banned = banned }, cancellationToken);
 
     /// <summary>
-    /// Issues an access token for one application user. This is how a Lambda hands a caller a
-    /// credential it did not have; the token speaks for that user only, never for the project.
+    /// Issues an access token for one application user, on this Lambda's authority. This is how a
+    /// Lambda hands a caller a credential it did not have; the token speaks for that user only,
+    /// never for the project.
     /// </summary>
     /// <remarks>
-    /// The project realm exposes no first-party issuance grant yet, so the current release answers
-    /// every call with <see cref="LambdaApiException"/> carrying status 501 and code
-    /// <c>user_token_issuance_unavailable</c>. The route, the request, and the response shape are
-    /// the contract; only the realm behind it is still to come.
+    /// <para>
+    /// The token is the project realm's own: minted through its sign-in pipeline with the
+    /// installation's signing and encryption material, so every client-facing route validates it
+    /// exactly as one from <c>/connect/token</c>. It differs in two ways — it carries
+    /// <c>yogabase_issued_by = lambda:&lt;functionId&gt;</c>, and it never comes with a refresh or
+    /// identity token. <c>openid</c> and <c>offline_access</c> are therefore never issuable and are
+    /// refused here, before transport, with the same <see cref="LambdaApiException"/> the gateway
+    /// answers: status 400, code <see cref="LambdaRefusalCodes.ScopeNotAllowed"/>. A scope outside
+    /// the realm's admitted set is refused by the gateway with that code.
+    /// </para>
+    /// <para>
+    /// The gateway also refuses a subject that does not exist in this project
+    /// (<see cref="LambdaRefusalCodes.UserNotFound"/>, 404), is banned
+    /// (<see cref="LambdaRefusalCodes.UserBanned"/>, 403), or has not confirmed an email the realm
+    /// requires (<see cref="LambdaRefusalCodes.UserEmailUnconfirmed"/>, 403); a realm that could
+    /// not issue answers <see cref="LambdaRefusalCodes.UserTokenIssuanceFailed"/> (503), and a host
+    /// composed without one <see cref="LambdaRefusalCodes.UserTokenIssuanceUnavailable"/> (503).
+    /// </para>
     /// </remarks>
     /// <param name="subject">The user's subject, a UUID.</param>
-    /// <param name="scopes">One to sixteen scopes from the realm's admitted set; the realm refuses any other.</param>
+    /// <param name="scopes">One to sixteen distinct scopes from the realm's admitted set; duplicates are collapsed.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     public async Task<LambdaAccessToken> IssueTokenAsync(
         string subject,
         IReadOnlyList<string> scopes,
         CancellationToken cancellationToken = default)
     {
-        if (scopes is null)
+        var canonicalSubject = LambdaRoutes.CanonicalSubject(subject, nameof(subject));
+        var requested = IssuableScopes(scopes);
+        using var request = new HttpRequestMessage(HttpMethod.Post, LambdaRoutes.UserTokens(canonicalSubject))
         {
-            throw new ArgumentNullException(nameof(scopes));
-        }
-        if (scopes.Count is 0 or > 16)
-        {
-            throw new ArgumentException("One to sixteen scopes are required.", nameof(scopes));
-        }
-
-        foreach (var scope in scopes)
-        {
-            if (string.IsNullOrWhiteSpace(scope) || scope.Length > 128)
-            {
-                throw new ArgumentException("A bounded non-empty scope is required.", nameof(scopes));
-            }
-        }
-
-        using var request = new HttpRequestMessage(
-            HttpMethod.Post,
-            LambdaRoutes.UserTokens(LambdaRoutes.CanonicalSubject(subject, nameof(subject))))
-        {
-            Content = JsonBody(new TokenRequest { Scopes = scopes }),
+            Content = JsonBody(new TokenRequest { Scopes = requested }),
         };
         var response = await LambdaTransport.SendAsync(client, request, cancellationToken).ConfigureAwait(false);
         var token = await LambdaTransport.ReadJsonAsync<LambdaAccessToken>(response, cancellationToken)
@@ -217,11 +218,64 @@ public sealed class LambdaUsers
         {
             throw new LambdaApiException(
                 502,
-                "response_invalid",
+                LambdaRefusalCodes.ResponseInvalid,
                 "The Yogabase Lambda runtime API returned an unusable access token.");
         }
 
         return token;
+    }
+
+    /// <summary>
+    /// The gateway's scope checks, in its order: every scope bounded, none of them one the grant
+    /// can never issue, and one to sixteen of them once duplicates are collapsed.
+    /// </summary>
+    private static List<string> IssuableScopes(IReadOnlyList<string> scopes)
+    {
+        if (scopes is null)
+        {
+            throw new ArgumentNullException(nameof(scopes));
+        }
+
+        var distinct = new List<string>(scopes.Count);
+        foreach (var scope in scopes)
+        {
+            if (string.IsNullOrWhiteSpace(scope) || scope.Length > 128 || HasControlCharacter(scope))
+            {
+                throw new ArgumentException("A bounded non-empty scope is required.", nameof(scopes));
+            }
+            if (scope == "openid" || scope == "offline_access")
+            {
+                throw new LambdaApiException(
+                    400,
+                    LambdaRefusalCodes.ScopeNotAllowed,
+                    "The scope '" + scope + "' is never issued on a Lambda's authority: the runtime API mints one "
+                    + "access token for one user, never an identity token or a refresh token.");
+            }
+            if (!distinct.Contains(scope))
+            {
+                distinct.Add(scope);
+            }
+        }
+
+        if (distinct.Count is 0 or > MaximumTokenScopes)
+        {
+            throw new ArgumentException("One to sixteen scopes are required.", nameof(scopes));
+        }
+
+        return distinct;
+    }
+
+    private static bool HasControlCharacter(string value)
+    {
+        foreach (var character in value)
+        {
+            if (char.IsControl(character))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static StringContent JsonBody<T>(T value) => new(
