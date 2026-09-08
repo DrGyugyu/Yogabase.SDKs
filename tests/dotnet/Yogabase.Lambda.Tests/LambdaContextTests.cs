@@ -258,6 +258,38 @@ public sealed class LambdaContextTests
     }
 
     [Fact]
+    public async Task StoragePutRefusesAnEmptyObjectBeforeTransport()
+    {
+        var provider = new FakeProvider();
+        var context = LambdaContext.From(provider);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => context.Storage.PutAsync(
+            "saves/a",
+            ReadOnlyMemory<byte>.Empty,
+            cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Empty(provider.Factory.Handler.Calls);
+    }
+
+    [Theory]
+    [InlineData("storage_delete_unavailable")]
+    [InlineData("storage_list_unavailable")]
+    public async Task TheStoresMissingVerbsSurfaceAsTheProductsOwnCodes(string code)
+    {
+        var provider = new FakeProvider();
+        provider.Factory.Handler.Respond(_ => Json(
+            HttpStatusCode.NotImplemented,
+            "{\"title\":\"Lambda runtime API request refused.\",\"status\":501,\"code\":\"" + code + "\"}"));
+        var context = LambdaContext.From(provider);
+
+        var exception = await Assert.ThrowsAsync<LambdaApiException>(() => code == "storage_delete_unavailable"
+            ? context.Storage.DeleteAsync("saves/a", TestContext.Current.CancellationToken)
+            : context.Storage.ListAsync(cancellationToken: TestContext.Current.CancellationToken));
+
+        Assert.Equal(501, exception.StatusCode);
+        Assert.Equal(code, exception.Code);
+    }
+
+    [Fact]
     public async Task StorageDeleteUsesTheExactRoute()
     {
         var provider = new FakeProvider();
@@ -326,20 +358,41 @@ public sealed class LambdaContextTests
         var provider = new FakeProvider();
         provider.Factory.Handler.Respond(_ => Json(
             HttpStatusCode.OK,
-            "{\"subject\":\"" + PlayerSubject + "\",\"email\":\"a@example.com\",\"banned\":false,"
-                + "\"attributes\":{\"tier\":\"gold\"},\"lastSeenAt\":\"2026-09-08T00:00:00Z\"}"));
+            "{\"subject\":\"" + PlayerSubject + "\",\"email\":\"a@example.com\",\"username\":\"a\","
+                + "\"emailConfirmed\":true,\"banned\":false,\"lastSeenAt\":\"2026-09-08T00:00:00Z\"}"));
         var context = LambdaContext.From(provider);
 
-        var user = await context.Users.GetAsync(PlayerSubject, TestContext.Current.CancellationToken);
+        // Any spelling of the UUID is accepted; the gateway receives the canonical lower-case D form.
+        var user = await context.Users.GetAsync(PlayerSubject.ToUpperInvariant(), TestContext.Current.CancellationToken);
 
         Assert.Equal(PlayerSubject, user!.Subject);
         Assert.Equal("a@example.com", user.Email);
+        Assert.Equal("a", user.Username);
+        Assert.True(user.EmailConfirmed);
         Assert.False(user.Banned);
-        Assert.Equal("gold", user.Attributes!["tier"]);
+        Assert.Null(user.Attributes);
         Assert.True(user.Additional!.ContainsKey("lastSeenAt"));
         Assert.Equal(
             "http://gateway.internal/v1/lambda-runtime/users/" + PlayerSubject,
             Assert.Single(provider.Factory.Handler.Calls).Uri);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("player-1")]
+    [InlineData("00000000-0000-0000-0000-000000000000")]
+    public async Task ASubjectThatIsNotAUuidIsRefusedBeforeTransport(string subject)
+    {
+        var provider = new FakeProvider();
+        var context = LambdaContext.From(provider);
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            context.Users.GetAsync(subject, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            context.Users.BanAsync(subject, cancellationToken: TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            context.Users.IssueTokenAsync(subject, ["play"], TestContext.Current.CancellationToken));
+        Assert.Empty(provider.Factory.Handler.Calls);
     }
 
     [Fact]
@@ -451,9 +504,41 @@ public sealed class LambdaContextTests
         var context = LambdaContext.From(provider);
 
         var exception = await Assert.ThrowsAsync<LambdaApiException>(() =>
-            context.Users.IssueTokenAsync(PlayerSubject, cancellationToken: TestContext.Current.CancellationToken));
+            context.Users.IssueTokenAsync(PlayerSubject, ["play"], TestContext.Current.CancellationToken));
 
         Assert.Equal("response_invalid", exception.Code);
+    }
+
+    [Fact]
+    public async Task IssuingATokenRequiresOneToSixteenScopes()
+    {
+        var provider = new FakeProvider();
+        var context = LambdaContext.From(provider);
+        var seventeen = Enumerable.Range(0, 17).Select(index => "scope-" + index).ToArray();
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            context.Users.IssueTokenAsync(PlayerSubject, [], TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            context.Users.IssueTokenAsync(PlayerSubject, seventeen, TestContext.Current.CancellationToken));
+        Assert.Empty(provider.Factory.Handler.Calls);
+    }
+
+    [Fact]
+    public async Task TheRealmsUnavailableIssuanceSurfacesAsTheProductsOwnCode()
+    {
+        var provider = new FakeProvider();
+        provider.Factory.Handler.Respond(_ => Json(
+            HttpStatusCode.NotImplemented,
+            "{\"title\":\"Lambda runtime API request refused.\",\"status\":501,"
+            + "\"detail\":\"This installation's project realm does not expose first-party token issuance for Lambdas yet.\","
+            + "\"code\":\"user_token_issuance_unavailable\"}"));
+        var context = LambdaContext.From(provider);
+
+        var exception = await Assert.ThrowsAsync<LambdaApiException>(() =>
+            context.Users.IssueTokenAsync(PlayerSubject, ["play"], TestContext.Current.CancellationToken));
+
+        Assert.Equal(501, exception.StatusCode);
+        Assert.Equal("user_token_issuance_unavailable", exception.Code);
     }
 
     // ---------------------------------------------------------------------------------------
@@ -467,27 +552,47 @@ public sealed class LambdaContextTests
         var context = LambdaContext.From(provider);
 
         await context.Realtime.PublishAsync(
-            "battle/1",
+            "battle.1",
             new { winner = "a", score = 3 },
             TestContext.Current.CancellationToken);
 
         var call = Assert.Single(provider.Factory.Handler.Calls);
         Assert.Equal(HttpMethod.Post, call.Method);
         Assert.Equal(
-            "http://gateway.internal/v1/lambda-runtime/realtime/topics/battle%2F1/publish",
+            "http://gateway.internal/v1/lambda-runtime/realtime/topics/battle.1/publish",
             call.Uri);
         Assert.Equal("application/json", call.ContentType);
         Assert.Equal("{\"winner\":\"a\",\"score\":3}", call.Body);
     }
 
-    [Fact]
-    public async Task RealtimePublishRefusesAnEmptyTopicBeforeTransport()
+    [Theory]
+    [InlineData("  ")]
+    // The gateway checks a topic as a Realtime binding id — [a-z][a-z0-9._-]{0,95} — and answers
+    // topic_invalid for anything else. Escaping a '/' would only carry the refusal to the wire.
+    [InlineData("battle/1")]
+    [InlineData("Battle")]
+    [InlineData("1battle")]
+    [InlineData("battle 1")]
+    [InlineData("a234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567")]
+    public async Task RealtimePublishRefusesATopicTheGatewayWouldRefuseBeforeTransport(string topic)
     {
         var provider = new FakeProvider();
         var context = LambdaContext.From(provider);
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            context.Realtime.PublishAsync("  ", new { a = 1 }, TestContext.Current.CancellationToken));
+            context.Realtime.PublishAsync(topic, new { a = 1 }, TestContext.Current.CancellationToken));
+        Assert.Empty(provider.Factory.Handler.Calls);
+    }
+
+    [Fact]
+    public async Task RealtimePublishRefusesAnOversizedPayloadBeforeTransport()
+    {
+        var provider = new FakeProvider();
+        var context = LambdaContext.From(provider);
+        var oversized = "{\"a\":\"" + new string('x', LambdaRealtime.MaximumPayloadBytes) + "\"}";
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            context.Realtime.PublishJsonAsync("battle", oversized, TestContext.Current.CancellationToken));
         Assert.Empty(provider.Factory.Handler.Calls);
     }
 
@@ -500,7 +605,7 @@ public sealed class LambdaContextTests
         var context = LambdaContext.From(provider);
 
         var exception = await Assert.ThrowsAsync<LambdaApiException>(() =>
-            context.Realtime.PublishAsync("battle/1", new { a = 1 }, TestContext.Current.CancellationToken));
+            context.Realtime.PublishAsync("battle", new { a = 1 }, TestContext.Current.CancellationToken));
 
         Assert.Equal(403, exception.StatusCode);
         Assert.Equal("topic_forbidden", exception.Code);
@@ -515,7 +620,7 @@ public sealed class LambdaContextTests
         var context = LambdaContext.From(provider);
 
         var exception = await Assert.ThrowsAsync<LambdaApiException>(() =>
-            context.Realtime.PublishAsync("battle/1", new { a = 1 }, TestContext.Current.CancellationToken));
+            context.Realtime.PublishAsync("battle", new { a = 1 }, TestContext.Current.CancellationToken));
 
         Assert.Equal(502, exception.StatusCode);
         Assert.Equal("request_failed", exception.Code);

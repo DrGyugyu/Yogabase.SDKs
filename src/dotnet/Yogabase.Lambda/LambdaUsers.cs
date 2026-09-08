@@ -21,10 +21,17 @@ public sealed class LambdaUser
     /// <summary>Display username, when the user has one.</summary>
     public string? Username { get; set; }
 
+    /// <summary>Whether the user has confirmed the email address on the record.</summary>
+    public bool EmailConfirmed { get; set; }
+
     /// <summary>Whether the user is currently banned from signing in.</summary>
     public bool Banned { get; set; }
 
-    /// <summary>Project-defined attributes carried on the user record.</summary>
+    /// <summary>
+    /// Project-defined attributes carried on the user record. The runtime API accepts attributes
+    /// on create and update but this release does not yet project them back, so this is
+    /// <see langword="null"/> until it does.
+    /// </summary>
     public IReadOnlyDictionary<string, string>? Attributes { get; set; }
 
     /// <summary>
@@ -88,12 +95,14 @@ public sealed class LambdaUsers
         this.client = client;
     }
 
-    /// <summary>Reads one user, or <see langword="null"/> when the subject is unknown.</summary>
+    /// <summary>Reads one user, or <see langword="null"/> when the subject is unknown to this project.</summary>
+    /// <param name="subject">The user's subject, a UUID; any spelling is normalised to the canonical form.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
     public async Task<LambdaUser?> GetAsync(string subject, CancellationToken cancellationToken = default)
     {
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
-            LambdaRoutes.User(LambdaTransport.EscapeSegment(subject, nameof(subject))));
+            LambdaRoutes.User(LambdaRoutes.CanonicalSubject(subject, nameof(subject))));
         var response = await LambdaTransport
             .SendAsync(client, request, cancellationToken, allowNotFound: true)
             .ConfigureAwait(false);
@@ -145,7 +154,7 @@ public sealed class LambdaUsers
 
         using var request = new HttpRequestMessage(
             new HttpMethod("PATCH"),
-            LambdaRoutes.User(LambdaTransport.EscapeSegment(subject, nameof(subject))))
+            LambdaRoutes.User(LambdaRoutes.CanonicalSubject(subject, nameof(subject))))
         {
             Content = JsonBody(update),
         };
@@ -164,30 +173,40 @@ public sealed class LambdaUsers
     /// Issues an access token for one application user. This is how a Lambda hands a caller a
     /// credential it did not have; the token speaks for that user only, never for the project.
     /// </summary>
+    /// <remarks>
+    /// The project realm exposes no first-party issuance grant yet, so the current release answers
+    /// every call with <see cref="LambdaApiException"/> carrying status 501 and code
+    /// <c>user_token_issuance_unavailable</c>. The route, the request, and the response shape are
+    /// the contract; only the realm behind it is still to come.
+    /// </remarks>
+    /// <param name="subject">The user's subject, a UUID.</param>
+    /// <param name="scopes">One to sixteen scopes from the realm's admitted set; the realm refuses any other.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
     public async Task<LambdaAccessToken> IssueTokenAsync(
         string subject,
-        IReadOnlyList<string>? scopes = null,
+        IReadOnlyList<string> scopes,
         CancellationToken cancellationToken = default)
     {
-        if (scopes is not null)
+        if (scopes is null)
         {
-            if (scopes.Count > 64)
-            {
-                throw new ArgumentException("At most 64 scopes may be requested.", nameof(scopes));
-            }
+            throw new ArgumentNullException(nameof(scopes));
+        }
+        if (scopes.Count is 0 or > 16)
+        {
+            throw new ArgumentException("One to sixteen scopes are required.", nameof(scopes));
+        }
 
-            foreach (var scope in scopes)
+        foreach (var scope in scopes)
+        {
+            if (string.IsNullOrWhiteSpace(scope) || scope.Length > 128)
             {
-                if (string.IsNullOrWhiteSpace(scope) || scope.Length > 128)
-                {
-                    throw new ArgumentException("A bounded non-empty scope is required.", nameof(scopes));
-                }
+                throw new ArgumentException("A bounded non-empty scope is required.", nameof(scopes));
             }
         }
 
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
-            LambdaRoutes.UserTokens(LambdaTransport.EscapeSegment(subject, nameof(subject))))
+            LambdaRoutes.UserTokens(LambdaRoutes.CanonicalSubject(subject, nameof(subject))))
         {
             Content = JsonBody(new TokenRequest { Scopes = scopes }),
         };
@@ -212,6 +231,6 @@ public sealed class LambdaUsers
 
     private sealed class TokenRequest
     {
-        public IReadOnlyList<string>? Scopes { get; set; }
+        public IReadOnlyList<string> Scopes { get; set; } = Array.Empty<string>();
     }
 }

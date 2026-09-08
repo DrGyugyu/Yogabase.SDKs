@@ -30,7 +30,10 @@ public static class LambdaRoutes
     /// <summary>Named client for realtime topic publication.</summary>
     public const string RealtimeClientName = "yogabase-realtime";
 
-    /// <summary>Object collection; <c>?prefix=</c> filters a listing.</summary>
+    /// <summary>
+    /// Object collection; <c>?prefix=</c> filters a listing. The mediated store this release ships
+    /// exposes no enumeration, so the gateway answers <c>501 storage_list_unavailable</c> here.
+    /// </summary>
     public const string StorageObjects = "objects";
 
     /// <summary>Application-user collection.</summary>
@@ -43,15 +46,65 @@ public static class LambdaRoutes
     public static string StorageObjectsWithPrefix(string prefix) =>
         "objects?prefix=" + Uri.EscapeDataString(prefix);
 
-    /// <summary>One application user, by subject.</summary>
-    public static string User(string escapedSubject) => "users/" + escapedSubject;
+    /// <summary>One application user, by canonical subject (a lower-case <c>D</c>-form UUID).</summary>
+    public static string User(string canonicalSubject) => "users/" + canonicalSubject;
 
-    /// <summary>Access-token issuance for one application user.</summary>
-    public static string UserTokens(string escapedSubject) => "users/" + escapedSubject + "/tokens";
+    /// <summary>
+    /// Access-token issuance for one application user. The project realm exposes no first-party
+    /// issuance grant yet, so this release answers <c>501 user_token_issuance_unavailable</c>.
+    /// </summary>
+    public static string UserTokens(string canonicalSubject) => "users/" + canonicalSubject + "/tokens";
 
-    /// <summary>Publication route of one realtime topic.</summary>
-    public static string RealtimeTopicPublish(string escapedTopic) =>
-        "realtime/topics/" + escapedTopic + "/publish";
+    /// <summary>Publication route of one realtime topic (a binding id; see <see cref="IsTopic"/>).</summary>
+    public static string RealtimeTopicPublish(string topic) =>
+        "realtime/topics/" + topic + "/publish";
+
+    /// <summary>
+    /// The grammar of a realtime topic, which is a Realtime binding id: a lower-case letter, then
+    /// up to 95 lower-case letters, digits, <c>.</c>, <c>_</c> or <c>-</c>. It is spelled here
+    /// exactly as the gateway checks it, so a topic the gateway would refuse never leaves the
+    /// Lambda.
+    /// </summary>
+    public static bool IsTopic(string? value)
+    {
+        if (value is null || value.Length is 0 or > 96 || value[0] < 'a' || value[0] > 'z')
+        {
+            return false;
+        }
+
+        foreach (var character in value)
+        {
+            var allowed = (character >= 'a' && character <= 'z')
+                || (character >= '0' && character <= '9')
+                || character == '.'
+                || character == '_'
+                || character == '-';
+            if (!allowed)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// A user subject as the gateway accepts it: a non-empty UUID in lower-case <c>D</c> form.
+    /// Any other spelling of the same UUID is normalised; anything that is not a UUID is refused.
+    /// </summary>
+    public static string CanonicalSubject(string subject, string parameterName)
+    {
+        if (subject is null)
+        {
+            throw new ArgumentNullException(parameterName);
+        }
+        if (!Guid.TryParse(subject.Trim(), out var parsed) || parsed == Guid.Empty)
+        {
+            throw new ArgumentException("An application-user subject is a non-empty UUID.", parameterName);
+        }
+
+        return parsed.ToString("D", System.Globalization.CultureInfo.InvariantCulture);
+    }
 
     /// <summary>
     /// Keys named in the <c>IReadOnlyDictionary&lt;string,string&gt;</c> the runtime resolves for

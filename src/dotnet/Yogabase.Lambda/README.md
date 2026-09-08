@@ -79,9 +79,9 @@ incompatible major of it is refused at admission naming the version. Only `DbDat
 | Member | What it is |
 |---|---|
 | `Database` | `System.Data.Common.DbDataSource` for the project, under the full-access `yogabase_lambda` identity. Open a connection per unit of work and dispose it; the runtime owns the pool. |
-| `Storage` | `PutAsync`, `GetAsync`, `TryGetAsync`, `DeleteAsync`, `ListAsync` over the project's mediated object store. Keys are logical; provider coordinates and signed URLs never reach customer code. |
-| `Users` | `GetAsync`, `CreateAsync`, `UpdateAsync`, `BanAsync`, `IssueTokenAsync` over this project's application users. An issued token speaks for that one user, never for the project. |
-| `Realtime` | `PublishAsync(topic, payload)` and `PublishJsonAsync(topic, json)`. A Lambda publishes; it does not subscribe or hold a Hub. |
+| `Storage` | `PutAsync`, `GetAsync`, `TryGetAsync`, `DeleteAsync`, `ListAsync` over the project's mediated object store. Keys are logical; provider coordinates and signed URLs never reach customer code. The store is content-addressed and create-if-absent: the same bytes at the same key are acknowledged, different bytes at an existing key are refused with `object_conflict`. An object is one byte to 32 MiB. |
+| `Users` | `GetAsync`, `CreateAsync`, `UpdateAsync`, `BanAsync`, `IssueTokenAsync` over this project's application users. A subject is a UUID (any spelling is normalised to the lower-case `D` form the gateway requires). An issued token speaks for that one user, never for the project, and needs one to sixteen scopes from the realm's admitted set. |
+| `Realtime` | `PublishAsync(topic, payload)` and `PublishJsonAsync(topic, json)`. A topic is a Realtime binding id — `[a-z][a-z0-9._-]{0,95}` — and a payload is at most 64 KiB; both are checked here so a publish the gateway would refuse never leaves the Lambda. A Lambda publishes; it does not subscribe or hold a Hub. |
 | `Caller` | The `ClaimsPrincipal`, its raw `Subject`, and `TryGetSubjectId` / `RequireSubjectId`. |
 | `Logger` | The runtime's `ILogger` for this invocation. |
 | `Invocation` | `InvocationId`, `FunctionId`, `Version`, `EnvironmentId`, and the raw `Facts` dictionary. |
@@ -113,6 +113,13 @@ secrets: this package never logs them, and neither should the Lambda.
 - `Database` exists only on the `net10.0` build. `System.Data.Common.DbDataSource` was introduced in
   .NET 7 and has no .NET Standard 2.1 form. A Lambda bundle targets the sandbox's own .NET runtime,
   so the `netstandard2.1` build is for sharing non-database code, not for running a Lambda.
+- Three routes are mapped by the gateway and honestly unavailable in the current product release;
+  each surfaces as `LambdaApiException` with status 501 and the product's own code:
+  `Storage.DeleteAsync` (`storage_delete_unavailable`) and `Storage.ListAsync`
+  (`storage_list_unavailable`), because the mediated store is create-only and has no enumeration
+  yet, and `Users.IssueTokenAsync` (`user_token_issuance_unavailable`), because the project realm
+  exposes no first-party issuance grant yet. The routes, requests and response shapes are the
+  contract; the wrapper keeps them so a Lambda written today answers for real when the product does.
 - The internal Lambda runtime API is not a published contract. Listing shapes are read tolerantly
   (a bare array or a `{ "objects": [...] }` envelope), unmodelled user fields are kept rather than
   dropped, and an unrecognized shape is refused rather than silently read as empty.

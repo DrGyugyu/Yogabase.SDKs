@@ -15,6 +15,9 @@ namespace Yogabase.Lambda;
 /// </summary>
 public sealed class LambdaStorage
 {
+    /// <summary>The gateway's bound on one object body; the store's own configured cap still applies on top.</summary>
+    public const int MaximumObjectBytes = 32 * 1024 * 1024;
+
     private readonly HttpClient client;
 
     internal LambdaStorage(HttpClient client)
@@ -22,7 +25,16 @@ public sealed class LambdaStorage
         this.client = client;
     }
 
-    /// <summary>Writes one object, replacing any existing value at that key.</summary>
+    /// <summary>
+    /// Writes one object. The mediated store is content-addressed and create-if-absent: writing
+    /// the same bytes to the same key again is acknowledged as the existing object, and writing
+    /// different bytes to an existing key is refused with <c>object_conflict</c> rather than
+    /// overwriting it.
+    /// </summary>
+    /// <param name="key">The logical key inside the project.</param>
+    /// <param name="content">One to 32 MiB of bytes; the gateway requires a declared, positive length.</param>
+    /// <param name="contentType">The media type recorded with the object.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
     public async Task PutAsync(
         string key,
         ReadOnlyMemory<byte> content,
@@ -32,6 +44,10 @@ public sealed class LambdaStorage
         if (string.IsNullOrWhiteSpace(contentType) || contentType.Length > 128)
         {
             throw new ArgumentException("A bounded media type is required.", nameof(contentType));
+        }
+        if (content.Length is 0 or > MaximumObjectBytes)
+        {
+            throw new ArgumentException("An object is between one byte and 32 MiB.", nameof(content));
         }
 
         using var request = new HttpRequestMessage(
@@ -76,7 +92,12 @@ public sealed class LambdaStorage
         return await LambdaTransport.ReadBytesAsync(response, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Deletes one object.</summary>
+    /// <summary>
+    /// Deletes one object. The mediated store this release ships is create-only, so the gateway
+    /// answers <see cref="LambdaApiException"/> with status 501 and code
+    /// <c>storage_delete_unavailable</c> until the store grows a delete verb; the route is the
+    /// contract, and it will answer for real when it does.
+    /// </summary>
     public async Task DeleteAsync(string key, CancellationToken cancellationToken = default)
     {
         using var request = new HttpRequestMessage(
@@ -86,7 +107,11 @@ public sealed class LambdaStorage
             .ConfigureAwait(false);
     }
 
-    /// <summary>Lists the object keys under an optional prefix.</summary>
+    /// <summary>
+    /// Lists the object keys under an optional prefix. The mediated store this release ships
+    /// exposes no enumeration, so the gateway answers <see cref="LambdaApiException"/> with
+    /// status 501 and code <c>storage_list_unavailable</c> until it does.
+    /// </summary>
     public async Task<IReadOnlyList<string>> ListAsync(
         string? prefix = null,
         CancellationToken cancellationToken = default)
