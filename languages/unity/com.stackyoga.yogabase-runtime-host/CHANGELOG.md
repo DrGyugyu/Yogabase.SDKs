@@ -2,6 +2,18 @@
 
 All notable changes to this package are documented in this file.
 
+## [0.2.1-preview.1]
+
+- Aligns the Editor publish flow to the build surface the Control Plane actually serves
+  (`contracts/yogabase-builds-v1.openapi.json`, a byte-identical product snapshot): a refusal is
+  read as `code`, `field` and `cause` (it was `path` and `message`, which the server never sent, so
+  the window showed empty lines); the build's `identity`, `attempt` and `kind` and the check's
+  `evidenceOrigin` are read and shown; the build id is treated as the UUID the route constrains it
+  to; and the settings asset refuses a stored token that does not start with `ybt_` or exceeds 128
+  characters, because the Control Plane answers such a bearer with a bare `401`.
+- Still compile-checked only, against a real Unity 6000.5.7f1 Editor reference set at C# 9. No
+  Unity Editor has run the window.
+
 ## [0.2.0-preview.1]
 
 - Adds the Editor half of the package: `Yogabase ▸ Publish Server` builds the Linux Dedicated

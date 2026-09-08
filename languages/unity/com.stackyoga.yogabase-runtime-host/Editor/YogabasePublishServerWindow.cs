@@ -173,6 +173,7 @@ namespace Yogabase.Editor
 
             EditorGUILayout.LabelField("Build id", result.buildId);
             EditorGUILayout.LabelField("Digest", result.digest);
+            EditorGUILayout.LabelField("Identity", result.identity + "  (attempt " + result.attempt + ")");
             EditorGUILayout.LabelField("State", result.state);
             if (!result.IsTerminal)
             {
@@ -200,8 +201,12 @@ namespace Yogabase.Editor
                 EditorGUILayout.LabelField("Refusals", EditorStyles.boldLabel);
                 foreach (var refusal in result.check.refusals)
                 {
+                    // The Control Plane names a code, the field it is about, and a bounded cause
+                    // token; it deliberately never sends prose or a value from the bundle.
                     EditorGUILayout.HelpBox(
-                        refusal.code + "\nat " + refusal.path + "\n" + refusal.message,
+                        refusal.code
+                        + (string.IsNullOrEmpty(refusal.field) ? string.Empty : "\nfield: " + refusal.field)
+                        + (string.IsNullOrEmpty(refusal.cause) ? string.Empty : "\ncause: " + refusal.cause),
                         MessageType.Error);
                 }
             }

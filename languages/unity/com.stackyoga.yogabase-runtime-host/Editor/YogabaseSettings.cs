@@ -243,11 +243,21 @@ namespace Yogabase.Editor
             {
                 problems.Add("Build output directory is empty.");
             }
-            if (string.IsNullOrEmpty(GetDeveloperToken()))
+            var token = GetDeveloperToken();
+            if (string.IsNullOrEmpty(token))
             {
                 problems.Add(
                     "No developer token on this machine. Paste the project-scoped token from the "
                     + "console's Settings page; it is stored in EditorPrefs, never in this asset.");
+            }
+            else if (!token.StartsWith(YogabaseEditorRoutes.DeveloperTokenPrefix, StringComparison.Ordinal)
+                || token.Length > YogabaseEditorRoutes.MaximumDeveloperTokenLength)
+            {
+                problems.Add(
+                    "The stored token is not a Yogabase developer token: one starts with '"
+                    + YogabaseEditorRoutes.DeveloperTokenPrefix + "' and is at most "
+                    + YogabaseEditorRoutes.MaximumDeveloperTokenLength + " characters. A console "
+                    + "session cookie, a player token, or a Delivery bearer is refused by the build routes.");
             }
 
             return problems;

@@ -33,11 +33,42 @@ namespace Yogabase.Editor
             return "api/v1/projects/" + projectId + "/environments/" + environmentId + "/builds";
         }
 
-        /// <summary>Route of one build, carrying its state and its Build check result.</summary>
+        /// <summary>
+        /// Route of one build, carrying its state and its Build check result. The id is a UUID,
+        /// which the Control Plane's route constrains, so it is sent in its canonical form rather
+        /// than escaped.
+        /// </summary>
         public static string Build(string projectId, string environmentId, string buildId)
         {
-            return Builds(projectId, environmentId) + "/" + System.Uri.EscapeDataString(buildId);
+            return Builds(projectId, environmentId) + "/" + CanonicalBuildId(buildId);
         }
+
+        /// <summary>
+        /// The canonical <c>D</c> form of a build id, or <see langword="null"/> when the value is
+        /// not a UUID at all — the Control Plane would answer such a path as unroutable rather
+        /// than as an unknown build.
+        /// </summary>
+        public static string CanonicalBuildId(string buildId)
+        {
+            System.Guid parsed;
+            if (string.IsNullOrEmpty(buildId) || !System.Guid.TryParse(buildId, out parsed)
+                || parsed == System.Guid.Empty)
+            {
+                return null;
+            }
+
+            return parsed.ToString("D", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>
+        /// The prefix every developer token carries. A bearer without it is not a developer token
+        /// to the Control Plane at all — its handler yields no result rather than a refusal — so
+        /// the settings asset refuses one before a single request is sent.
+        /// </summary>
+        public const string DeveloperTokenPrefix = "ybt_";
+
+        /// <summary>Longest developer token the Control Plane accepts.</summary>
+        public const int MaximumDeveloperTokenLength = 128;
 
         /// <summary>Multipart field names of the build upload form.</summary>
         public const string FieldBundle = "bundle";

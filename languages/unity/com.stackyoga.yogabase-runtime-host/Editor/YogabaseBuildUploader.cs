@@ -35,18 +35,18 @@ namespace Yogabase.Editor
         public string entry = string.Empty;
     }
 
-    /// <summary>One reason the bundle itself was refused.</summary>
+    /// <summary>One refusal, with the field that failed named separately from the code.</summary>
     [Serializable]
     public sealed class YogabaseBuildRefusal
     {
-        /// <summary>Stable refusal code.</summary>
+        /// <summary>Stable machine code.</summary>
         public string code = string.Empty;
 
-        /// <summary>First failing field or bundle path.</summary>
-        public string path = string.Empty;
+        /// <summary>The field path the refusal names, or empty when it named none.</summary>
+        public string field = string.Empty;
 
-        /// <summary>Human-readable reason.</summary>
-        public string message = string.Empty;
+        /// <summary>A bounded cause token, never a message or a value; empty when none.</summary>
+        public string cause = string.Empty;
     }
 
     /// <summary>Result of Yogabase's own pass over the uploaded bundle.</summary>
@@ -54,8 +54,15 @@ namespace Yogabase.Editor
     public sealed class YogabaseBuildCheck
     {
         /// <summary>
+        /// <c>customer-supplied</c> when the inventory and scan came with the build,
+        /// <c>yogabase-derived</c> when Yogabase derived them from the bundle itself.
+        /// </summary>
+        public string evidenceOrigin = string.Empty;
+
+        /// <summary>
         /// Whether the check found no Critical/High finding among the catalogued components in the
-        /// pinned snapshot on its recorded date. Never a claim that the build is secure.
+        /// pinned snapshot on its recorded date. False until the checks report, and never a claim
+        /// that the build is secure.
         /// </summary>
         public bool passed;
 
@@ -79,7 +86,19 @@ namespace Yogabase.Editor
         /// <summary><c>checking</c>, <c>admitted</c>, or <c>refused</c>.</summary>
         public string state = string.Empty;
 
-        /// <summary>Check result. Meaningless while the state is <c>checking</c>.</summary>
+        /// <summary>The build's own identity and version, as <c>name:version</c>.</summary>
+        public string identity = string.Empty;
+
+        /// <summary>
+        /// Which upload of this identity this is, starting at 1. A corrected re-upload takes the
+        /// next attempt and supersedes the refused one.
+        /// </summary>
+        public int attempt;
+
+        /// <summary>The artifact kind Yogabase classified the bundle as.</summary>
+        public string kind = string.Empty;
+
+        /// <summary>The check. Always present; before the member reports it says nothing was observed.</summary>
         public YogabaseBuildCheck check = new YogabaseBuildCheck();
 
         /// <summary>Whether the check has finished, either way.</summary>
@@ -258,6 +277,11 @@ namespace Yogabase.Editor
             string buildId,
             CancellationToken cancellationToken)
         {
+            if (YogabaseEditorRoutes.CanonicalBuildId(buildId) == null)
+            {
+                throw new YogabaseBuildException(0, "A Yogabase build id is a non-empty UUID; got '" + buildId + "'.");
+            }
+
             using (var client = CreateClient(settings))
             {
                 var route = YogabaseEditorRoutes.Build(
@@ -363,7 +387,9 @@ namespace Yogabase.Editor
                         "Yogabase returned an unreadable build response: " + exception.Message);
                 }
 
-                if (build == null || string.IsNullOrEmpty(build.buildId) || string.IsNullOrEmpty(build.state))
+                if (build == null
+                    || YogabaseEditorRoutes.CanonicalBuildId(build.buildId) == null
+                    || string.IsNullOrEmpty(build.state))
                 {
                     throw new YogabaseBuildException(
                         (int)response.StatusCode, "Yogabase returned an invalid build.");
