@@ -47,7 +47,7 @@ From a terminal instead:
 ```text
 yogabase build upload \
   --project <project-id> --environment <environment-id> \
-  --bundle Builds/LinuxServer \
+  --source Builds/LinuxServer \
   --executable Server.x86_64 \
   --port game=7777/udp \
   --name battle --version 1.4.0
