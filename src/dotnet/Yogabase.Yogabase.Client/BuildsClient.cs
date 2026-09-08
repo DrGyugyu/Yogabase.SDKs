@@ -77,6 +77,12 @@ public sealed class YogabaseBuildPort
 }
 
 /// <summary>Everything the multipart build upload carries besides the bundle itself.</summary>
+/// <remarks>
+/// Every field is a hint the Control Plane needs only where the archive is genuinely ambiguous.
+/// The bundle is the one required part; Yogabase derives the layout, the inventory, and the scan
+/// from the uploaded bytes, and this client never computes or sends a manifest, an SBOM, or a scan
+/// result of its own.
+/// </remarks>
 public sealed class YogabaseBuildUploadRequest
 {
     /// <summary>
@@ -98,7 +104,7 @@ public sealed class YogabaseBuildUploadRequest
     public string BundleFileName { get; set; } = "build.zip";
 }
 
-/// <summary>One dependency finding the Build check reports.</summary>
+/// <summary>One vulnerability the member's scan matched, in the six parts a person can act on.</summary>
 public sealed class YogabaseBuildFinding
 {
     /// <summary>Advisory identifier, for example a CVE or GHSA id.</summary>
@@ -110,55 +116,80 @@ public sealed class YogabaseBuildFinding
     /// <summary>Version found in the bundle.</summary>
     public string Version { get; set; } = string.Empty;
 
-    /// <summary>First fixed version, when the advisory names one.</summary>
-    public string? FixedIn { get; set; }
+    /// <summary>First fixed version, or empty when the advisory names none.</summary>
+    public string FixedIn { get; set; } = string.Empty;
 
-    /// <summary>Advisory severity as recorded in the pinned snapshot.</summary>
+    /// <summary>Advisory severity as the matcher classified it.</summary>
     public string Severity { get; set; } = string.Empty;
 
-    /// <summary>Bundle entry the catalogued component came from.</summary>
-    public string? Entry { get; set; }
+    /// <summary>Archive entry the catalogued component came from.</summary>
+    public string Entry { get; set; } = string.Empty;
 }
 
-/// <summary>One reason the bundle itself was refused, naming the offending field or path.</summary>
+/// <summary>One refusal, with the field that failed named separately from the code.</summary>
 public sealed class YogabaseBuildRefusal
 {
-    /// <summary>Stable refusal code.</summary>
+    /// <summary>Stable machine code.</summary>
     public string Code { get; set; } = string.Empty;
 
-    /// <summary>First failing field or bundle path.</summary>
-    public string Path { get; set; } = string.Empty;
+    /// <summary>The field path the refusal names, or empty when it named none.</summary>
+    public string Field { get; set; } = string.Empty;
 
-    /// <summary>Human-readable reason.</summary>
-    public string Message { get; set; } = string.Empty;
+    /// <summary>A bounded cause token, never a message or a value; empty when none.</summary>
+    public string Cause { get; set; } = string.Empty;
 }
 
 /// <summary>
-/// Result of the Build check: Yogabase's own layout, inventory, and vulnerability pass over the
-/// uploaded bundle.
+/// What the checks found, in the one shape every Yogabase surface reads: Yogabase's own layout,
+/// inventory, and vulnerability pass over the uploaded bundle.
 /// </summary>
 public sealed class YogabaseBuildCheck
 {
+    /// <summary>The inventory and scan came with the build, produced by whoever built it.</summary>
+    public const string CustomerSupplied = "customer-supplied";
+
+    /// <summary>The inventory and scan were derived from the bundle itself, with no producer input.</summary>
+    public const string YogabaseDerived = "yogabase-derived";
+
+    /// <summary>
+    /// Whether the inventory and scan came with the build or were derived from it:
+    /// <see cref="CustomerSupplied"/> or <see cref="YogabaseDerived"/>.
+    /// </summary>
+    public string EvidenceOrigin { get; set; } = string.Empty;
+
+    /// <summary>Digest of the inventory the check verified, or empty before the member reported.</summary>
+    public string InventoryDigest { get; set; } = string.Empty;
+
+    /// <summary>Digest of the scan the check verified, or empty before the member reported.</summary>
+    public string ScanDigest { get; set; } = string.Empty;
+
+    /// <summary>Digest of the vulnerability snapshot the scan was matched against, when reported.</summary>
+    public string DatabaseDigest { get; set; } = string.Empty;
+
     /// <summary>
     /// Whether the check found no Critical/High finding among the catalogued components in the
-    /// pinned snapshot on its recorded date. It is never a claim that the build is secure.
+    /// pinned snapshot on its recorded date. False until the checks report: an absent result is
+    /// never reported as a clean one, and a pass is never a claim that the build is secure.
     /// </summary>
     public bool Passed { get; set; }
+
+    /// <summary>When this check was observed.</summary>
+    public DateTimeOffset ObservedAt { get; set; }
 
     /// <summary>Vulnerability findings, empty when none were catalogued.</summary>
     public IReadOnlyList<YogabaseBuildFinding> Findings { get; set; } = Array.Empty<YogabaseBuildFinding>();
 
-    /// <summary>Structural refusals, empty when the bundle's layout was accepted.</summary>
+    /// <summary>Refusals, empty when the bundle was accepted.</summary>
     public IReadOnlyList<YogabaseBuildRefusal> Refusals { get; set; } = Array.Empty<YogabaseBuildRefusal>();
 }
 
 /// <summary>One uploaded build and the state of its check.</summary>
 public sealed class YogabaseBuild
 {
-    /// <summary>Opaque build identifier. Treat it as a bounded token, not a parsed value.</summary>
+    /// <summary>The build's identifier, a UUID in its canonical <c>D</c> form.</summary>
     public string BuildId { get; set; } = string.Empty;
 
-    /// <summary>Digest Yogabase recorded for the uploaded bundle.</summary>
+    /// <summary>The archive's exact SHA-256, <c>sha256:</c> prefixed.</summary>
     public string Digest { get; set; } = string.Empty;
 
     /// <summary>
@@ -167,8 +198,20 @@ public sealed class YogabaseBuild
     /// </summary>
     public string State { get; set; } = string.Empty;
 
-    /// <summary>Check result. Absent while the state is <c>checking</c>.</summary>
-    public YogabaseBuildCheck? Check { get; set; }
+    /// <summary>The build's own identity and version, as <c>name:version</c>.</summary>
+    public string Identity { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Which upload of this identity this is, starting at 1. A corrected re-upload takes the next
+    /// attempt and supersedes the refused one.
+    /// </summary>
+    public int Attempt { get; set; }
+
+    /// <summary>The artifact kind Yogabase classified the bundle as, verbatim.</summary>
+    public string Kind { get; set; } = string.Empty;
+
+    /// <summary>The check. Always present; before the member reports it says nothing has been observed.</summary>
+    public YogabaseBuildCheck Check { get; set; } = new YogabaseBuildCheck();
 
     /// <summary>The state a Build check stops at.</summary>
     public const string StateChecking = "checking";
@@ -197,6 +240,12 @@ public sealed class YogabaseBuild
 /// </remarks>
 public sealed class YogabaseBuildsClient : IDisposable
 {
+    /// <summary>The prefix every developer token carries, so one is recognisable without parsing.</summary>
+    public const string DeveloperTokenPrefix = "ybt_";
+
+    /// <summary>Longest developer token the Control Plane accepts.</summary>
+    public const int MaximumDeveloperTokenLength = 128;
+
     private const int MaximumZipEntryPathLength = 1024;
     private static readonly TimeSpan MaximumUploadTimeout = TimeSpan.FromHours(2);
     private readonly Uri controlPlane;
@@ -258,8 +307,9 @@ public sealed class YogabaseBuildsClient : IDisposable
         var fields = BuildFields(request);
         using var form = new MultipartFormDataContent();
 
-        // Metadata first, bundle last: a server that reads the form as a stream can then refuse a
-        // malformed port or executable before it has buffered a few hundred megabytes of zip.
+        // Metadata first, bundle last. The Control Plane buffers the whole form before it reads
+        // any part, so this is not a contract requirement; it is the order that stays cheapest if
+        // that ever changes, and it costs nothing.
         foreach (var field in fields)
         {
             form.Add(new StringContent(field.Value), field.Key);
@@ -307,7 +357,30 @@ public sealed class YogabaseBuildsClient : IDisposable
         ThrowIfDisposed();
         using var response = await SendAsync(
             HttpMethod.Get,
-            YogabaseRoutes.Build(projectId, environmentId, YogabaseHttpTransport.EscapePath(buildId, nameof(buildId))),
+            YogabaseRoutes.Build(projectId, environmentId, BuildId(buildId)),
+            configure: null,
+            cancellationToken).ConfigureAwait(false);
+        return Validate(await YogabaseHttpTransport.ReadJsonAsync<YogabaseBuild>(response, cancellationToken)
+            .ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// Runs the checks again for the same bytes. The digest never changes, so this is a re-check
+    /// of one build rather than a new one: the case it exists for is a build refused by a
+    /// vulnerability database that has since moved on, or by a dependency that was briefly
+    /// unavailable. The returned build is usually <c>checking</c> again; poll it with
+    /// <see cref="WaitForCheckAsync"/>.
+    /// </summary>
+    public async Task<YogabaseBuild> RecheckAsync(
+        Guid projectId,
+        Guid environmentId,
+        string buildId,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        using var response = await SendAsync(
+            HttpMethod.Post,
+            YogabaseRoutes.BuildRecheck(projectId, environmentId, BuildId(buildId)),
             configure: null,
             cancellationToken).ConfigureAwait(false);
         return Validate(await YogabaseHttpTransport.ReadJsonAsync<YogabaseBuild>(response, cancellationToken)
@@ -345,6 +418,7 @@ public sealed class YogabaseBuildsClient : IDisposable
             throw new ArgumentOutOfRangeException(nameof(options));
         }
 
+        var id = BuildId(buildId);
         using var timeoutSource = new CancellationTokenSource(options.Timeout);
         using var pollingSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutSource.Token);
         var pollingToken = pollingSource.Token;
@@ -356,7 +430,7 @@ public sealed class YogabaseBuildsClient : IDisposable
             {
                 try
                 {
-                    var build = await GetAsync(projectId, environmentId, buildId, pollingToken).ConfigureAwait(false);
+                    var build = await GetAsync(projectId, environmentId, id, pollingToken).ConfigureAwait(false);
                     progress?.Report(build);
                     if (build.IsTerminal)
                     {
@@ -532,11 +606,31 @@ public sealed class YogabaseBuildsClient : IDisposable
         return response;
     }
 
+    /// <summary>
+    /// A build id is a UUID: the Control Plane's route constrains it to one, so anything else is
+    /// answered as an unroutable path rather than as an unknown build. Refusing it here names the
+    /// real problem, and the canonical <c>D</c> form is what the route and the response both use.
+    /// </summary>
+    private static string BuildId(string buildId)
+    {
+        if (buildId is null)
+        {
+            throw new ArgumentNullException(nameof(buildId));
+        }
+        if (!Guid.TryParse(buildId, out var parsed) || parsed == Guid.Empty)
+        {
+            throw new ArgumentException("A Yogabase build id is a non-empty UUID.", nameof(buildId));
+        }
+
+        return parsed.ToString("D", CultureInfo.InvariantCulture);
+    }
+
     private static YogabaseBuild Validate(YogabaseBuild build)
     {
-        if (string.IsNullOrWhiteSpace(build.BuildId)
-            || build.BuildId.Length > 256
-            || string.IsNullOrWhiteSpace(build.State))
+        if (!Guid.TryParse(build.BuildId, out var id)
+            || id == Guid.Empty
+            || string.IsNullOrWhiteSpace(build.State)
+            || build.Check is null)
         {
             throw new YogabaseApiException(502, "build_response_invalid", "Yogabase returned an invalid build.");
         }
@@ -547,11 +641,14 @@ public sealed class YogabaseBuildsClient : IDisposable
     private static void ValidateDeveloperToken(string token)
     {
         if (string.IsNullOrWhiteSpace(token)
-            || token.Length is < 16 or > 4096
+            || token.Length is < 8 or > MaximumDeveloperTokenLength
+            || !token.StartsWith(DeveloperTokenPrefix, StringComparison.Ordinal)
             || !string.Equals(token, token.Trim(), StringComparison.Ordinal)
             || token.Any(char.IsWhiteSpace))
         {
-            throw new ArgumentException("A bounded Yogabase developer token is required.", nameof(token));
+            throw new ArgumentException(
+                "A Yogabase developer token starts with 'ybt_' and is at most 128 characters.",
+                nameof(token));
         }
     }
 

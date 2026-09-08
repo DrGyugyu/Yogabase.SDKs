@@ -160,7 +160,10 @@ internal sealed class YogabaseHttpTransport : IDisposable
             _ => "request_failed",
         };
         var message = $"Yogabase returned HTTP {(int)response.StatusCode}.";
-        string? traceId = response.Headers.TryGetValues("X-Yogabase-Correlation-Id", out var correlationIds)
+        // The Control Plane and the application gateway both answer X-Correlation-ID; the older
+        // header name is still read so an installation one release behind is not blind here.
+        string? traceId = response.Headers.TryGetValues("X-Correlation-ID", out var correlationIds)
+            || response.Headers.TryGetValues("X-Yogabase-Correlation-Id", out correlationIds)
             ? correlationIds.FirstOrDefault()
             : null;
         try

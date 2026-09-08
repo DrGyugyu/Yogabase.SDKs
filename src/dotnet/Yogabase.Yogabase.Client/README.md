@@ -45,17 +45,26 @@ capability row. The client accepts that document and ignores the row;
 `/v1/servers/*` on the application gateway. `StartAsync` returns a `YogabaseServer` whose
 `NetworkPorts` carry the node `Host` and the `ExternalPort` a client dials; an allocation missing a
 usable address is refused rather than returned, because a caller that trusts an empty host dials its
-own machine. The bootstrap document carries no capability identifier for this surface, so the client
-does not pretend to know whether an installation enables it — an installation without it answers the
-gateway's own refusal.
+own machine. `ListAsync` reads the bare array the contract pins — an instance whose address no
+member has observed yet is listed with empty `NetworkPorts`, and must not be dialed — and
+`StopAsync` answers the instance's state after the release, never a deletion. The `service` is
+the hosted service's canonical id (`[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?`); `CustomData` is at most
+32 entries, 64-byte keys, 1024-byte values, and 4 KiB as canonical JSON, checked here before the
+gateway checks it again. A refusal surfaces as `YogabaseApiException` with the gateway's own code:
+`server_none_available`, `server_contended`, `server_not_found`, `server_address_not_observed`,
+`server_stop_not_available`, `server_request_invalid`, `server_authentication_required` or
+`server_unavailable`. The bootstrap document carries no capability identifier for this surface, so
+the client does not pretend to know whether an installation enables it — an installation without it
+answers the gateway's own refusal.
 
 ## Uploading a build
 
 `YogabaseClient.Builds(...)` returns a `YogabaseBuildsClient` for the **Control Plane** origin, not
 the application gateway, authenticated with a **project-scoped developer token** issued from the
-console's Settings page. A developer tool calls it; a shipped game client never does. The token is a
-secret: keep it in the host's credential store, never in source control and never in a shipped
-build.
+console's Settings page — a `ybt_`-prefixed value of at most 128 characters, which the client
+checks before sending anything, because the Control Plane answers any other bearer with a bare
+`401`. A developer tool calls it; a shipped game client never does. The token is a secret: keep it
+in the host's credential store, never in source control and never in a shipped build.
 
 ```csharp
 using var builds = YogabaseClient.Builds(
@@ -77,22 +86,38 @@ var build = await builds.UploadDirectoryAsync(
 var checked_ = await builds.WaitForCheckAsync(projectId, environmentId, build.BuildId);
 if (!checked_.IsAdmitted)
 {
-    foreach (var finding in checked_.Check!.Findings)
+    foreach (var finding in checked_.Check.Findings)
     {
         Console.WriteLine($"{finding.Severity} {finding.Id} {finding.Package} {finding.Version} -> {finding.FixedIn}");
     }
     foreach (var refusal in checked_.Check.Refusals)
     {
-        Console.WriteLine($"{refusal.Code} at {refusal.Path}: {refusal.Message}");
+        Console.WriteLine($"{refusal.Code} field={refusal.Field} cause={refusal.Cause}");
     }
 }
+
+// A build refused by an advisory snapshot that has since moved on can be checked again in place.
+var again = await builds.RecheckAsync(projectId, environmentId, build.BuildId);
 ```
+
+A `YogabaseBuild` is exactly what the Control Plane writes: `BuildId` (a UUID), `Digest`,
+`State` (`checking`, `admitted`, `refused`), `Identity` (`name:version`), `Attempt` (a corrected
+re-upload takes the next attempt of the same identity), `Kind`, and a `Check` that is always
+present — `EvidenceOrigin` (`customer-supplied` or `yogabase-derived`), the inventory, scan and
+advisory-database digests, `Passed` (false until the member reports; an absent result is never a
+clean one), `ObservedAt`, `Findings` and `Refusals`. A refusal carries a stable `Code`, the
+`Field` it is about, and a bounded `Cause` token — never prose. A request the Control Plane refuses
+outright surfaces as `YogabaseApiException` with an upper-case code such as
+`BUILD_BUNDLE_UNRECOGNIZED`, `BUILD_TOKEN_SCOPE_REQUIRED` or `BUILD_NOT_FOUND` and the
+`X-Correlation-ID` the response carried.
 
 `UploadDirectoryAsync` zips the directory in memory with forward-slash entry names and keeps the
 Linux player binary and native libraries executable (`0755`), because a Unity dedicated server will
 not start if the executable bit is lost in transit. `UploadAsync` takes an already-built zip stream
-and never disposes it. The multipart form writes every metadata field before the bundle so a server
-reading the form as a stream can refuse a malformed port before buffering the zip.
+and never disposes it. The multipart form carries the `bundle` part plus the optional `executable`,
+`name`, `version` and repeated `ports` hints; the Control Plane also accepts an optional pre-signed
+`manifest` part, which this client never sends because Yogabase derives the manifest, the inventory
+and the scan from the bundle itself.
 
 "Build check" is Yogabase's own pass over the bundle: it derives the layout manifest and a CycloneDX
 inventory, and matches the catalogued components against a digest-pinned OSV snapshot. A pass means

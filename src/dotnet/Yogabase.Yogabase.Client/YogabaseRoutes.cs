@@ -120,8 +120,15 @@ public static class YogabaseRoutes
     /// <summary>One build, carrying its state and its Build check result.</summary>
     public const string BuildTemplate =
         "api/v1/projects/{projectId}/environments/{environmentId}/builds/{buildId}";
+    /// <summary>Runs one build's checks again for the same bytes. <c>POST</c>, answered with the build.</summary>
+    public const string BuildRecheckTemplate =
+        "api/v1/projects/{projectId}/environments/{environmentId}/builds/{buildId}/recheck";
 
-    /// <summary>Multipart field names of the build upload form.</summary>
+    /// <summary>
+    /// Multipart field names of the build upload form. <c>bundle</c> is the one required part;
+    /// the Control Plane also accepts an optional pre-signed <c>manifest</c> part, which this
+    /// package never sends because Yogabase derives the manifest from the bundle itself.
+    /// </summary>
     public const string BuildFieldBundle = "bundle";
     /// <inheritdoc cref="BuildFieldBundle"/>
     public const string BuildFieldExecutable = "executable";
@@ -194,9 +201,13 @@ public static class YogabaseRoutes
     public static string Builds(Guid projectId, Guid environmentId) =>
         "api/v1/projects/" + Id(projectId) + "/environments/" + Id(environmentId) + "/builds";
 
-    /// <summary>Route of one build.</summary>
+    /// <summary>Route of one build. The id is a UUID in its canonical <c>D</c> form.</summary>
     public static string Build(Guid projectId, Guid environmentId, string escapedBuildId) =>
         Builds(projectId, environmentId) + "/" + escapedBuildId;
+
+    /// <summary>Re-check route of one build.</summary>
+    public static string BuildRecheck(Guid projectId, Guid environmentId, string escapedBuildId) =>
+        Build(projectId, environmentId, escapedBuildId) + "/recheck";
 
     private static string Id(Guid value)
     {

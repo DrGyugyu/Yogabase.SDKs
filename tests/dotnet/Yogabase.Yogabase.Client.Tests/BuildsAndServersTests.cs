@@ -20,6 +20,8 @@ public sealed class BuildsAndServersTests
     private const string BuildsRoute =
         "http://localhost:7100/api/v1/projects/11111111-1111-4111-8111-111111111111"
         + "/environments/22222222-2222-4222-8222-222222222222/builds";
+    private const string BuildId = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";
+    private const string DeveloperToken = "ybt_0123456789abcdefghijklmnopqrstuvwxyzABCDEF";
     private static readonly string[] ExpectedServerRoutes =
     [
         "GET http://localhost/v1/servers/srv-01",
@@ -85,31 +87,37 @@ public sealed class BuildsAndServersTests
         Assert.Equal("{\"service\":\"battle\"}", body);
     }
 
-    [Theory]
-    [InlineData("[{\"serverId\":\"srv-01\",\"state\":\"Ready\",\"networkPorts\":[]}]")]
-    [InlineData("{\"servers\":[{\"serverId\":\"srv-01\",\"state\":\"Ready\",\"networkPorts\":[]}]}")]
-    [InlineData("{\"items\":[{\"serverId\":\"srv-01\",\"state\":\"Ready\",\"networkPorts\":[]}]}")]
-    public async Task ServerListReadsBothTheBareArrayAndTheEnvelope(string payload)
+    [Fact]
+    // The contract pins a bare array, and an instance no member has observed an address for is
+    // listed with empty networkPorts rather than omitted: a client must see it and not dial it.
+    public async Task ServerListReadsTheBareArrayTheContractPins()
     {
         Uri? route = null;
         var handler = new ScriptedHandler((request, _) =>
         {
             route = request.RequestUri;
-            return Task.FromResult(Json(HttpStatusCode.OK, payload));
+            return Task.FromResult(Json(
+                HttpStatusCode.OK,
+                "[{\"serverId\":\"srv-01\",\"state\":\"Ready\",\"networkPorts\":[]},"
+                + Allocation().Replace("srv-01", "srv-02", StringComparison.Ordinal) + "]"));
         });
         await using var client = await ClientAsync(handler);
 
         var servers = await client.Servers.ListAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal("http://localhost/v1/servers", route!.AbsoluteUri);
-        Assert.Equal("srv-01", Assert.Single(servers).ServerId);
+        Assert.Equal(2, servers.Count);
+        Assert.Equal("srv-01", servers[0].ServerId);
+        Assert.Empty(servers[0].NetworkPorts);
+        Assert.Equal("10.0.0.7:31245", servers[1].FindPort("game")!.Endpoint);
     }
 
-    [Fact]
-    public async Task ServerListRefusesAnUnrecognizedEnvelope()
+    [Theory]
+    [InlineData("{\"servers\":[]}")]
+    [InlineData("{\"unexpected\":[]}")]
+    public async Task ServerListRefusesAnEnvelopeTheContractDoesNotDeclare(string payload)
     {
-        var handler = new ScriptedHandler((_, _) =>
-            Task.FromResult(Json(HttpStatusCode.OK, "{\"unexpected\":[]}")));
+        var handler = new ScriptedHandler((_, _) => Task.FromResult(Json(HttpStatusCode.OK, payload)));
         await using var client = await ClientAsync(handler);
 
         var exception = await Assert.ThrowsAsync<YogabaseApiException>(() =>
@@ -127,7 +135,7 @@ public sealed class BuildsAndServersTests
             routes.Add(request.Method + " " + request.RequestUri!.AbsoluteUri);
             return Task.FromResult(request.Method == HttpMethod.Get
                 ? Json(HttpStatusCode.OK, Allocation())
-                : new HttpResponseMessage(HttpStatusCode.NoContent));
+                : Json(HttpStatusCode.OK, Allocation().Replace("Allocated", "Ready", StringComparison.Ordinal)));
         });
         await using var client = await ClientAsync(handler);
 
@@ -135,8 +143,39 @@ public sealed class BuildsAndServersTests
         var stopped = await client.Servers.StopAsync("srv-01", TestContext.Current.CancellationToken);
 
         Assert.Equal("srv-01", read.ServerId);
-        Assert.Null(stopped);
+        // A stop answers the instance's state after the release; it is never a deletion.
+        Assert.Equal("Ready", stopped.State);
         Assert.Equal(ExpectedServerRoutes, routes);
+    }
+
+    [Fact]
+    public async Task ServerStopWithoutABodyIsRefusedRatherThanReadAsNothing()
+    {
+        var handler = new ScriptedHandler((_, _) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent)));
+        await using var client = await ClientAsync(handler);
+
+        var exception = await Assert.ThrowsAsync<YogabaseApiException>(() =>
+            client.Servers.StopAsync("srv-01", TestContext.Current.CancellationToken));
+
+        Assert.Equal("response_invalid", exception.Code);
+    }
+
+    [Fact]
+    public async Task AServerRefusalCarriesTheContractCode()
+    {
+        var handler = new ScriptedHandler((_, _) => Task.FromResult(Json(
+            HttpStatusCode.Conflict,
+            "{\"type\":\"https://yogabase.io/problems/server-none-available\",\"title\":\"Game server request refused\","
+            + "\"status\":409,\"detail\":\"No Ready instance.\",\"code\":\"server_none_available\",\"correlationId\":\"c-1\"}")));
+        await using var client = await ClientAsync(handler);
+
+        var exception = await Assert.ThrowsAsync<YogabaseApiException>(() =>
+            client.Servers.StartAsync("battle", TestContext.Current.CancellationToken));
+
+        Assert.Equal(409, exception.StatusCode);
+        Assert.Equal("server_none_available", exception.Code);
+        Assert.Equal("No Ready instance.", exception.Message);
     }
 
     [Theory]
@@ -164,6 +203,13 @@ public sealed class BuildsAndServersTests
     [InlineData("")]
     [InlineData("   ")]
     [InlineData(" battle")]
+    // The canonical service id grammar the bundle contract pins: lower-case DNS-label shape, at
+    // most 63 characters. Anything else is refused server-side as server_request_invalid.
+    [InlineData("Battle")]
+    [InlineData("battle_1")]
+    [InlineData("-battle")]
+    [InlineData("battle-")]
+    [InlineData("a234567890123456789012345678901234567890123456789012345678901234")]
     public async Task ServerStartRejectsAMalformedServiceBeforeTransport(string service)
     {
         var calls = 0;
@@ -192,9 +238,7 @@ public sealed class BuildsAndServersTests
         {
             observed = Clone(request);
             parts = await ReadMultipartAsync(request.Content!, cancellationToken);
-            return Json(
-                HttpStatusCode.Accepted,
-                "{\"buildId\":\"bld-1\",\"digest\":\"sha256:aa\",\"state\":\"checking\"}");
+            return Json(HttpStatusCode.Accepted, Checking());
         });
         using var builds = Builds(handler);
         using var bundle = new MemoryStream(Encoding.ASCII.GetBytes("PK-not-really-a-zip"));
@@ -219,7 +263,7 @@ public sealed class BuildsAndServersTests
 
         Assert.Equal(HttpMethod.Post, observed!.Method);
         Assert.Equal(BuildsRoute, observed.RequestUri!.AbsoluteUri);
-        Assert.Equal(new AuthenticationHeaderValue("Bearer", "dev-token-0123456789"), observed.Headers.Authorization);
+        Assert.Equal(new AuthenticationHeaderValue("Bearer", DeveloperToken), observed.Headers.Authorization);
 
         // The bundle is written last so a server reading the form as a stream can refuse a
         // malformed port or executable before it has buffered a few hundred megabytes of zip.
@@ -234,10 +278,18 @@ public sealed class BuildsAndServersTests
         Assert.Equal("PK-not-really-a-zip", parts[5].Body);
 
         Assert.True(bundle.CanRead, "The caller's bundle stream must survive the upload.");
-        Assert.Equal("bld-1", build.BuildId);
+        Assert.Equal(BuildId, build.BuildId);
         Assert.Equal("sha256:aa", build.Digest);
         Assert.Equal(YogabaseBuild.StateChecking, build.State);
+        Assert.Equal("battle:1.4.0", build.Identity);
+        Assert.Equal(1, build.Attempt);
+        Assert.Equal("SelfContainedService", build.Kind);
         Assert.False(build.IsTerminal);
+        // An accepted upload's check says nothing has been observed yet, and says so honestly.
+        Assert.Equal(YogabaseBuildCheck.YogabaseDerived, build.Check.EvidenceOrigin);
+        Assert.False(build.Check.Passed);
+        Assert.Empty(build.Check.Findings);
+        Assert.Empty(build.Check.Refusals);
     }
 
     [Fact]
@@ -247,9 +299,7 @@ public sealed class BuildsAndServersTests
         var handler = new ScriptedHandler(async (request, cancellationToken) =>
         {
             parts = await ReadMultipartAsync(request.Content!, cancellationToken);
-            return Json(
-                HttpStatusCode.Accepted,
-                "{\"buildId\":\"bld-1\",\"digest\":\"sha256:aa\",\"state\":\"checking\"}");
+            return Json(HttpStatusCode.Accepted, Checking());
         });
         using var builds = Builds(handler);
         using var bundle = new MemoryStream(Encoding.ASCII.GetBytes("bundle"));
@@ -307,8 +357,14 @@ public sealed class BuildsAndServersTests
         "game=7777/udp",
         new YogabaseBuildPort { Name = "game", Port = 7777, Protocol = "udp" }.ToFieldValue());
 
-    [Fact]
-    public async Task BuildGetUsesTheExactBuildRouteAndEscapesTheIdentifier()
+    [Theory]
+    // The Control Plane's route constrains the id to a UUID; every spelling of the same UUID is
+    // sent in the canonical D form the route and the response both use.
+    [InlineData("3f2504e0-4f89-11d3-9a0c-0305e82c3301")]
+    [InlineData("3F2504E0-4F89-11D3-9A0C-0305E82C3301")]
+    [InlineData("{3f2504e0-4f89-11d3-9a0c-0305e82c3301}")]
+    [InlineData("3f2504e04f8911d39a0c0305e82c3301")]
+    public async Task BuildGetUsesTheExactBuildRouteWithTheCanonicalIdentifier(string buildId)
     {
         Uri? route = null;
         var handler = new ScriptedHandler((request, _) =>
@@ -318,11 +374,82 @@ public sealed class BuildsAndServersTests
         });
         using var builds = Builds(handler);
 
-        var build = await builds.GetAsync(ProjectId, EnvironmentId, "bld 1", TestContext.Current.CancellationToken);
+        var build = await builds.GetAsync(ProjectId, EnvironmentId, buildId, TestContext.Current.CancellationToken);
 
-        Assert.Equal(BuildsRoute + "/bld%201", route!.AbsoluteUri);
+        Assert.Equal(BuildsRoute + "/" + BuildId, route!.AbsoluteUri);
         Assert.True(build.IsAdmitted);
-        Assert.True(build.Check!.Passed);
+        Assert.True(build.Check.Passed);
+        Assert.Equal(YogabaseBuildCheck.YogabaseDerived, build.Check.EvidenceOrigin);
+        Assert.Equal("sha256:inv", build.Check.InventoryDigest);
+        Assert.Equal("sha256:scan", build.Check.ScanDigest);
+        Assert.Equal("sha256:db", build.Check.DatabaseDigest);
+        Assert.Equal(
+            DateTimeOffset.Parse("2026-09-09T00:00:00+00:00", System.Globalization.CultureInfo.InvariantCulture),
+            build.Check.ObservedAt);
+    }
+
+    [Theory]
+    [InlineData("bld-1")]
+    [InlineData("")]
+    [InlineData("00000000-0000-0000-0000-000000000000")]
+    public async Task ABuildIdThatIsNotAUuidIsRefusedBeforeTransport(string buildId)
+    {
+        var calls = 0;
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            calls++;
+            return Task.FromResult(Json(HttpStatusCode.OK, Terminal(YogabaseBuild.StateAdmitted)));
+        });
+        using var builds = Builds(handler);
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            builds.GetAsync(ProjectId, EnvironmentId, buildId, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            builds.RecheckAsync(ProjectId, EnvironmentId, buildId, TestContext.Current.CancellationToken));
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
+    public async Task BuildRecheckPostsTheRecheckRouteAndReturnsTheBuild()
+    {
+        HttpRequestMessage? observed = null;
+        var handler = new ScriptedHandler((request, _) =>
+        {
+            observed = Clone(request);
+            return Task.FromResult(Json(HttpStatusCode.Accepted, Checking()));
+        });
+        using var builds = Builds(handler);
+
+        var build = await builds.RecheckAsync(ProjectId, EnvironmentId, BuildId, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpMethod.Post, observed!.Method);
+        Assert.Equal(BuildsRoute + "/" + BuildId + "/recheck", observed.RequestUri!.AbsoluteUri);
+        Assert.Null(observed.Content);
+        Assert.Equal(YogabaseBuild.StateChecking, build.State);
+    }
+
+    [Fact]
+    public async Task ABuildRefusalCarriesTheControlPlaneCodeFieldAndCorrelation()
+    {
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            var response = Json(
+                HttpStatusCode.BadRequest,
+                "{\"type\":\"https://yogabase.io/problems/build-bundle-unrecognized\",\"title\":\"The build request was refused\","
+                + "\"status\":400,\"detail\":\"The archive holds neither a .NET Lambda bundle nor a Linux executable this product can launch.\","
+                + "\"code\":\"BUILD_BUNDLE_UNRECOGNIZED\",\"correlationId\":\"corr-1\",\"fieldErrors\":{\"bundle\":[\"unrecognized\"]}}");
+            response.Headers.TryAddWithoutValidation("X-Correlation-ID", "corr-1");
+            return Task.FromResult(response);
+        });
+        using var builds = Builds(handler);
+        using var bundle = new MemoryStream(Encoding.ASCII.GetBytes("bundle"));
+
+        var exception = await Assert.ThrowsAsync<YogabaseApiException>(() =>
+            builds.UploadAsync(ProjectId, EnvironmentId, bundle, null, TestContext.Current.CancellationToken));
+
+        Assert.Equal(400, exception.StatusCode);
+        Assert.Equal("BUILD_BUNDLE_UNRECOGNIZED", exception.Code);
+        Assert.Equal("corr-1", exception.TraceId);
     }
 
     [Fact]
@@ -333,7 +460,7 @@ public sealed class BuildsAndServersTests
         {
             calls++;
             return Task.FromResult(calls < 3
-                ? Json(HttpStatusCode.OK, "{\"buildId\":\"bld-1\",\"digest\":\"sha256:aa\",\"state\":\"checking\"}")
+                ? Json(HttpStatusCode.OK, Checking())
                 : Json(HttpStatusCode.OK, Refused()));
         });
         using var builds = Builds(handler);
@@ -342,7 +469,7 @@ public sealed class BuildsAndServersTests
         var build = await builds.WaitForCheckAsync(
             ProjectId,
             EnvironmentId,
-            "bld-1",
+            BuildId,
             FastPolling(),
             observed,
             TestContext.Current.CancellationToken);
@@ -352,7 +479,8 @@ public sealed class BuildsAndServersTests
         Assert.Equal(YogabaseBuild.StateRefused, build.State);
         Assert.True(build.IsTerminal);
         Assert.False(build.IsAdmitted);
-        var finding = Assert.Single(build.Check!.Findings);
+        Assert.Equal(2, build.Attempt);
+        var finding = Assert.Single(build.Check.Findings);
         Assert.Equal("CVE-2026-62901", finding.Id);
         Assert.Equal("System.Text.Json", finding.Package);
         Assert.Equal("8.0.0", finding.Version);
@@ -360,8 +488,9 @@ public sealed class BuildsAndServersTests
         Assert.Equal("High", finding.Severity);
         Assert.Equal("Server_Data/Managed/System.Text.Json.dll", finding.Entry);
         var refusal = Assert.Single(build.Check.Refusals);
-        Assert.Equal("bundle_executable_missing", refusal.Code);
-        Assert.Equal("executable", refusal.Path);
+        Assert.Equal("bundle-executable-missing", refusal.Code);
+        Assert.Equal("executable", refusal.Field);
+        Assert.Equal("entry-absent", refusal.Cause);
     }
 
     [Fact]
@@ -380,7 +509,7 @@ public sealed class BuildsAndServersTests
         var build = await builds.WaitForCheckAsync(
             ProjectId,
             EnvironmentId,
-            "bld-1",
+            BuildId,
             FastPolling(),
             progress: null,
             TestContext.Current.CancellationToken);
@@ -393,18 +522,18 @@ public sealed class BuildsAndServersTests
     public async Task WaitForCheckSurfacesAPermanentFailure()
     {
         var handler = new ScriptedHandler((_, _) =>
-            Task.FromResult(Json(HttpStatusCode.NotFound, "{\"code\":\"build_not_found\"}")));
+            Task.FromResult(Json(HttpStatusCode.NotFound, "{\"code\":\"BUILD_NOT_FOUND\"}")));
         using var builds = Builds(handler);
 
         var exception = await Assert.ThrowsAsync<YogabaseApiException>(() => builds.WaitForCheckAsync(
             ProjectId,
             EnvironmentId,
-            "bld-1",
+            BuildId,
             FastPolling(),
             progress: null,
             TestContext.Current.CancellationToken));
 
-        Assert.Equal("build_not_found", exception.Code);
+        Assert.Equal("BUILD_NOT_FOUND", exception.Code);
     }
 
     [Fact]
@@ -412,13 +541,13 @@ public sealed class BuildsAndServersTests
     {
         var handler = new ScriptedHandler((_, _) => Task.FromResult(Json(
             HttpStatusCode.OK,
-            "{\"buildId\":\"bld-1\",\"digest\":\"sha256:aa\",\"state\":\"checking\"}")));
+            Checking())));
         using var builds = Builds(handler);
 
         await Assert.ThrowsAsync<TimeoutException>(() => builds.WaitForCheckAsync(
             ProjectId,
             EnvironmentId,
-            "bld-1",
+            BuildId,
             new YogabaseBuildPollingOptions
             {
                 Timeout = TimeSpan.FromMilliseconds(80),
@@ -438,14 +567,14 @@ public sealed class BuildsAndServersTests
             cancellation.Cancel();
             return Task.FromResult(Json(
                 HttpStatusCode.OK,
-                "{\"buildId\":\"bld-1\",\"digest\":\"sha256:aa\",\"state\":\"checking\"}"));
+                Checking()));
         });
         using var builds = Builds(handler);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => builds.WaitForCheckAsync(
             ProjectId,
             EnvironmentId,
-            "bld-1",
+            BuildId,
             FastPolling(),
             progress: null,
             cancellation.Token));
@@ -455,7 +584,7 @@ public sealed class BuildsAndServersTests
     public async Task AnInvalidBuildResponseIsRefusedRatherThanReturnedEmpty()
     {
         var handler = new ScriptedHandler((_, _) =>
-            Task.FromResult(Json(HttpStatusCode.Accepted, "{\"buildId\":\"\",\"digest\":\"\",\"state\":\"\"}")));
+            Task.FromResult(Json(HttpStatusCode.Accepted, "{\"buildId\":\"bld-1\",\"digest\":\"\",\"state\":\"\"}")));
         using var builds = Builds(handler);
         using var bundle = new MemoryStream(Encoding.ASCII.GetBytes("bundle"));
 
@@ -469,12 +598,17 @@ public sealed class BuildsAndServersTests
     public void TheBuildsClientRefusesAnInsecureNonLoopbackControlPlane() =>
         Assert.Throws<ArgumentException>(() => new YogabaseBuildsClient(
             new Uri("http://control-plane.example/"),
-            "dev-token-0123456789"));
+            DeveloperToken));
 
     [Theory]
     [InlineData("")]
-    [InlineData("short")]
-    [InlineData("has whitespace in it 0123")]
+    [InlineData("ybt_")]
+    [InlineData("ybt_has whitespace in it 0123")]
+    // A bearer without the ybt_ prefix is not a developer token to the Control Plane: its
+    // authentication handler yields no result rather than a refusal, so the caller would see a
+    // bare 401 with nothing to act on. Refuse it here, naming the prefix.
+    [InlineData("dev-token-0123456789")]
+    [InlineData("ybt_0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz")]
     public void TheBuildsClientRefusesAMalformedDeveloperToken(string token) =>
         Assert.Throws<ArgumentException>(() => new YogabaseBuildsClient(
             new Uri("https://control-plane.example/"),
@@ -487,7 +621,7 @@ public sealed class BuildsAndServersTests
         builds.Dispose();
 
         await Assert.ThrowsAsync<ObjectDisposedException>(() =>
-            builds.GetAsync(ProjectId, EnvironmentId, "bld-1", TestContext.Current.CancellationToken));
+            builds.GetAsync(ProjectId, EnvironmentId, BuildId, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -584,7 +718,7 @@ public sealed class BuildsAndServersTests
 
     private static YogabaseBuildsClient Builds(HttpMessageHandler handler) => YogabaseClient.Builds(
         new Uri("http://localhost:7100/"),
-        "dev-token-0123456789",
+        DeveloperToken,
         new YogabaseBuildsClientOptions
         {
             AllowInsecureLoopback = true,
@@ -719,22 +853,65 @@ public sealed class BuildsAndServersTests
         },
     });
 
+    // Exactly the shape BuildEndpoints.Response writes: every field, every time.
+    private static string Checking() => JsonSerializer.Serialize(new
+    {
+        buildId = BuildId,
+        digest = "sha256:aa",
+        state = "checking",
+        identity = "battle:1.4.0",
+        attempt = 1,
+        kind = "SelfContainedService",
+        check = new
+        {
+            evidenceOrigin = "yogabase-derived",
+            inventoryDigest = "",
+            scanDigest = "",
+            databaseDigest = "",
+            passed = false,
+            observedAt = "2026-09-09T00:00:00+00:00",
+            findings = Array.Empty<object>(),
+            refusals = Array.Empty<object>(),
+        },
+    });
+
     private static string Terminal(string state) => JsonSerializer.Serialize(new
     {
-        buildId = "bld-1",
+        buildId = BuildId,
         digest = "sha256:aa",
         state,
-        check = new { passed = true, findings = Array.Empty<object>(), refusals = Array.Empty<object>() },
+        identity = "battle:1.4.0",
+        attempt = 1,
+        kind = "SelfContainedService",
+        check = new
+        {
+            evidenceOrigin = "yogabase-derived",
+            inventoryDigest = "sha256:inv",
+            scanDigest = "sha256:scan",
+            databaseDigest = "sha256:db",
+            passed = true,
+            observedAt = "2026-09-09T00:00:00+00:00",
+            findings = Array.Empty<object>(),
+            refusals = Array.Empty<object>(),
+        },
     });
 
     private static string Refused() => JsonSerializer.Serialize(new
     {
-        buildId = "bld-1",
+        buildId = BuildId,
         digest = "sha256:aa",
         state = "refused",
+        identity = "battle:1.4.0",
+        attempt = 2,
+        kind = "SelfContainedService",
         check = new
         {
+            evidenceOrigin = "yogabase-derived",
+            inventoryDigest = "sha256:inv",
+            scanDigest = "sha256:scan",
+            databaseDigest = "sha256:db",
             passed = false,
+            observedAt = "2026-09-09T00:00:00+00:00",
             findings = new[]
             {
                 new
@@ -751,9 +928,9 @@ public sealed class BuildsAndServersTests
             {
                 new
                 {
-                    code = "bundle_executable_missing",
-                    path = "executable",
-                    message = "The declared executable is not present in the bundle.",
+                    code = "bundle-executable-missing",
+                    field = "executable",
+                    cause = "entry-absent",
                 },
             },
         },
