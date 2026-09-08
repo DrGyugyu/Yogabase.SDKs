@@ -11,6 +11,8 @@ transitive graph before publication.
 | Dependency | Locked version | Use | License | Obligation / boundary |
 |---|---:|---|---|---|
 | `Microsoft.AspNetCore.SignalR.Client` | 10.0.11 | .NET realtime transport | MIT | Retain the MIT notice when redistributed. Unity remains unqualified. |
+| `Microsoft.Extensions.Logging.Abstractions` | 10.0.11 | The only package dependency of `Yogabase.Lambda` | MIT | Retain the MIT notice when redistributed. A Lambda bundle shares the sandbox host's load context, so this version must stay compatible with the host's. |
+| `Microsoft.Extensions.Http` | 10.0.10 | `Yogabase.Lambda.Tests` only | MIT | Test-only. `Yogabase.Lambda` deliberately does not reference it and resolves `IHttpClientFactory` by type name; the test reference exists to prove that lookup binds the real interface. |
 | `System.Text.Json` | 10.0.11 | .NET JSON transport | MIT | Retain the MIT notice when redistributed. |
 | `xunit.v3` | 4.0.0 | .NET tests only | Apache-2.0 | Build/test-only; retain required notice if redistributed. |
 | `@microsoft/kiota-bundle` | 1.0.0-preview.103 | TypeScript runtime | MIT | Retain the MIT notice; transitive licenses are recorded in `package-lock.json`. |
@@ -25,6 +27,7 @@ transitive graph before publication.
 | `uuid` | 4.6.0 | Dart delivery UUID value type | MIT | Retain the MIT notice. |
 | Microsoft Kiota generator | 1.34.1 | External source generation | MIT | Generation tool only; source commit and NuGet digest are bound in `MANIFEST.json`. |
 | Agones client SDK loop shape (`v1.60.0`, `67b44a783218f7811084adaa5d9b334fb28e44ba`) | Source-ported, not a package reference | Client loop shape for `Yogabase.Yogabase.RuntimeHost` and its Unity package | Apache-2.0 | Retain the Apache-2.0 licence and the "Copyright Contributors to Agones a Series of LF Projects, LLC" attribution; ship the unmodified licence text at `licenses/Apache-2.0-Agones.txt` and pack it into the package; mark every translated file prominently as a modified derivative. Apache-2.0 imposes no source-disclosure, network-use, or commercial restriction. Copying boundary and modifications are recorded in [`REFERENCE_REVIEW.md`](REFERENCE_REVIEW.md). |
+| Nakama Plus runtime-module surface shape (`18e4d2cd53d5f546d5684d6f70996c08234afc45`) | Shape-ported, not a package reference and not a source copy | Grouping of the `Yogabase.Lambda` runtime context | Apache-2.0 | Retain the Apache-2.0 licence and the "Copyright 2018 The Nakama Authors" attribution; ship the unmodified licence text at `licenses/Apache-2.0-Nakama.txt` (SHA-256 `cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30`) and pack it into the package alongside `THIRD-PARTY-NOTICES.md`. No Nakama source, type name, wire contract, or storage model is adopted. Copying boundary is recorded in [`REFERENCE_REVIEW.md`](REFERENCE_REVIEW.md). |
 
 The SDK implementations and package-specific `LICENSE.md` files are proprietary. Third-party
 dependencies do not receive rights to Yogabase source beyond their own license terms.

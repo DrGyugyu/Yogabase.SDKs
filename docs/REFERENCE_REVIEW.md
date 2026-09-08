@@ -83,6 +83,29 @@ the condition the boundary set is therefore met.
 | Marking | Every derived file carries a prominent header naming the revision, licence, attribution, its status as a modified derivative, and the modifications above. |
 | Replacement strategy | The module is a thin authored client over an HTTP contract Yogabase owns. Were the Apache grant ever unusable, it could be rewritten directly from `contracts/yogabase-runtime-host-v1.openapi.json` and the relay route allowlist without reference to Agones. |
 
-PlayFlow and Nakama remain reference-only and are not ported. The distinction matters: Agones
-material is now *adopted* under its permissive licence, while those two continue to inform design
-without any material being copied.
+PlayFlow remains reference-only and is not ported. The Nakama .NET/Unity **client** likewise stays
+reference-only; the Nakama Plus **runtime module** surface is now a shape adoption, recorded
+immediately below.
+
+## Adopted shape: the Lambda runtime context
+
+`Yogabase.Lambda` presents one context object to customer code. The grouping it presents — a
+database handle, an object store, a user directory with ban and token-issuance operations, a topic
+publish call, the caller's identity, a logger, and per-invocation facts — is the grouping Nakama's
+`nk.*` runtime module presents, translated into C#. That is an adoption of shape, not of source.
+
+| Field | Record |
+|---|---|
+| Adopted source | Nakama Plus runtime modules (`https://github.com/doublemo/nakama-plus.git`) |
+| Revision | commit `18e4d2cd53d5f546d5684d6f70996c08234afc45`, observed on `main` 2026-08-22 |
+| Licence | Apache-2.0; the unmodified text ships at `licenses/Apache-2.0-Nakama.txt`, SHA-256 `cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30` |
+| Attribution | Copyright 2018 The Nakama Authors. No `NOTICE` file exists in the pinned tree. |
+| Adopted | The *shape* of the runtime-module context surface only: which capabilities a server-side function is handed, and that they arrive grouped on one context object rather than as free functions. |
+| Not adopted | No Nakama source, Go/Lua/JavaScript runtime, type or method name, wire contract, storage/collection model, or match, session, party, tournament, leaderboard, wallet, notification, or social concept. No Nakama dependency, binary, or generated code. |
+| Modifications | The surface is C#, BCL-typed, and bound to Yogabase's own internal Lambda runtime API routes (`LambdaRoutes`) and identity boundaries. The database is `System.Data.Common.DbDataSource` under the project's `yogabase_lambda` identity, not a Nakama storage engine; there is no key/value collection API, no storage index, and no runtime-module registration surface in this package. |
+| Marking | `src/dotnet/Yogabase.Lambda/THIRD-PARTY-NOTICES.md`, packed into the package. |
+| Replacement strategy | The surface is an authored wrapper over an HTTP contract and a BCL type Yogabase owns. Were the Apache grant ever unusable, it could be rewritten from `LambdaRoutes` and the entry contract alone. |
+
+The same pinned revision is already recorded in the product repository's `references.lock.json` for
+its separate, source-level C# translation of runtime-module registration. That translation lives in
+the product repository and does not enter this one.

@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework />
+    <TargetFrameworks>netstandard2.1;net10.0</TargetFrameworks>
+    <RootNamespace>Yogabase.Lambda</RootNamespace>
+    <AssemblyName>Yogabase.Lambda</AssemblyName>
+    <PackageId>Yogabase.Lambda</PackageId>
+    <Version>0.1.0-preview.1</Version>
+    <Authors>Yogabase</Authors>
+    <Company>Yogabase</Company>
+    <Description>Preview first-party .NET context wrapper for a Yogabase Lambda: the project database, Storage, Users, Realtime, the caller, and per-invocation facts, resolved from the runtime's service provider.</Description>
+    <PackageTags>yogabase;lambda;serverless;baas</PackageTags>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+    <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsPackable>true</IsPackable>
+    <PublishRepositoryUrl>false</PublishRepositoryUrl>
+    <!-- These APIs have newer static/char alternatives only on the net10 target. Keep one
+         source-compatible implementation for the netstandard2.1 build. -->
+    <NoWarn>$(NoWarn);CS1591;CA1510;CA1512;CA1847;CA1850;CA1865</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Deliberately the whole dependency list. A Lambda bundle shares the sandbox host's
+         assembly load context, so every package this wrapper adds is a package the host must
+         already carry at a compatible version. ILogger comes from the abstractions package the
+         host unifies; IHttpClientFactory is resolved from the provider by name rather than
+         referenced, so Microsoft.Extensions.Http never enters a bundle's closure. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+    <!-- System.Text.Json is part of the shared framework on net10.0, which is the target a Lambda
+         bundle actually runs on. Only the .NET Standard build has to carry it as a package. -->
+    <PackageReference Include="System.Text.Json" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../../../LICENSE.md" Pack="true" PackagePath="/" />
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <!-- Notice retention: the context surface is a C# translation of the shape of the Nakama Plus
+         runtime module API (Apache-2.0, commit 18e4d2cd53d5f546d5684d6f70996c08234afc45), so the
+         unmodified upstream licence travels inside the package itself. The copying boundary is
+         recorded in docs/REFERENCE_REVIEW.md. -->
+    <None Include="../../../licenses/Apache-2.0-Nakama.txt" Pack="true" PackagePath="licenses/" />
+    <None Include="THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <!-- A local preview may contain reviewed working-tree changes beyond HEAD. Do not stamp the
+       resulting package with an older commit and imply that it is reproducible from that commit. -->
+  <Target Name="ClearLocalPreviewRepositoryMetadata" BeforeTargets="GenerateNuspec">
+    <PropertyGroup>
+      <RepositoryUrl />
+      <RepositoryType />
+      <RepositoryBranch />
+      <RepositoryCommit />
+    </PropertyGroup>
+  </Target>
+</Project>

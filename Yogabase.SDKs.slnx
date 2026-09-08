@@ -2,9 +2,11 @@
   <Folder Name="/src/">
     <Project Path="src/dotnet/Yogabase.Yogabase.Client/Yogabase.Yogabase.Client.csproj" />
     <Project Path="src/dotnet/Yogabase.Yogabase.RuntimeHost/Yogabase.Yogabase.RuntimeHost.csproj" />
+    <Project Path="src/dotnet/Yogabase.Lambda/Yogabase.Lambda.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/dotnet/Yogabase.Yogabase.Client.Tests/Yogabase.Yogabase.Client.Tests.csproj" />
     <Project Path="tests/dotnet/Yogabase.Yogabase.RuntimeHost.Tests/Yogabase.Yogabase.RuntimeHost.Tests.csproj" />
+    <Project Path="tests/dotnet/Yogabase.Lambda.Tests/Yogabase.Lambda.Tests.csproj" />
   </Folder>
 </Solution>
