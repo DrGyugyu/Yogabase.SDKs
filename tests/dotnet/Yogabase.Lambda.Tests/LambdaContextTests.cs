@@ -45,6 +45,19 @@ public sealed class LambdaContextTests
     public void FromRefusesANullProvider() =>
         Assert.Throws<ArgumentNullException>(() => LambdaContext.From(null!));
 
+    [Fact]
+    public void ProjectIdIsAvailableForDirectValkeyPrefixesAndOptionalOnOlderHosts()
+    {
+        var provider = new FakeProvider();
+        Assert.Null(LambdaContext.From(provider).Invocation.ProjectId);
+        var facts = new Dictionary<string, string>(LambdaContext.From(provider).Invocation.Facts, StringComparer.Ordinal)
+        {
+            [LambdaRoutes.ProjectIdKey] = "33333333-3333-4333-8333-333333333333",
+        };
+        provider.Register(typeof(IReadOnlyDictionary<string, string>), facts);
+        Assert.Equal("33333333-3333-4333-8333-333333333333", LambdaContext.From(provider).Invocation.ProjectId);
+    }
+
     [Theory]
     [InlineData(typeof(ILogger))]
     [InlineData(typeof(ClaimsPrincipal))]

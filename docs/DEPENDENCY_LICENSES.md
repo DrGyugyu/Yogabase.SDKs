@@ -11,7 +11,8 @@ transitive graph before publication.
 | Dependency | Locked version | Use | License | Obligation / boundary |
 |---|---:|---|---|---|
 | `Microsoft.AspNetCore.SignalR.Client` | 10.0.11 | .NET realtime transport | MIT | Retain the MIT notice when redistributed. Unity remains unqualified. |
-| `Microsoft.Extensions.Logging.Abstractions` | 10.0.11 | The only package dependency of `Yogabase.Lambda` | MIT | Retain the MIT notice when redistributed. A Lambda bundle shares the sandbox host's load context, so this version must stay compatible with the host's. |
+| `Microsoft.Extensions.Logging.Abstractions` | 10.0.11 | `Yogabase.Lambda` logging | MIT | Retain the MIT notice when redistributed. A Lambda bundle shares the sandbox host's load context, so this version must stay compatible with the host's. |
+| `StackExchange.Redis` | 3.1.31 | `Yogabase.Lambda` direct project Valkey data and pub/sub client | MIT | Retain the MIT notice. Matches the existing product host pin and unifies with its assembly; Valkey ACLs enforce isolation. Replacement requires updating the direct client contract in both repositories. |
 | `Microsoft.Extensions.Http` | 10.0.10 | `Yogabase.Lambda.Tests` only | MIT | Test-only. `Yogabase.Lambda` deliberately does not reference it and resolves `IHttpClientFactory` by type name; the test reference exists to prove that lookup binds the real interface. |
 | `System.Text.Json` | 10.0.11 | .NET JSON transport | MIT | Retain the MIT notice when redistributed. |
 | `xunit.v3` | 4.0.0 | .NET tests only | Apache-2.0 | Build/test-only; retain required notice if redistributed. |

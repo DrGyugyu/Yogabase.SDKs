@@ -279,6 +279,8 @@ public static class LambdaRoutes
     public const string VersionKey = "yogabase.version";
     /// <inheritdoc cref="InvocationIdKey"/>
     public const string EnvironmentIdKey = "yogabase.environmentId";
+    /// <inheritdoc cref="InvocationIdKey"/>
+    public const string ProjectIdKey = "yogabase.projectId";
 
     /// <summary>
     /// Subject prefix the runtime gives an invocation that no end user initiated — a schedule, an
