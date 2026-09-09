@@ -173,10 +173,26 @@ public sealed class LambdaCaller
         Principal = principal;
         Subject = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
             ?? principal.FindFirst("sub")?.Value;
+        InvocationKind = principal.FindFirst(LambdaRoutes.InvocationKindClaimType)?.Value;
     }
 
     /// <summary>The caller as the runtime resolved it.</summary>
     public ClaimsPrincipal Principal { get; }
+
+    /// <summary>
+    /// What triggered this invocation, as the runtime's <c>yogabase:invocation-kind</c> claim names
+    /// it: <c>Caller</c>, <c>Scheduled</c>, <c>Actor</c>, <c>Workflow</c> or <c>Consumer</c>. Null on a
+    /// host older than the claim.
+    /// </summary>
+    public string? InvocationKind { get; }
+
+    /// <summary>
+    /// Whether a managed broker consumer trigger started this invocation. The Lambda's
+    /// <c>input</c> is then exactly one Kafka record's value bytes, delivered at least once: the
+    /// same record can arrive again after a retry, so external side effects must be idempotent.
+    /// </summary>
+    public bool IsConsumerTrigger =>
+        string.Equals(InvocationKind, LambdaRoutes.ConsumerInvocationKind, StringComparison.Ordinal);
 
     /// <summary>
     /// The raw <c>sub</c> claim. For a scheduled, actor, or workflow invocation the runtime sets it

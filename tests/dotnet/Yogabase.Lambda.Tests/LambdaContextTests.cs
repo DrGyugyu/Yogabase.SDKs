@@ -42,6 +42,45 @@ public sealed class LambdaContextTests
     }
 
     [Fact]
+    public void AConsumerTriggerIsASystemInvocationOfTheFunctionWithTheConsumerKind()
+    {
+        var provider = new FakeProvider();
+        provider.Register(typeof(ClaimsPrincipal), new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(LambdaRoutes.InvocationKindClaimType, LambdaRoutes.ConsumerInvocationKind),
+            new Claim("sub", LambdaRoutes.SystemSubjectPrefix + "battle-pass"),
+        ], "yogabase-lambda", "sub", "role")));
+
+        var caller = LambdaContext.From(provider).Caller;
+
+        Assert.True(caller.IsSystem);
+        Assert.Equal("battle-pass", caller.SystemFunctionId);
+        Assert.Equal("Consumer", caller.InvocationKind);
+        Assert.True(caller.IsConsumerTrigger);
+        Assert.False(caller.TryGetSubjectId(out _));
+        Assert.Contains("not by an application user", Assert.Throws<InvalidOperationException>(() => caller.RequireSubjectId()).Message);
+    }
+
+    [Fact]
+    public void AUserCallCarriesTheCallerKindAndIsNeverAConsumerTrigger()
+    {
+        var provider = new FakeProvider();
+        provider.Register(typeof(ClaimsPrincipal), new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(LambdaRoutes.InvocationKindClaimType, "Caller"),
+            new Claim("sub", PlayerSubject),
+        ], "yogabase-lambda", "sub", "role")));
+        var caller = LambdaContext.From(provider).Caller;
+        Assert.Equal("Caller", caller.InvocationKind);
+        Assert.False(caller.IsConsumerTrigger);
+        Assert.True(caller.TryGetSubjectId(out var subject));
+        Assert.Equal(Guid.Parse(PlayerSubject), subject);
+        // An older host supplies no kind claim; the wrapper stays honest rather than guessing.
+        Assert.Null(LambdaContext.From(new FakeProvider()).Caller.InvocationKind);
+        Assert.False(LambdaContext.From(new FakeProvider()).Caller.IsConsumerTrigger);
+    }
+
+    [Fact]
     public void FromRefusesANullProvider() =>
         Assert.Throws<ArgumentNullException>(() => LambdaContext.From(null!));
 

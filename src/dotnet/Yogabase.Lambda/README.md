@@ -138,8 +138,7 @@ project-local paths; the gateway adds the project's broker namespace. Kafka publ
 same runtime API and a broker-local publisher authenticated with a gateway-only mTLS identity.
 No MQTT/Kafka client, broker address or credential is handed to customer code. An unbound or
 unqualified publish capability returns `LambdaApiException.Code == LambdaMessaging.SubstrateUnavailable`.
-At the 2026-09-09 handoff, managed Kafka publication remains gated off: the broker rehearsal
-passes, but Kubernetes gateway-to-Service verification is still failing.
+Managed Kafka publication was qualified on 2026-09-09 (`robustmq-lambda-kafka-publish`).
 
 For example, a Lambda can publish its input as a Kafka message:
 
@@ -157,11 +156,38 @@ acknowledges persistence. The SDK and gateway never automatically retry a publis
 occur after the broker accepted a message, so an explicit retry can duplicate it. This managed
 publish API does not qualify direct native Kafka clients or anonymous consumers.
 
-Kafka topics reach a Lambda through a configured consumer trigger. The existing consumer runtime
-records the Lambda's durable result before acknowledging the broker receipt. Delivery is
-**at least once**: handlers must make external side effects idempotent because a retry can deliver
-the same record again. MQTT QoS 1 can also deliver duplicates. The SDK exposes no Kafka consumer
-inside the sandbox.
+Kafka topics reach a Lambda through a consumer trigger declared on the runtime
+(`spec.substrates.robustmqTriggers`: a logical topic, a group and an admitted function version).
+The broker's Kafka API role consumes the project topic and the gateway records the Lambda's
+durable result before the broker offset is acknowledged. Delivery is **at least once**: handlers
+must make external side effects idempotent because a retry can deliver the same record again.
+MQTT QoS 1 can also deliver duplicates. The SDK exposes no Kafka consumer inside the sandbox.
+
+What a triggered Lambda receives is exactly the ordinary v3 contract:
+
+- `input` is the Kafka record's **value bytes**, unchanged (at most 32 KiB, the publish limit).
+  The record key and headers are not passed; put anything the handler needs in the value.
+- `context.Caller.Subject` is `lambda:<functionId>` (`IsSystem` is true, `SystemFunctionId` is the
+  function id) and `context.Caller.InvocationKind` is `Consumer`, so `IsConsumerTrigger` is true.
+- `context.Invocation` carries the usual invocation id, function id, version, environment and
+  project facts. The invocation id is stable across redeliveries of the same record, which is the
+  natural idempotency key.
+- Every runtime service (database, storage, users, realtime, actors, workflows, reminders,
+  messaging, Valkey) is available exactly as for a user-initiated invocation.
+
+```csharp
+public static async ValueTask<ReadOnlyMemory<byte>> InvokeAsync(
+    IServiceProvider services, ReadOnlyMemory<byte> input, CancellationToken cancellationToken)
+{
+    var context = LambdaContext.From(services);
+    if (context.Caller.IsConsumerTrigger)
+    {
+        var order = JsonSerializer.Deserialize<Order>(input.Span);   // the Kafka record value
+        // make this idempotent on context.Invocation.InvocationId: the record may be delivered again
+    }
+    return ReadOnlyMemory<byte>.Empty;
+}
+```
 
 ### Storage semantics
 

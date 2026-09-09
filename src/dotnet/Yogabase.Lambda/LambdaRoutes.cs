@@ -288,6 +288,15 @@ public static class LambdaRoutes
     /// </summary>
     public const string SystemSubjectPrefix = "lambda:";
 
+    /// <summary>
+    /// The claim naming what triggered the invocation (<c>Caller</c>, <c>Scheduled</c>,
+    /// <c>Actor</c>, <c>Workflow</c> or <c>Consumer</c>). Present on every principal the runtime builds.
+    /// </summary>
+    public const string InvocationKindClaimType = "yogabase:invocation-kind";
+
+    /// <summary>The kind a managed broker consumer trigger carries: the input is one Kafka record's value.</summary>
+    public const string ConsumerInvocationKind = "Consumer";
+
     private static string FirstSegment(string value)
     {
         var separator = value.IndexOf('/');
