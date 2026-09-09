@@ -134,10 +134,10 @@ public sealed class LambdaSubstratesTests
     }
 
     [Fact]
-    public async Task MessagingEscapesEachTopicSegmentAndPropagatesKafkaQualificationRefusal()
+    public async Task MessagingEscapesEachTopicSegmentAndPropagatesUnboundKafkaRefusal()
     {
         using var provider = new Provider(request => request.RequestUri!.Query.Contains("kafka", StringComparison.Ordinal)
-            ? Json(HttpStatusCode.ServiceUnavailable, "{\"code\":\"messaging_protocol_unqualified\"}")
+            ? Json(HttpStatusCode.ServiceUnavailable, "{\"code\":\"messaging_substrate_unavailable\"}")
             : new HttpResponseMessage(HttpStatusCode.Accepted));
         var messaging = LambdaContext.From(provider).Messaging;
         await messaging.PublishAsync("orders/player 42", "hello"u8.ToArray(), qos: 1, cancellationToken: Token);
@@ -147,9 +147,79 @@ public sealed class LambdaSubstratesTests
         Assert.Equal(1, body.RootElement.GetProperty("qos").GetInt32());
         var error = await Assert.ThrowsAsync<LambdaApiException>(() => messaging.PublishAsync("orders",
             "hello"u8.ToArray(), protocol: "kafka", cancellationToken: Token));
-        Assert.Equal(LambdaMessaging.ProtocolUnqualified, error.Code);
+        Assert.Equal(LambdaMessaging.SubstrateUnavailable, error.Code);
         Assert.Equal(503, error.StatusCode);
         Assert.Equal("yogabase-messaging", Assert.Single(provider.Names));
+    }
+
+    [Fact]
+    public async Task KafkaPublicationUsesTheSameNamedHttpClientAndWaitsForAcknowledgement()
+    {
+        using var provider = new Provider(_ => new HttpResponseMessage(HttpStatusCode.Accepted));
+        await LambdaContext.From(provider).Messaging.PublishAsync("orders.created-v1", "hello"u8.ToArray(),
+            protocol: "kafka", cancellationToken: Token);
+        var call = Assert.Single(provider.Calls);
+        Assert.Equal("/v1/lambda-runtime/topics/orders.created-v1/messages?protocol=kafka", call.Path);
+        Assert.Equal("yogabase-messaging", Assert.Single(provider.Names));
+        using var body = JsonDocument.Parse(call.Body);
+        Assert.Equal(1, body.RootElement.GetProperty("qos").GetInt32());
+        Assert.Equal("aGVsbG8=", body.RootElement.GetProperty("payloadBase64").GetString());
+        Assert.DoesNotContain("projectId", call.Body, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("orders/created")]
+    [InlineData("p.foreign.orders")]
+    [InlineData("orders%2Fcreated")]
+    [InlineData("orders+#")]
+    [InlineData("orders created")]
+    [InlineData("é")]
+    [InlineData(".")]
+    [InlineData("..")]
+    [InlineData("")]
+    public async Task InvalidKafkaTopicsNeverReachTheRuntimeApi(string topic)
+    {
+        using var provider = new Provider(_ => new HttpResponseMessage(HttpStatusCode.Accepted));
+        await Assert.ThrowsAsync<ArgumentException>(() => LambdaContext.From(provider).Messaging.PublishAsync(
+            topic, ReadOnlyMemory<byte>.Empty, protocol: "kafka", cancellationToken: Token));
+        Assert.Empty(provider.Calls);
+    }
+
+    [Fact]
+    public async Task KafkaRequiresBoundedPayloadTopicAndAcknowledgedPublication()
+    {
+        using var provider = new Provider(_ => new HttpResponseMessage(HttpStatusCode.Accepted));
+        var messaging = LambdaContext.From(provider).Messaging;
+        await Assert.ThrowsAsync<ArgumentException>(() => messaging.PublishAsync(new string('a', 201),
+            ReadOnlyMemory<byte>.Empty, protocol: "kafka", cancellationToken: Token));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => messaging.PublishAsync("orders",
+            new byte[32769], protocol: "kafka", cancellationToken: Token));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => messaging.PublishAsync("orders",
+            ReadOnlyMemory<byte>.Empty, qos: 0, protocol: "kafka", cancellationToken: Token));
+        Assert.Empty(provider.Calls);
+        await messaging.PublishAsync(new string('a', 200), new byte[32768], protocol: "kafka", cancellationToken: Token);
+        Assert.Single(provider.Calls);
+    }
+
+    [Fact]
+    public async Task AFailedKafkaPublishIsTypedAndNeverRetried()
+    {
+        using var provider = new Provider(_ => Json(HttpStatusCode.ServiceUnavailable, "{\"code\":\"messaging_publish_failed\"}"));
+        var error = await Assert.ThrowsAsync<LambdaApiException>(() => LambdaContext.From(provider).Messaging.PublishAsync(
+            "orders", ReadOnlyMemory<byte>.Empty, protocol: "kafka", cancellationToken: Token));
+        Assert.Equal("messaging_publish_failed", error.Code);
+        Assert.Equal(503, error.StatusCode);
+        Assert.Single(provider.Calls);
+    }
+
+    [Fact]
+    public async Task KafkaDoesNotTreatAnUnrecognizedSuccessAsPersistedAcknowledgement()
+    {
+        using var provider = new Provider(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        var error = await Assert.ThrowsAsync<LambdaApiException>(() => LambdaContext.From(provider).Messaging.PublishAsync(
+            "orders", ReadOnlyMemory<byte>.Empty, protocol: "kafka", cancellationToken: Token));
+        Assert.Equal(LambdaRefusalCodes.ResponseInvalid, error.Code);
+        Assert.Single(provider.Calls);
     }
 
     [Fact]

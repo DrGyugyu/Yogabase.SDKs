@@ -133,23 +133,36 @@ public sealed class LambdaReminders
 public sealed class LambdaMessaging
 {
     public const string ProtocolUnqualified = "messaging_protocol_unqualified";
+    public const string SubstrateUnavailable = "messaging_substrate_unavailable";
     private readonly HttpClient client;
     internal LambdaMessaging(HttpClient client) => this.client = client;
 
     public async Task PublishAsync(string topic, ReadOnlyMemory<byte> payload, int qos = 1,
         string protocol = "mqtt", CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(topic) || topic.Length > 512 || Encoding.UTF8.GetByteCount(topic) > 1024
-            || topic.Any(c => char.IsControl(c) || c is '+' or '#'))
-            throw new ArgumentException("A bounded MQTT topic without wildcards is required.", nameof(topic));
-        if (payload.Length > 32 * 1024) throw new ArgumentOutOfRangeException(nameof(payload));
-        if (qos is < 0 or > 1) throw new ArgumentOutOfRangeException(nameof(qos));
         if (protocol is not ("mqtt" or "kafka")) throw new ArgumentException("Use mqtt or kafka.", nameof(protocol));
+        if (protocol == "kafka")
+        {
+            if (string.IsNullOrEmpty(topic) || topic.Length > 200 || topic is "." or ".."
+                || topic.StartsWith("p.", StringComparison.Ordinal)
+                || !topic.All(c => c is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9' or '.' or '_' or '-'))
+                throw new ArgumentException("A logical Kafka topic of 1 to 200 ASCII letters, digits, dots, underscores or hyphens without the reserved p. prefix is required.", nameof(topic));
+        }
+        else if (string.IsNullOrWhiteSpace(topic) || topic.Length > 512 || Encoding.UTF8.GetByteCount(topic) > 1024
+                 || topic.Any(c => char.IsControl(c) || c is '+' or '#'))
+        {
+            throw new ArgumentException("A bounded MQTT topic without wildcards is required.", nameof(topic));
+        }
+        if (payload.Length > 32 * 1024) throw new ArgumentOutOfRangeException(nameof(payload));
+        if (qos is < 0 or > 1 || protocol == "kafka" && qos != 1) throw new ArgumentOutOfRangeException(nameof(qos));
         var route = "topics/" + string.Join("/", topic.Split('/').Select(LambdaSubstrateHttp.Segment))
             + "/messages?protocol=" + protocol;
         using var request = LambdaSubstrateHttp.JsonRequest(HttpMethod.Post, route,
             new { payloadBase64 = Convert.ToBase64String(payload.ToArray()), qos });
         using var response = await LambdaTransport.SendAsync(client, request, cancellationToken).ConfigureAwait(false);
+        if (protocol == "kafka" && response.StatusCode != System.Net.HttpStatusCode.Accepted)
+            throw new LambdaApiException((int)response.StatusCode, LambdaRefusalCodes.ResponseInvalid,
+                "The runtime API did not return the Kafka publish acknowledgement.");
     }
 }
 

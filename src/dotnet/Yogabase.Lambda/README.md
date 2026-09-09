@@ -88,7 +88,7 @@ incompatible major of it is refused at admission naming the version. Only `DbDat
 | `Workflows` | `StartAsync(workflowId, definitionVersion, input, idempotencyKey)`, `GetAsync(instanceId)` and `CancelAsync(instanceId, idempotencyKey)`. |
 | `Reminders` | `SetAsync(name, functionId, functionVersion, payload, dueAt: …)` or `cron: …`, and `ClearAsync(name)`, through the existing durable scheduler. |
 | `Valkey` / `Cache` | The runtime's real `IConnectionMultiplexer` and its `IDatabase`. Key operations and pub/sub go directly to the bound Valkey service over TLS as this project's ACL identity. |
-| `Messaging` | `PublishAsync(topic, payload, qos, protocol)` through the gateway. MQTT supports QoS 0/1 and payloads up to 32 KiB; unqualified Kafka produce is a typed refusal. |
+| `Messaging` | `PublishAsync(topic, payload, qos, protocol)` through the gateway. MQTT supports QoS 0/1; Kafka requires QoS 1 and waits for persisted acknowledgement. Both accept payloads up to 32 KiB and require a qualified, bound substrate. |
 | `Caller` | The `ClaimsPrincipal`, its raw `Subject`, and `TryGetSubjectId` / `RequireSubjectId`. |
 | `Logger` | The runtime's `ILogger` for this invocation. |
 | `Invocation` | `InvocationId`, `FunctionId`, `Version`, `EnvironmentId`, and the raw `Facts` dictionary. |
@@ -134,10 +134,28 @@ invocation ends. An unbound Valkey service is refused when accessed with a reaso
 ### Messaging and consumer triggers
 
 MQTT publishing uses the gateway's authenticated broker connection. Topics are logical,
-project-local paths; the gateway adds the project's broker namespace. No MQTT/Kafka client or
-broker credential is handed to customer code. Kafka produce remains refused with
-`LambdaApiException.Code == LambdaMessaging.ProtocolUnqualified` while its mutual-TLS fact is
-unproven. An unbound or unqualified MQTT substrate similarly returns its exact refusal.
+project-local paths; the gateway adds the project's broker namespace. Kafka publishing uses the
+same runtime API and a broker-local publisher authenticated with a gateway-only mTLS identity.
+No MQTT/Kafka client, broker address or credential is handed to customer code. An unbound or
+unqualified publish capability returns `LambdaApiException.Code == LambdaMessaging.SubstrateUnavailable`.
+At the 2026-09-09 handoff, managed Kafka publication remains gated off: the broker rehearsal
+passes, but Kubernetes gateway-to-Service verification is still failing.
+
+For example, a Lambda can publish its input as a Kafka message:
+
+```csharp
+var context = LambdaContext.From(services);
+await context.Messaging.PublishAsync("orders.created", input,
+    protocol: "kafka", cancellationToken: cancellationToken);
+```
+
+Kafka logical topics use 1–200 ASCII letters, digits, dots, underscores or hyphens. `.` and `..`
+and the reserved `p.` prefix are refused. The publisher derives the physical topic
+`p.<project-id-without-hyphens>.<logical-topic>`; configure the existing consumer definition with
+that exact physical topic. Kafka requires `qos: 1` (the default), and returns only after the broker
+acknowledges persistence. The SDK and gateway never automatically retry a publish. A timeout can
+occur after the broker accepted a message, so an explicit retry can duplicate it. This managed
+publish API does not qualify direct native Kafka clients or anonymous consumers.
 
 Kafka topics reach a Lambda through a configured consumer trigger. The existing consumer runtime
 records the Lambda's durable result before acknowledging the broker receipt. Delivery is
