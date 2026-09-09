@@ -1,15 +1,17 @@
 # Yogabase.Lambda
 
 The context a Yogabase Lambda runs with: the project database, mediated object storage, the
-application-user directory, realtime publication, who called, and which invocation this is.
+application-user directory, realtime publication, actors, workflows, reminders, direct Valkey,
+authenticated messaging, who called, and which invocation this is.
 
 **This is where a Yogabase application reads and writes data.** The client-facing Data API module is
 withdrawn. A client reaches data only through a Lambda, Auth, Storage and Realtime, so the database
 handle below is the data path — not a bounded typed query surface layered over one.
 
-The package targets .NET Standard 2.1 and .NET 10 and takes exactly one package dependency,
-`Microsoft.Extensions.Logging.Abstractions`, because a bundle shares the sandbox host's assembly
-load context and every package it adds is one the host must already carry at a compatible version.
+The package targets .NET Standard 2.1 and .NET 10. It references
+`Microsoft.Extensions.Logging.Abstractions` and `StackExchange.Redis`, which the sandbox host
+already carries and unifies at compatible versions; the .NET Standard target also references
+`System.Text.Json`. Every dependency a bundle adds must be admissible in the sandbox.
 `IHttpClientFactory` is resolved from the service provider by type name rather than referenced, so
 `Microsoft.Extensions.Http` never enters a bundle's closure.
 
@@ -25,7 +27,7 @@ public static ValueTask<ReadOnlyMemory<byte>> InvokeAsync(
 ```
 
 `LambdaContext.From(context)` reads that provider. It is a convenience, not a privileged path: it
-resolves exactly the BCL-typed services the runtime already registered and can obtain nothing the
+resolves exactly the BCL-typed services and admissible client the runtime registered and can obtain nothing the
 raw `IServiceProvider` could not.
 
 ## A whole Lambda
@@ -82,6 +84,11 @@ incompatible major of it is refused at admission naming the version. Only `DbDat
 | `Storage` | `PutAsync`, `ReplaceAsync`, `GetAsync`, `TryGetAsync`, `DeleteAsync`, `ListAsync`, `ListAllAsync` over the project's mediated object store. Keys are logical and project-local; provider coordinates and signed URLs never reach customer code. See [Storage semantics](#storage-semantics). |
 | `Users` | `GetAsync`, `CreateAsync`, `UpdateAsync`, `BanAsync`, `IssueTokenAsync` over this project's application users. A subject is a UUID (any spelling is normalised to the lower-case `D` form the gateway requires). See [Issuing a user token](#issuing-a-user-token). |
 | `Realtime` | `PublishAsync(topic, payload)` and `PublishJsonAsync(topic, json)`. A topic is a Realtime binding id — `[a-z][a-z0-9._-]{0,95}` — and a payload is at most 64 KiB; both are checked here so a publish the gateway would refuse never leaves the Lambda. A Lambda publishes; it does not subscribe or hold a Hub. |
+| `Actors` | `InvokeAsync(functionId, instanceKey, functionVersion, payload, idempotencyKey)`, through the gateway's existing actor ingress. |
+| `Workflows` | `StartAsync(workflowId, definitionVersion, input, idempotencyKey)`, `GetAsync(instanceId)` and `CancelAsync(instanceId, idempotencyKey)`. |
+| `Reminders` | `SetAsync(name, functionId, functionVersion, payload, dueAt: …)` or `cron: …`, and `ClearAsync(name)`, through the existing durable scheduler. |
+| `Valkey` / `Cache` | The runtime's real `IConnectionMultiplexer` and its `IDatabase`. Key operations and pub/sub go directly to the bound Valkey service over TLS as this project's ACL identity. |
+| `Messaging` | `PublishAsync(topic, payload, qos, protocol)` through the gateway. MQTT supports QoS 0/1; Kafka requires QoS 1 and waits for persisted acknowledgement. Both accept payloads up to 32 KiB and require a qualified, bound substrate. |
 | `Caller` | The `ClaimsPrincipal`, its raw `Subject`, and `TryGetSubjectId` / `RequireSubjectId`. |
 | `Logger` | The runtime's `ILogger` for this invocation. |
 | `Invocation` | `InvocationId`, `FunctionId`, `Version`, `EnvironmentId`, and the raw `Facts` dictionary. |
@@ -89,6 +96,72 @@ incompatible major of it is refused at admission naming the version. Only `DbDat
 Every service except `Logger`, `Caller`, and `Invocation` is resolved on first use, so a Lambda that
 only publishes to Realtime never touches the database, and a missing service is reported when it is
 actually needed, naming the service.
+
+### Actors, workflows, and reminders
+
+Actor calls require an explicit function version; workflow starts require an explicit definition
+version. The gateway checks the same admitted versions as the public routes. There is no implied
+latest-version selection. Orleans stays outside the sandbox. The optional idempotency key identifies
+one logical operation within this Lambda invocation; without it, identical requests to the same
+target share a key. Supply distinct keys for repeated operations with the same payload.
+
+Reminder names belong to the calling Lambda within its project. Choose a future `dueAt` for a
+one-shot reminder or a supported cron expression and optional time zone for recurring work. For
+example, `cron: "*/5 * * * *"` schedules every five minutes in UTC by default. Arbitrary interval
+values are not supported. The wrapper reads the current ETag before changing or clearing a
+reminder, then uses the existing scheduler's create/update/delete preconditions. A concurrent change
+returns `LambdaApiException` with status 412 and code `reminder_changed`; it never silently overwrites
+the new state. Clearing a missing reminder is already complete.
+
+### Direct Valkey access and pub/sub
+
+Bind a proven Valkey substrate to the application's runtime before resolving `Valkey` or `Cache`.
+Every key and channel must start with `p:<project-id>:` using the project's canonical lowercase
+UUID. Valkey enforces both key and channel ACL patterns; the wrapper does not prepend or rewrite
+names. Pub/sub uses the multiplexer directly, with no gateway route:
+
+```csharp
+var prefix = "p:" + projectId.ToString("D") + ":";
+await context.Cache.StringSetAsync(prefix + "counter", 42);
+await context.Valkey.GetSubscriber().PublishAsync(
+    StackExchange.Redis.RedisChannel.Literal(prefix + "events"), "counter-updated");
+```
+
+The runtime owns the multiplexer. Do not dispose it; remove subscriptions you register before the
+invocation ends. An unbound Valkey service is refused when accessed with a reason naming
+`valkey-lambda-access`.
+
+### Messaging and consumer triggers
+
+MQTT publishing uses the gateway's authenticated broker connection. Topics are logical,
+project-local paths; the gateway adds the project's broker namespace. Kafka publishing uses the
+same runtime API and a broker-local publisher authenticated with a gateway-only mTLS identity.
+No MQTT/Kafka client, broker address or credential is handed to customer code. An unbound or
+unqualified publish capability returns `LambdaApiException.Code == LambdaMessaging.SubstrateUnavailable`.
+At the 2026-09-09 handoff, managed Kafka publication remains gated off: the broker rehearsal
+passes, but Kubernetes gateway-to-Service verification is still failing.
+
+For example, a Lambda can publish its input as a Kafka message:
+
+```csharp
+var context = LambdaContext.From(services);
+await context.Messaging.PublishAsync("orders.created", input,
+    protocol: "kafka", cancellationToken: cancellationToken);
+```
+
+Kafka logical topics use 1–200 ASCII letters, digits, dots, underscores or hyphens. `.` and `..`
+and the reserved `p.` prefix are refused. The publisher derives the physical topic
+`p.<project-id-without-hyphens>.<logical-topic>`; configure the existing consumer definition with
+that exact physical topic. Kafka requires `qos: 1` (the default), and returns only after the broker
+acknowledges persistence. The SDK and gateway never automatically retry a publish. A timeout can
+occur after the broker accepted a message, so an explicit retry can duplicate it. This managed
+publish API does not qualify direct native Kafka clients or anonymous consumers.
+
+Kafka topics reach a Lambda through a configured consumer trigger. The existing consumer runtime
+records the Lambda's durable result before acknowledging the broker receipt. Delivery is
+**at least once**: handlers must make external side effects idempotent because a retry can deliver
+the same record again. MQTT QoS 1 can also deliver duplicates. The SDK exposes no Kafka consumer
+inside the sandbox.
 
 ### Storage semantics
 
@@ -137,8 +210,7 @@ could not issue or the host has no realm issuer.
 ### Refusals
 
 Every failure the gateway reports is a `LambdaApiException` carrying its HTTP `StatusCode` and the
-gateway's stable `Code`; `LambdaRefusalCodes` names every code the routes this package calls can
-answer. Two refusals the wrapper can decide locally — a reserved storage key and a never-issuable
+gateway's stable `Code`; `LambdaRefusalCodes` names the shared refusal codes. Two refusals the wrapper can decide locally — a reserved storage key and a never-issuable
 scope — throw that same exception before any request is sent, with exactly the status and code the
 gateway would have answered, so one catch path covers both. Argument-shape problems (an empty key,
 an oversized payload, a subject that is not a UUID) are `ArgumentException`s.
@@ -155,7 +227,7 @@ refuses with that reason rather than returning `Guid.Empty`.
 A Lambda runs as a full-access database identity for its own project. What separates one project's
 code from the installation is the sandbox's process, filesystem and network isolation, the admission
 scan, and the per-invocation token — not a narrow API. Egress opens only to the project's own
-database and gateway. No cloud, Kubernetes, fleet, or Control Plane credential ever reaches customer
+database, gateway, and explicitly bound Valkey service. No cloud, Kubernetes, fleet, or Control Plane credential ever reaches customer
 code, and this package exposes no way to ask for one.
 
 Treat a password passed to `Users.CreateAsync` and a token returned by `Users.IssueTokenAsync` as

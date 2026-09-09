@@ -14,7 +14,7 @@ namespace Yogabase.Lambda;
 /// The v3 Lambda entry contract is
 /// <c>public static ValueTask&lt;ReadOnlyMemory&lt;byte&gt;&gt; InvokeAsync(IServiceProvider context,
 /// ReadOnlyMemory&lt;byte&gt; input, CancellationToken cancellationToken)</c>. The provider resolves
-/// only BCL-typed services, which keeps the contract free of any Yogabase assembly a bundle would
+/// BCL-typed services plus the admissible Valkey client, which keeps the contract free of any Yogabase assembly a bundle would
 /// have to link. This class is a convenience over that provider, not a privileged path: it resolves
 /// exactly the services the runtime already registered, and it can obtain nothing the raw
 /// <see cref="IServiceProvider"/> could not.
@@ -25,7 +25,7 @@ namespace Yogabase.Lambda;
 /// <c>yogabase_lambda</c> identity is the data path — not a bounded typed query surface. That is a
 /// deliberate trust change: the sandbox's process, filesystem, and network isolation, the admission
 /// scan, and the per-invocation token are what separate one project's code from the installation.
-/// Egress opens only to the project's own database and gateway, and no cloud, Kubernetes, fleet, or
+/// Egress opens only to the project's own database, gateway and bound Valkey service, and no cloud, Kubernetes, fleet, or
 /// Control Plane credential ever reaches customer code.
 /// </para>
 /// <para>
@@ -34,7 +34,7 @@ namespace Yogabase.Lambda;
 /// naming the service.
 /// </para>
 /// </remarks>
-public sealed class LambdaContext
+public sealed partial class LambdaContext
 {
     private readonly IServiceProvider services;
     private readonly object gate = new();
@@ -235,6 +235,7 @@ public sealed class LambdaInvocation
         FunctionId = Require(facts, LambdaRoutes.FunctionIdKey);
         Version = Require(facts, LambdaRoutes.VersionKey);
         EnvironmentId = Require(facts, LambdaRoutes.EnvironmentIdKey);
+        ProjectId = facts.TryGetValue(LambdaRoutes.ProjectIdKey, out var projectId) ? projectId : null;
     }
 
     /// <summary>Identifier of this one invocation. Log it; it is how a run is found again.</summary>
@@ -248,6 +249,9 @@ public sealed class LambdaInvocation
 
     /// <summary>Environment the invocation belongs to.</summary>
     public string EnvironmentId { get; }
+
+    /// <summary>Canonical project UUID for scoped keys and channels; null on older hosts that do not supply it.</summary>
+    public string? ProjectId { get; }
 
     /// <summary>
     /// Every fact the runtime supplied, including any this version does not model by name.
