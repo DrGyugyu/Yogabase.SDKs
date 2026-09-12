@@ -420,6 +420,21 @@ public sealed class YogabaseRealtimeEvent
     public string InvocationId { get; set; } = string.Empty;
     public string CorrelationId { get; set; } = string.Empty;
     public JsonElement Payload { get; set; }
+
+    /// <summary>
+    /// The topic this event was published on, or <see langword="null"/> from a server that predates
+    /// the field.
+    ///
+    /// <para>
+    /// A broadcast could be attributed by which subscription fired, but an event a Lambda addressed
+    /// to this user arrives without any subscription at all — it is routed to the signed-in
+    /// identity, not to a topic group — so this is how a handler tells <c>inventory.updated</c> from
+    /// <c>match.found</c>. It is nullable rather than required because it was added to the existing
+    /// schema version: an older gateway simply does not send it, and treating that as a protocol
+    /// error would break clients against installations that have not been upgraded yet.
+    /// </para>
+    /// </summary>
+    public string? Topic { get; set; }
 }
 
 public interface IYogabaseRealtime

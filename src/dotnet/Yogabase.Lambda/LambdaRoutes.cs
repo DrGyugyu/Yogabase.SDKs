@@ -128,6 +128,17 @@ public static class LambdaRoutes
         "realtime/topics/" + topic + "/publish";
 
     /// <summary>
+    /// Publication route of one realtime topic addressed to a single application user. The gateway
+    /// commits the event to the same durable outbox with the recipient stored beside it, and the
+    /// realtime gateway later delivers it to that subject's own connections instead of to everyone
+    /// subscribed to the topic.
+    /// </summary>
+    /// <param name="topic">A topic that passed <see cref="IsTopic"/>.</param>
+    /// <param name="canonicalSubject">A subject that passed <see cref="CanonicalSubject"/>.</param>
+    public static string RealtimeTopicPublishToUser(string topic, string canonicalSubject) =>
+        "realtime/topics/" + topic + "/users/" + canonicalSubject + "/publish";
+
+    /// <summary>
     /// The grammar of a realtime topic, which is a Realtime binding id: a lower-case letter, then
     /// up to 95 lower-case letters, digits, <c>.</c>, <c>_</c> or <c>-</c>. It is spelled here
     /// exactly as the gateway checks it, so a topic the gateway would refuse never leaves the

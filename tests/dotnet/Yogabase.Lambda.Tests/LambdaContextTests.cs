@@ -1011,6 +1011,98 @@ public sealed class LambdaContextTests
         Assert.Empty(provider.Factory.Handler.Calls);
     }
 
+    /// <summary>
+    /// The addressed publish the inventory case needs: a Lambda that validated an item use tells one
+    /// player, over the route that carries the recipient to the gateway's durable outbox. The
+    /// difference from the broadcast route above is the entire feature — a broadcast of one
+    /// player's inventory is readable by every other subscriber of the topic.
+    /// </summary>
+    [Fact]
+    public async Task RealtimePublishToUserSerializesToTheAddressedRoute()
+    {
+        var provider = new FakeProvider();
+        var context = LambdaContext.From(provider);
+
+        await context.Realtime.PublishToUserAsync(
+            "inventory.updated",
+            "55555555-5555-4555-8555-555555555555",
+            new { itemId = "potion", remaining = 2 },
+            TestContext.Current.CancellationToken);
+
+        var call = Assert.Single(provider.Factory.Handler.Calls);
+        Assert.Equal(HttpMethod.Post, call.Method);
+        Assert.Equal(
+            "http://gateway.internal/v1/lambda-runtime/realtime/topics/inventory.updated"
+                + "/users/55555555-5555-4555-8555-555555555555/publish",
+            call.Uri);
+        Assert.Equal("{\"itemId\":\"potion\",\"remaining\":2}", call.Body);
+    }
+
+    /// <summary>
+    /// The Guid overload is the shape <c>Caller.RequireSubjectId()</c> hands back, and a
+    /// non-canonical spelling of a real UUID is normalised rather than sent as written: the gateway
+    /// and SignalR both key on the lower-case D form, so any other spelling would address a user key
+    /// no connection can hold.
+    /// </summary>
+    [Theory]
+    // The same UUID in three spellings a caller might reasonably hold. It deliberately contains hex
+    // letters, so the upper-case case is actually a different string rather than the same one.
+    [InlineData("5a5a5a5a-5a5a-4a5a-8a5a-5a5a5a5a5a5a")]
+    [InlineData("5A5A5A5A-5A5A-4A5A-8A5A-5A5A5A5A5A5A")]
+    [InlineData("{5a5a5a5a-5a5a-4a5a-8a5a-5a5a5a5a5a5a}")]
+    public async Task RealtimePublishToUserNormalisesTheRecipientSpelling(string subject)
+    {
+        var provider = new FakeProvider();
+        var context = LambdaContext.From(provider);
+
+        await context.Realtime.PublishToUserAsync(
+            "inventory.updated",
+            subject,
+            new { a = 1 },
+            TestContext.Current.CancellationToken);
+
+        Assert.EndsWith(
+            "/users/5a5a5a5a-5a5a-4a5a-8a5a-5a5a5a5a5a5a/publish",
+            Assert.Single(provider.Factory.Handler.Calls).Uri,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RealtimePublishToUserAcceptsTheGuidTheCallerHandsBack()
+    {
+        var provider = new FakeProvider();
+        var context = LambdaContext.From(provider);
+
+        await context.Realtime.PublishToUserAsync(
+            "inventory.updated",
+            Guid.Parse("55555555-5555-4555-8555-555555555555"),
+            new { a = 1 },
+            TestContext.Current.CancellationToken);
+
+        Assert.EndsWith(
+            "/users/55555555-5555-4555-8555-555555555555/publish",
+            Assert.Single(provider.Factory.Handler.Calls).Uri,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>A recipient that is not a subject never leaves the Lambda, and neither does a bad topic.</summary>
+    [Theory]
+    [InlineData("inventory.updated", "not-a-uuid")]
+    [InlineData("inventory.updated", "")]
+    [InlineData("Inventory", "55555555-5555-4555-8555-555555555555")]
+    [InlineData("inventory/updated", "55555555-5555-4555-8555-555555555555")]
+    public async Task RealtimePublishToUserRefusesABadTopicOrRecipientBeforeTransport(
+        string topic,
+        string subject)
+    {
+        var provider = new FakeProvider();
+        var context = LambdaContext.From(provider);
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            context.Realtime.PublishToUserAsync(topic, subject, new { a = 1 }, TestContext.Current.CancellationToken));
+        Assert.Empty(provider.Factory.Handler.Calls);
+    }
+
     [Fact]
     public async Task RealtimePublishRefusesAnOversizedPayloadBeforeTransport()
     {

@@ -207,6 +207,9 @@ internal sealed class YogabaseRealtimeClient : IYogabaseRealtime, IAsyncDisposab
             || !IsCanonicalGuid(message.InvocationId)
             || string.IsNullOrWhiteSpace(message.CorrelationId)
             || message.CorrelationId.Length > 128
+            // Absent is allowed -- an older gateway does not send a topic -- but a present one must
+            // be a real topic, because handlers dispatch on it.
+            || (message.Topic is not null && !IsTopic(message.Topic))
             || message.Payload.ValueKind == System.Text.Json.JsonValueKind.Undefined)
         {
             throw new YogabaseApiException(502, "realtime_event_invalid", "Yogabase returned an invalid realtime event.");
@@ -238,16 +241,20 @@ internal sealed class YogabaseRealtimeClient : IYogabaseRealtime, IAsyncDisposab
 
     private static void ValidateTopic(string topic)
     {
-        if (string.IsNullOrWhiteSpace(topic)
-            || topic.Length > 96
-            || !string.Equals(topic, topic.Trim(), StringComparison.Ordinal)
-            || topic.Any(character => !(character is >= 'a' and <= 'z'
-                or >= '0' and <= '9'
-                or '.' or '-' or '_')))
+        if (!IsTopic(topic))
         {
             throw new ArgumentException("Realtime topics use 1..96 lowercase [a-z0-9._-] characters.", nameof(topic));
         }
     }
+
+    /// <summary>The server's own topic grammar, used both to refuse a bad subscription and to check an inbound event's topic.</summary>
+    private static bool IsTopic(string? topic) =>
+        !string.IsNullOrWhiteSpace(topic)
+        && topic!.Length <= 96
+        && string.Equals(topic, topic.Trim(), StringComparison.Ordinal)
+        && topic.All(character => character is >= 'a' and <= 'z'
+            or >= '0' and <= '9'
+            or '.' or '-' or '_');
 
     private static void ValidateBoundedValue(string value, int maximumLength, string parameterName)
     {
