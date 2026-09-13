@@ -129,7 +129,16 @@ public sealed class LambdaReminders
         ?? throw new LambdaApiException(502, LambdaRefusalCodes.ResponseInvalid, "The reminder response carried no ETag.");
 }
 
-/// <summary>Gateway-mediated, authenticated RobustMQ publication. No broker credential reaches the Lambda.</summary>
+/// <summary>
+/// Gateway-mediated, authenticated RobustMQ publication over MQTT, Kafka or RabbitMQ/AMQP. No broker
+/// credential reaches the Lambda: the runtime API authenticates the invocation, and the broker's own
+/// sidecar publishes under the project's prefix.
+/// </summary>
+/// <remarks>
+/// None of these require Orleans. Kafka and AMQP are acknowledged publications: the call returns only
+/// after the broker has persisted (Kafka) or confirmed (AMQP) the message, so both are QoS 1 and a
+/// success that is not the runtime API's 202 acknowledgement is refused rather than trusted.
+/// </remarks>
 public sealed class LambdaMessaging
 {
     public const string ProtocolUnqualified = "messaging_protocol_unqualified";
@@ -137,16 +146,28 @@ public sealed class LambdaMessaging
     private readonly HttpClient client;
     internal LambdaMessaging(HttpClient client) => this.client = client;
 
+    /// <summary>Publishes one message through the runtime API.</summary>
+    /// <param name="topic">An MQTT topic, or for Kafka and AMQP a logical topic or queue name.</param>
+    /// <param name="payload">At most 32 KiB.</param>
+    /// <param name="qos">0 or 1 for MQTT; Kafka and AMQP require 1.</param>
+    /// <param name="protocol"><c>mqtt</c>, <c>kafka</c> or <c>amqp</c>.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
     public async Task PublishAsync(string topic, ReadOnlyMemory<byte> payload, int qos = 1,
         string protocol = "mqtt", CancellationToken cancellationToken = default)
     {
-        if (protocol is not ("mqtt" or "kafka")) throw new ArgumentException("Use mqtt or kafka.", nameof(protocol));
-        if (protocol == "kafka")
+        if (protocol is not ("mqtt" or "kafka" or "amqp")) throw new ArgumentException("Use mqtt, kafka or amqp.", nameof(protocol));
+        var acknowledged = protocol is "kafka" or "amqp";
+        if (acknowledged)
         {
+            // Kafka topics and AMQP queues share one grammar, spelled exactly as the gateway checks it,
+            // so a name the gateway would refuse never leaves the Lambda.
             if (string.IsNullOrEmpty(topic) || topic.Length > 200 || topic is "." or ".."
                 || topic.StartsWith("p.", StringComparison.Ordinal)
                 || !topic.All(c => c is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9' or '.' or '_' or '-'))
-                throw new ArgumentException("A logical Kafka topic of 1 to 200 ASCII letters, digits, dots, underscores or hyphens without the reserved p. prefix is required.", nameof(topic));
+                throw new ArgumentException(
+                    "A logical " + (protocol == "kafka" ? "Kafka topic" : "AMQP queue")
+                    + " of 1 to 200 ASCII letters, digits, dots, underscores or hyphens without the reserved p. prefix is required.",
+                    nameof(topic));
         }
         else if (string.IsNullOrWhiteSpace(topic) || topic.Length > 512 || Encoding.UTF8.GetByteCount(topic) > 1024
                  || topic.Any(c => char.IsControl(c) || c is '+' or '#'))
@@ -154,16 +175,26 @@ public sealed class LambdaMessaging
             throw new ArgumentException("A bounded MQTT topic without wildcards is required.", nameof(topic));
         }
         if (payload.Length > 32 * 1024) throw new ArgumentOutOfRangeException(nameof(payload));
-        if (qos is < 0 or > 1 || protocol == "kafka" && qos != 1) throw new ArgumentOutOfRangeException(nameof(qos));
+        if (qos is < 0 or > 1 || acknowledged && qos != 1) throw new ArgumentOutOfRangeException(nameof(qos));
         var route = "topics/" + string.Join("/", topic.Split('/').Select(LambdaSubstrateHttp.Segment))
             + "/messages?protocol=" + protocol;
         using var request = LambdaSubstrateHttp.JsonRequest(HttpMethod.Post, route,
             new { payloadBase64 = Convert.ToBase64String(payload.ToArray()), qos });
         using var response = await LambdaTransport.SendAsync(client, request, cancellationToken).ConfigureAwait(false);
-        if (protocol == "kafka" && response.StatusCode != System.Net.HttpStatusCode.Accepted)
+        if (acknowledged && response.StatusCode != System.Net.HttpStatusCode.Accepted)
             throw new LambdaApiException((int)response.StatusCode, LambdaRefusalCodes.ResponseInvalid,
-                "The runtime API did not return the Kafka publish acknowledgement.");
+                "The runtime API did not return the " + (protocol == "kafka" ? "Kafka publish" : "AMQP publisher-confirm")
+                + " acknowledgement.");
     }
+
+    /// <summary>
+    /// Publishes to a RabbitMQ/AMQP queue on the bound RobustMQ cluster and returns once the broker has
+    /// confirmed it. The queue name is logical; the broker stores it under this project's prefix.
+    /// Refused with <see cref="SubstrateUnavailable"/> when no broker with AMQP is bound, and with
+    /// <see cref="ProtocolUnqualified"/> on a build whose AMQP publish path is not qualified.
+    /// </summary>
+    public Task PublishAmqpAsync(string queue, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken = default) =>
+        PublishAsync(queue, payload, qos: 1, protocol: "amqp", cancellationToken: cancellationToken);
 }
 
 internal static class LambdaSubstrateHttp

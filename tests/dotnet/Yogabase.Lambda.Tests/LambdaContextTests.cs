@@ -729,6 +729,32 @@ public sealed class LambdaContextTests
         Assert.Equal(2, provider.Factory.Handler.Calls.Count);
     }
 
+    [Fact]
+    public async Task StorageListAllRefusesACursorCycleBeforeFetchingAnyPageTwice()
+    {
+        var provider = new FakeProvider();
+        var requests = 0;
+        provider.Factory.Handler.Respond(_ =>
+        {
+            requests++;
+            if (requests > 3)
+            {
+                throw new InvalidOperationException("The cursor cycle caused another page request.");
+            }
+
+            var cursor = requests == 2 ? "page-b" : "page-a";
+            return Json(HttpStatusCode.OK, "{\"objects\":[],\"nextCursor\":\"" + cursor + "\"}");
+        });
+        var context = LambdaContext.From(provider);
+
+        var exception = await Assert.ThrowsAsync<LambdaApiException>(() =>
+            context.Storage.ListAllAsync(cancellationToken: TestContext.Current.CancellationToken));
+
+        Assert.Equal(502, exception.StatusCode);
+        Assert.Equal(LambdaRefusalCodes.ResponseInvalid, exception.Code);
+        Assert.Equal(3, requests);
+    }
+
     // ---------------------------------------------------------------------------------------
     // Users
     // ---------------------------------------------------------------------------------------

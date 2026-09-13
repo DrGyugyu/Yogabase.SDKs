@@ -222,6 +222,69 @@ public sealed class LambdaSubstratesTests
         Assert.Single(provider.Calls);
     }
 
+    /// <summary>
+    /// The AMQP API mirrors Kafka's acknowledged path on the same named client and route shape, with
+    /// the protocol named, so a Lambda publishing to RabbitMQ needs no broker credential and no Orleans.
+    /// </summary>
+    [Fact]
+    public async Task AmqpPublicationUsesTheMessagingClientAndWaitsForTheConfirm()
+    {
+        using var provider = new Provider(_ => new HttpResponseMessage(HttpStatusCode.Accepted));
+        await LambdaContext.From(provider).Messaging.PublishAmqpAsync("orders.created-v1", "hello"u8.ToArray(), Token);
+        var call = Assert.Single(provider.Calls);
+        Assert.Equal("/v1/lambda-runtime/topics/orders.created-v1/messages?protocol=amqp", call.Path);
+        Assert.Equal("yogabase-messaging", Assert.Single(provider.Names));
+        using var body = JsonDocument.Parse(call.Body);
+        Assert.Equal(1, body.RootElement.GetProperty("qos").GetInt32());
+        Assert.Equal("aGVsbG8=", body.RootElement.GetProperty("payloadBase64").GetString());
+        Assert.DoesNotContain("projectId", call.Body, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("orders/created")]
+    [InlineData("p.foreign.orders")]
+    [InlineData("orders%2Fcreated")]
+    [InlineData("orders created")]
+    [InlineData("é")]
+    [InlineData(".")]
+    [InlineData("")]
+    public async Task InvalidAmqpQueuesNeverReachTheRuntimeApi(string queue)
+    {
+        using var provider = new Provider(_ => new HttpResponseMessage(HttpStatusCode.Accepted));
+        await Assert.ThrowsAsync<ArgumentException>(() => LambdaContext.From(provider).Messaging.PublishAmqpAsync(
+            queue, ReadOnlyMemory<byte>.Empty, Token));
+        Assert.Empty(provider.Calls);
+    }
+
+    [Fact]
+    public async Task AmqpRefusesQosZeroOversizedPayloadsAndAnUnconfirmedSuccess()
+    {
+        using var accepted = new Provider(_ => new HttpResponseMessage(HttpStatusCode.Accepted));
+        var messaging = LambdaContext.From(accepted).Messaging;
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => messaging.PublishAsync("orders",
+            ReadOnlyMemory<byte>.Empty, qos: 0, protocol: "amqp", cancellationToken: Token));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => messaging.PublishAmqpAsync("orders", new byte[32769], Token));
+        Assert.Empty(accepted.Calls);
+
+        using var noContent = new Provider(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        var error = await Assert.ThrowsAsync<LambdaApiException>(() => LambdaContext.From(noContent).Messaging.PublishAmqpAsync(
+            "orders", ReadOnlyMemory<byte>.Empty, Token));
+        Assert.Equal(LambdaRefusalCodes.ResponseInvalid, error.Code);
+    }
+
+    [Theory]
+    [InlineData(LambdaMessaging.ProtocolUnqualified)]
+    [InlineData(LambdaMessaging.SubstrateUnavailable)]
+    public async Task AnUnavailableAmqpPathIsTypedAndNeverRetried(string code)
+    {
+        using var provider = new Provider(_ => Json(HttpStatusCode.ServiceUnavailable, $"{{\"code\":\"{code}\"}}"));
+        var error = await Assert.ThrowsAsync<LambdaApiException>(() => LambdaContext.From(provider).Messaging.PublishAmqpAsync(
+            "orders", ReadOnlyMemory<byte>.Empty, Token));
+        Assert.Equal(code, error.Code);
+        Assert.Equal(503, error.StatusCode);
+        Assert.Single(provider.Calls);
+    }
+
     [Fact]
     public async Task InvalidRoutesWildcardsAndOversizedMessagesNeverReachTransport()
     {
