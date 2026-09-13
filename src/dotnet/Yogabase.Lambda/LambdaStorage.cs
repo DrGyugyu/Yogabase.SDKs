@@ -192,6 +192,7 @@ public sealed class LambdaStorage
         CancellationToken cancellationToken = default)
     {
         var keys = new List<string>();
+        var seenCursors = new HashSet<string>(StringComparer.Ordinal);
         string? cursor = null;
         while (true)
         {
@@ -201,7 +202,7 @@ public sealed class LambdaStorage
             {
                 return keys;
             }
-            if (string.Equals(page.NextCursor, cursor, StringComparison.Ordinal))
+            if (!seenCursors.Add(page.NextCursor))
             {
                 throw new LambdaApiException(
                     502,
