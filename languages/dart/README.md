@@ -54,8 +54,8 @@ final item = storageObjectForLogicalKey(
 ```
 
 The adapter is authored Yogabase code, not Kiota output. The package passes Dart 3.13.2 analysis
-and its standalone authored-source checks; Flutter integration and live-gateway behavior remain
-unqualified.
+and its standalone authored-source checks (see Local verification below); Flutter integration and
+live-gateway behavior remain unqualified.
 
 For `PUT`, add both required contract headers through the Kiota request configuration:
 `X-Yogabase-Content-Sha256: sha256:<64 lowercase hex>` and a bounded `Idempotency-Key`. Kiota does
@@ -78,7 +78,33 @@ final operations = delivery.api.api.v1.delivery.projects
 ```
 
 The facade provides terminal-state recognition, bounded polling with an explicit cancellation
-token, delivery header helpers, and buffered SSE parsing that preserves opaque resume IDs. True
+token, delivery header helpers, and buffered SSE parsing that preserves opaque resume IDs. Cancelling
+the token ends a poll between requests; during the delay between attempts it also stops the delay's
+timer, so an abandoned poll does not keep the isolate alive for the rest of the interval. True
 streaming remains dependent on a streaming Dart request adapter and is not claimed as qualified.
 Artifact admission does not expose Kubernetes credentials or add Agones/PlayFlow or unimplemented
 runtime lifecycle operations.
+
+## Local verification
+
+```text
+cd languages/dart
+dart pub get --enforce-lockfile
+dart analyze --fatal-infos --fatal-warnings
+dart run test/yogabase_delivery_source_test.dart
+```
+
+The package declares no `dev_dependencies`, so `dart test` is not wired; the checks are one
+standalone program that prints `dart delivery source checks: PASS` or exits non-zero with the failed
+expectation. Every request goes to an in-memory `RequestAdapter`. It covers SSE parsing (including
+the one-space field rule), the cancellation token, the delivery bearer origin check, the storage
+logical-key cases shared with the Python suite, the generated game-server list and stop requests,
+polling to a terminal state, cancellation during a polling delay (inside a zone that records every
+timer, asserting none is left active), an already-cancelled poll sending nothing, and the
+event-stream request's `Last-Event-ID`, `Accept` and `operationId` query.
+
+Last run on 2026-09-17 with the Dart 3.13.2 stable macOS arm64 SDK (revision
+`60a57cd42d64dc03e9f07aa60a2e250755c1ef28`), unpacked from the archive whose SHA-256 matched
+`MANIFEST.json`: `pub get --enforce-lockfile` left `pubspec.lock` unchanged, analysis found no
+issues with infos and warnings fatal, and the standalone program passed and exited within a second.
+Flutter, a streaming adapter, and a live gateway were not exercised.

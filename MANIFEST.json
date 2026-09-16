@@ -75,9 +75,9 @@
     "dotnetSdk": "10.0.400",
     "node": "25.9.0",
     "npm": "11.12.1",
-    "python": "3.13.12 (last full run; the 2026-09-09 machine has only 3.9.6, which syntax-compiled the package and ran no test)",
+    "python": "3.13.12 and 3.12.13 on macOS arm64 with pip 26.0 (2026-09-17 full run: runtime closure from languages/python/requirements.lock and build 1.6.1 with setuptools 84.0.0 from build-requirements.lock, all installed with --require-hashes; Python 3.10 and 3.11 not run)",
     "javaCompiler": "21.0.10 with --release 17",
-    "dartSdk": "3.13.2 stable, revision 60a57cd42d64dc03e9f07aa60a2e250755c1ef28 (last full run; not installed on the 2026-09-09 machine, so the regenerated Dart source is unverified)",
+    "dartSdk": "3.13.2 stable, revision 60a57cd42d64dc03e9f07aa60a2e250755c1ef28 (2026-09-17 full run from the macOS arm64 archive, whose SHA-256 matched dartSdkArchiveSha256 before it was unpacked)",
     "dartSdkArchiveSha256": "1e79f51341937f84cc1563a3fcad4a91706e35dee72bda69f4e955065c0e373a",
     "unityEditorCompileCheck": "Unity 6000.5.7f1 Editor reference assemblies, driven by scripts/compile-unity-editor.sh through the .NET SDK Roslyn compiler at -langversion:9.0 with warnings as errors. Unity itself is not run: this checks compilation only."
   },
@@ -105,7 +105,7 @@
       "source": "languages/python",
       "packageId": "stackyoga-yogabase-client-preview",
       "version": "0.3.0.dev1",
-      "qualification": "regenerated-2026-09-09-and-syntax-compiled-on-python-3.9.6-only; the eight authored tests need python-3.13-httpx-and-microsoft-kiota-bundle-which-this-machine-lacks-so-they-and-the-sdist-wheel-build-were-not-rerun"
+      "qualification": "hash-locked-install-and-15-tests-from-source-under-dev-mode-passed-2026-09-17-on-cpython-3.13.12-and-3.12.13; build-no-isolation-wheel-and-sdist-built; fresh-venv-offline-wheel-install-pip-check-clean-and-the-same-15-tests-passed-against-the-installed-wheel; python-3.10-and-3.11-not-run; no-live-gateway-and-no-published-index"
     },
     {
       "language": "Java",
@@ -119,7 +119,7 @@
       "source": "languages/dart",
       "packageId": "stackyoga_yogabase_client_preview",
       "version": "0.3.0-dev.1",
-      "qualification": "regenerated-2026-09-09-unverified-no-dart-sdk-on-this-machine; last-verified-checksum-verified-dart-3.13.2-pub-resolution-analyze-and-authored-source-tests-passed-flutter-and-live-gateway-unqualified"
+      "qualification": "checksum-verified-dart-3.13.2-pub-get-enforce-lockfile-analyze-with-fatal-infos-and-the-standalone-authored-source-program-passed-2026-09-17-on-the-2026-09-09-regenerated-source; dart-test-runner-not-wired; flutter-streaming-adapter-and-live-gateway-unqualified"
     },
     {
       "language": "CSharp",
