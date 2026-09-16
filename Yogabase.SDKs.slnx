@@ -8,5 +8,9 @@
     <Project Path="tests/dotnet/Yogabase.Yogabase.Client.Tests/Yogabase.Yogabase.Client.Tests.csproj" />
     <Project Path="tests/dotnet/Yogabase.Yogabase.RuntimeHost.Tests/Yogabase.Yogabase.RuntimeHost.Tests.csproj" />
     <Project Path="tests/dotnet/Yogabase.Lambda.Tests/Yogabase.Lambda.Tests.csproj" />
+    <Project Path="tests/dotnet/Yogabase.ServerPathProbe.Tests/Yogabase.ServerPathProbe.Tests.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/dotnet/Yogabase.ServerPathProbe/Yogabase.ServerPathProbe.csproj" />
   </Folder>
 </Solution>
