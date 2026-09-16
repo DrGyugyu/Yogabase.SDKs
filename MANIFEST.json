@@ -56,7 +56,7 @@
   "runtimeHostContract": {
     "path": "contracts/yogabase-runtime-host-v1.openapi.json",
     "sourcePath": "Yogabase product repository: docs/api/yogabase-runtime-host-v1.openapi.json",
-    "sha256": "e0393d8dd7962a0bf2447fd5a79ee22dbaa3f271f6bb98b92d8e4749365967e7",
+    "sha256": "82697bd4a5f9445ac4a5c3932434e06daa3862a1f870759b09500b996b0056bb",
     "pathCount": 7,
     "operationCount": 7,
     "schemaCount": 10,

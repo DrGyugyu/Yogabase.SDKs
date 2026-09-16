@@ -232,6 +232,143 @@ public sealed class YogabaseRuntimeHostClientTests
     }
 
     [Fact]
+    public async Task RefusalWithoutRetryAfterLeavesItNull()
+    {
+        var handler = new ScriptedHandler((_, _) => Task.FromResult(Json(HttpStatusCode.Forbidden, ErrorBody)));
+        await using var client = Client(handler);
+
+        var exception = await Assert.ThrowsAsync<YogabaseRuntimeHostException>(
+            () => client.ReadyAsync(TestContext.Current.CancellationToken));
+
+        Assert.Null(exception.RetryAfterSeconds);
+    }
+
+    [Fact]
+    public async Task PendingRefusalCarriesRetryAfterSeconds()
+    {
+        var handler = new ScriptedHandler((_, _) =>
+            Task.FromResult(Json(HttpStatusCode.ServiceUnavailable, PendingBody(retryAfterSeconds: 7))));
+        // A zero budget throws on the very first RUNTIME_HOST_INSTANCE_PENDING refusal, so the
+        // hint can be asserted without waiting anything out.
+        await using var client = PendingClient(handler, startupPendingBudget: TimeSpan.Zero);
+
+        var exception = await Assert.ThrowsAsync<YogabaseRuntimeHostException>(
+            () => client.ReadyAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, exception.StatusCode);
+        Assert.Equal("RUNTIME_HOST_INSTANCE_PENDING", exception.Code);
+        Assert.Equal(7, exception.RetryAfterSeconds);
+    }
+
+    [Fact]
+    public async Task HeartbeatOnceAsyncWaitsOutInstancePendingThenSucceeds()
+    {
+        var callCount = 0;
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            var count = Interlocked.Increment(ref callCount);
+            return Task.FromResult(count <= 2
+                ? Json(HttpStatusCode.ServiceUnavailable, PendingBody(retryAfterSeconds: 5))
+                : Json(HttpStatusCode.OK, LeaseBody));
+        });
+        var recordedDelays = new List<TimeSpan>();
+        await using var client = PendingClient(handler, startupPendingBudget: TimeSpan.FromSeconds(60), recordedDelays);
+
+        var lease = await client.HeartbeatOnceAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("Healthy", lease.State);
+        Assert.Equal(3, Volatile.Read(ref callCount));
+        Assert.Equal([TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5)], recordedDelays);
+    }
+
+    [Fact]
+    public async Task HeartbeatOnceAsyncGivesUpWhenPendingOutlastsTheBudget()
+    {
+        var callCount = 0;
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            Interlocked.Increment(ref callCount);
+            // No retryAfterSeconds hint: the client falls back to its 2-second default wait.
+            return Task.FromResult(Json(HttpStatusCode.ServiceUnavailable, PendingBody(retryAfterSeconds: null)));
+        });
+        var recordedDelays = new List<TimeSpan>();
+        await using var client = PendingClient(handler, startupPendingBudget: TimeSpan.FromSeconds(5), recordedDelays);
+
+        var exception = await Assert.ThrowsAsync<YogabaseRuntimeHostException>(
+            () => client.HeartbeatOnceAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal("RUNTIME_HOST_INSTANCE_PENDING", exception.Code);
+        // Two 2-second waits (elapsed 4s) are within the 5-second budget; a third would reach 6s
+        // and is refused before it is taken, so exactly 3 attempts and 2 waits are made.
+        Assert.Equal(3, Volatile.Read(ref callCount));
+        Assert.Equal([TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)], recordedDelays);
+    }
+
+    [Theory]
+    [InlineData("RUNTIME_HOST_STALE_EPOCH", 403)]
+    [InlineData("RUNTIME_HOST_SHUTDOWN_IN_PROGRESS", 409)]
+    [InlineData("RUNTIME_HOST_TERMINATED", 409)]
+    [InlineData("RUNTIME_HOST_INSTANCE_NOT_FOUND", 404)]
+    public async Task ReadyAsyncDoesNotRetryStaleEpochOrShutdownInProgress(string code, int statusCode)
+    {
+        var callCount = 0;
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            Interlocked.Increment(ref callCount);
+            return Task.FromResult(Json((HttpStatusCode)statusCode, TerminalBody(code)));
+        });
+        await using var client = Client(handler);
+
+        var exception = await Assert.ThrowsAsync<YogabaseRuntimeHostException>(
+            () => client.ReadyAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(code, exception.Code);
+        Assert.Equal(1, Volatile.Read(ref callCount));
+    }
+
+    [Fact]
+    public async Task HeartbeatLoopReportsASwallowedFailureThroughTheCallback()
+    {
+        var handler = new ScriptedHandler((_, _) =>
+            Task.FromResult(Json(HttpStatusCode.Forbidden, ErrorBody)));
+        await using var client = Client(handler, TimeSpan.FromMilliseconds(20));
+        var observed = new List<Exception>();
+
+        // The callback itself throws; that must not stop it from being called again, nor break
+        // the loop's own resilience contract.
+        client.Connect(exception =>
+        {
+            lock (observed)
+            {
+                observed.Add(exception);
+            }
+            throw new InvalidOperationException("callback boom");
+        });
+
+        await WaitUntilAsync(
+            () =>
+            {
+                lock (observed)
+                {
+                    return observed.Count >= 2;
+                }
+            },
+            TestContext.Current.CancellationToken);
+
+        List<Exception> snapshot;
+        lock (observed)
+        {
+            snapshot = [.. observed];
+        }
+        Assert.True(snapshot.Count >= 2);
+        Assert.All(snapshot, exception =>
+        {
+            var runtimeHostException = Assert.IsType<YogabaseRuntimeHostException>(exception);
+            Assert.Equal("RUNTIME_HOST_RELAY_ALLOCATION_BACKEND_ONLY", runtimeHostException.Code);
+        });
+    }
+
+    [Fact]
     public void PublicApiExposesNoAllocationShapedMembers()
     {
         var assembly = typeof(YogabaseRuntimeHostClient).Assembly;
@@ -336,6 +473,36 @@ public sealed class YogabaseRuntimeHostClientTests
                 RequestTimeout = TimeSpan.FromSeconds(10),
             },
             handler);
+
+    // A client whose RUNTIME_HOST_INSTANCE_PENDING wait never actually sleeps: `recordedDelays`
+    // (when supplied) captures each wait the client would have taken, so
+    // StartupPendingBudget/retryAfterSeconds behaviour is assertable without a real-time test.
+    private static YogabaseRuntimeHostClient PendingClient(
+        HttpMessageHandler handler,
+        TimeSpan startupPendingBudget,
+        List<TimeSpan>? recordedDelays = null) =>
+        new(
+            new YogabaseRuntimeHostOptions
+            {
+                Endpoint = new Uri("http://127.0.0.1:8090"),
+                HeartbeatInterval = TimeSpan.FromSeconds(2),
+                RequestTimeout = TimeSpan.FromSeconds(10),
+                StartupPendingBudget = startupPendingBudget,
+                StartupPendingDelay = (delay, _) =>
+                {
+                    recordedDelays?.Add(delay);
+                    return Task.CompletedTask;
+                },
+            },
+            handler);
+
+    private static string PendingBody(int? retryAfterSeconds) =>
+        retryAfterSeconds is { } seconds
+            ? $"{{\"code\":\"RUNTIME_HOST_INSTANCE_PENDING\",\"detail\":\"pending\",\"retryAfterSeconds\":{seconds}}}"
+            : "{\"code\":\"RUNTIME_HOST_INSTANCE_PENDING\",\"detail\":\"pending\"}";
+
+    private static string TerminalBody(string code) =>
+        $"{{\"code\":\"{code}\",\"detail\":\"terminal\"}}";
 
     private static bool LooksLikeInstanceId(string name) =>
         name.Contains("instanceid", StringComparison.OrdinalIgnoreCase);

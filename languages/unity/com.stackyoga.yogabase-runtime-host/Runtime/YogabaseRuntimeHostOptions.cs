@@ -17,6 +17,8 @@
 // resource model, or host-port policy is reproduced here.
 
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Yogabase.Yogabase.RuntimeHost
 {
@@ -39,6 +41,7 @@ public sealed class YogabaseRuntimeHostOptions
         Endpoint = ResolveEndpoint();
         HeartbeatInterval = TimeSpan.FromSeconds(2);
         RequestTimeout = TimeSpan.FromSeconds(10);
+        StartupPendingBudget = TimeSpan.FromSeconds(60);
     }
 
     /// <summary>The runtime-host relay endpoint this client connects to.</summary>
@@ -49,6 +52,27 @@ public sealed class YogabaseRuntimeHostOptions
 
     /// <summary>The per-request timeout applied to every call this client makes.</summary>
     public TimeSpan RequestTimeout { get; set; }
+
+    /// <summary>
+    /// The total time <see cref="YogabaseRuntimeHostClient.HeartbeatOnceAsync"/> and
+    /// <see cref="YogabaseRuntimeHostClient.ReadyAsync"/> will spend retrying a
+    /// <c>RUNTIME_HOST_INSTANCE_PENDING</c> refusal -- the one retryable code, answered while a
+    /// freshly started Pod's readiness observation has not reached the Control Plane yet -- before
+    /// giving up and throwing the last such refusal. Each retry waits the refusal's
+    /// <c>retryAfterSeconds</c> hint, or 2 seconds when the body carries none. Every other refusal
+    /// code (for example <c>RUNTIME_HOST_STALE_EPOCH</c>, <c>RUNTIME_HOST_SHUTDOWN_IN_PROGRESS</c>,
+    /// <c>RUNTIME_HOST_TERMINATED</c>, <c>RUNTIME_HOST_INSTANCE_NOT_FOUND</c>) is thrown at once and
+    /// never counts against this budget.
+    /// </summary>
+    public TimeSpan StartupPendingBudget { get; set; }
+
+    /// <summary>
+    /// The delay primitive used while waiting out a <c>RUNTIME_HOST_INSTANCE_PENDING</c> refusal.
+    /// Defaults to <see cref="Task.Delay(TimeSpan, CancellationToken)"/>; a test substitutes a
+    /// fast, deterministic delegate so <see cref="StartupPendingBudget"/> can be exercised without
+    /// the test actually sleeping.
+    /// </summary>
+    public Func<TimeSpan, CancellationToken, Task>? StartupPendingDelay { get; set; }
 
     /// <summary>
     /// Resolves the runtime-host relay endpoint from <see cref="EndpointVariable"/> when it is set

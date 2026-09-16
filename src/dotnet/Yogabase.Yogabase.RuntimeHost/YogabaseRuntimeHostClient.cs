@@ -46,10 +46,28 @@ namespace Yogabase.Yogabase.RuntimeHost;
 /// </summary>
 public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
 {
+    /// <summary>
+    /// The one refusal code <see cref="HeartbeatOnceAsync"/> and <see cref="ReadyAsync"/> wait out
+    /// (within <see cref="YogabaseRuntimeHostOptions.StartupPendingBudget"/>) rather than throw at
+    /// once. It means the member's readiness observation for this Pod incarnation has not reached
+    /// the Control Plane yet -- a platform timing fact, not a caller error -- and the identical call
+    /// succeeds once that observation arrives. Every other code (for example
+    /// <c>RUNTIME_HOST_STALE_EPOCH</c>, <c>RUNTIME_HOST_SHUTDOWN_IN_PROGRESS</c>,
+    /// <c>RUNTIME_HOST_TERMINATED</c>, <c>RUNTIME_HOST_INSTANCE_NOT_FOUND</c>) is terminal and is
+    /// thrown immediately.
+    /// </summary>
+    private const string InstancePendingCode = "RUNTIME_HOST_INSTANCE_PENDING";
+
+    /// <summary>The wait between retries when a pending refusal's body carries no <c>retryAfterSeconds</c> hint.</summary>
+    private static readonly TimeSpan DefaultInstancePendingDelay = TimeSpan.FromSeconds(2);
+
     private readonly HttpClient http;
     private readonly TimeSpan heartbeatInterval;
+    private readonly TimeSpan startupPendingBudget;
+    private readonly Func<TimeSpan, CancellationToken, Task> pendingDelay;
     private readonly CancellationTokenSource stopping = new();
     private Task? heartbeatLoop;
+    private Action<Exception>? heartbeatFailureHandler;
     private long sequence;
     private bool disposed;
 
@@ -85,6 +103,8 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
         }
 
         heartbeatInterval = options.HeartbeatInterval;
+        startupPendingBudget = options.StartupPendingBudget;
+        pendingDelay = options.StartupPendingDelay ?? Task.Delay;
         http = new HttpClient(handler)
         {
             BaseAddress = options.Endpoint,
@@ -92,28 +112,51 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
         };
     }
 
-    /// <summary>Starts the background heartbeat loop; mirrors Agones' Connect() + Health(). Calling this more than once has no additional effect.</summary>
-    public void Connect()
+    /// <summary>
+    /// Starts the background heartbeat loop; mirrors Agones' Connect() + Health(). Calling this
+    /// more than once has no additional effect (including a second, different
+    /// <paramref name="onHeartbeatFailure"/>).
+    /// </summary>
+    /// <param name="onHeartbeatFailure">
+    /// Invoked, best-effort, with each exception the background loop would otherwise swallow
+    /// silently. A throwing callback is itself swallowed so it can never break the loop's
+    /// resilience contract.
+    /// </param>
+    public void Connect(Action<Exception>? onHeartbeatFailure = null)
     {
         if (heartbeatLoop is not null)
         {
             return;
         }
 
+        heartbeatFailureHandler = onHeartbeatFailure;
         heartbeatLoop = RunHeartbeatLoopAsync(stopping.Token);
     }
 
-    /// <summary>Sends a single heartbeat with the next monotonic sequence number.</summary>
+    /// <summary>
+    /// Sends a single heartbeat with the next monotonic sequence number. A
+    /// <c>RUNTIME_HOST_INSTANCE_PENDING</c> refusal is retried, waiting each time the refusal's
+    /// hint (or 2 seconds when it carries none), until <see cref="YogabaseRuntimeHostOptions.StartupPendingBudget"/>
+    /// would be exceeded; every other refusal is thrown at once.
+    /// </summary>
     /// <param name="cancellationToken">A token to cancel the call.</param>
     /// <returns>The lease reported by the relay.</returns>
     public Task<RuntimeHostLease> HeartbeatOnceAsync(CancellationToken cancellationToken = default) =>
-        PostLeaseAsync("heartbeat", new JsonObject { ["sequence"] = Interlocked.Increment(ref sequence) }, cancellationToken);
+        WaitingOutInstancePendingAsync(
+            () => PostLeaseAsync("heartbeat", new JsonObject { ["sequence"] = Interlocked.Increment(ref sequence) }, cancellationToken),
+            cancellationToken);
 
-    /// <summary>Marks this host ready to receive an assignment.</summary>
+    /// <summary>
+    /// Marks this host ready to receive an assignment. A <c>RUNTIME_HOST_INSTANCE_PENDING</c>
+    /// refusal is retried the same way as <see cref="HeartbeatOnceAsync"/>; every other refusal is
+    /// thrown at once.
+    /// </summary>
     /// <param name="cancellationToken">A token to cancel the call.</param>
     /// <returns>The lease reported by the relay.</returns>
     public Task<RuntimeHostLease> ReadyAsync(CancellationToken cancellationToken = default) =>
-        PostLeaseAsync("ready", new JsonObject(), cancellationToken);
+        WaitingOutInstancePendingAsync(
+            () => PostLeaseAsync("ready", new JsonObject(), cancellationToken),
+            cancellationToken);
 
     /// <summary>Reserves this host for the given window, clamped to between 1 and 600 seconds.</summary>
     /// <param name="window">The requested reservation window.</param>
@@ -302,6 +345,39 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
         return new YogabaseRuntimeHostException(status, code, raw);
     }
 
+    // Retries only RUNTIME_HOST_INSTANCE_PENDING, and only for as long as
+    // YogabaseRuntimeHostOptions.StartupPendingBudget allows. `elapsed` tracks time already spent
+    // waiting rather than a wall-clock deadline, so an injected `pendingDelay` that never actually
+    // sleeps still converges deterministically in tests. Every other exception -- including a
+    // pending refusal whose next wait would exceed the remaining budget -- propagates unchanged.
+    private async Task<RuntimeHostLease> WaitingOutInstancePendingAsync(
+        Func<Task<RuntimeHostLease>> attempt,
+        CancellationToken cancellationToken)
+    {
+        var elapsed = TimeSpan.Zero;
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                return await attempt().ConfigureAwait(false);
+            }
+            catch (YogabaseRuntimeHostException exception) when (exception.Code == InstancePendingCode)
+            {
+                var wait = exception.RetryAfterSeconds is { } hintSeconds && hintSeconds > 0
+                    ? TimeSpan.FromSeconds(hintSeconds)
+                    : DefaultInstancePendingDelay;
+                if (elapsed + wait > startupPendingBudget)
+                {
+                    throw;
+                }
+
+                elapsed += wait;
+                await pendingDelay(wait, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
     private async Task RunHeartbeatLoopAsync(CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
@@ -310,10 +386,20 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
             {
                 await HeartbeatOnceAsync(cancellationToken).ConfigureAwait(false);
             }
-            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
             {
                 // A transient relay/backend failure does not stop the loop: like Agones' Health(),
-                // a hosted service keeps trying on the next tick rather than exiting.
+                // a hosted service keeps trying on the next tick rather than exiting. It was
+                // previously swallowed with no trace at all; a caller that wants to observe it now
+                // can, via the callback Connect() accepts.
+                try
+                {
+                    heartbeatFailureHandler?.Invoke(exception);
+                }
+                catch (Exception)
+                {
+                    // The callback's own failure must not break the loop's resilience contract.
+                }
             }
 
             try

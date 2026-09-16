@@ -587,14 +587,20 @@
           },
           "correlationId": {
             "type": "string"
+          },
+          "retryAfterSeconds": {
+            "type": "integer",
+            "description": "Present only on a retryable refusal, currently RUNTIME_HOST_INSTANCE_PENDING. How long to wait before repeating the identical call. The relay hop carries a status and a body and no headers, so this is the wire's Retry-After."
           }
         }
       },
       "RuntimeHostErrorCode": {
         "type": "string",
+        "description": "RUNTIME_HOST_INSTANCE_PENDING is the one retryable member: it is answered 503 while the member's readiness observation for this Pod incarnation is still in flight, and the identical call succeeds once it arrives. Every other member is terminal for the call that produced it. RUNTIME_HOST_INSTANCE_NOT_FOUND is reserved for a caller that names an instance directly; a self-scoped call over the Pod-local relay never receives it, because the Pod binding is stamped by the member, not asserted by the workload.",
         "enum": [
           "RUNTIME_HOST_UNAVAILABLE",
           "RUNTIME_HOST_INSTANCE_NOT_FOUND",
+          "RUNTIME_HOST_INSTANCE_PENDING",
           "RUNTIME_HOST_BINDING_REJECTED",
           "RUNTIME_HOST_STALE_EPOCH",
           "RUNTIME_HOST_STALE_SEQUENCE",

@@ -19,6 +19,8 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Yogabase.Yogabase.RuntimeHost
 {
@@ -100,6 +102,7 @@ public sealed class YogabaseRuntimeHostException : Exception
         StatusCode = statusCode;
         Code = code;
         BodyJson = bodyJson;
+        RetryAfterSeconds = ParseRetryAfterSeconds(bodyJson);
     }
 
     /// <summary>The HTTP status code the relay returned.</summary>
@@ -110,6 +113,38 @@ public sealed class YogabaseRuntimeHostException : Exception
 
     /// <summary>The raw response body. Never null.</summary>
     public string BodyJson { get; }
+
+    /// <summary>
+    /// How long the relay says to wait before repeating the identical call, parsed from the
+    /// refusal body's <c>retryAfterSeconds</c> field. Present today only on
+    /// <c>RUNTIME_HOST_INSTANCE_PENDING</c>; null for every other code, an absent field, or a body
+    /// that does not parse as an object.
+    /// </summary>
+    public int? RetryAfterSeconds { get; }
+
+    private static int? ParseRetryAfterSeconds(string bodyJson)
+    {
+        if (string.IsNullOrEmpty(bodyJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            if (JsonNode.Parse(bodyJson) is JsonObject body
+                && body["retryAfterSeconds"] is JsonValue value
+                && value.TryGetValue(out int seconds))
+            {
+                return seconds;
+            }
+        }
+        catch (JsonException)
+        {
+            // A body that does not parse carries no hint; the caller already has StatusCode/Code.
+        }
+
+        return null;
+    }
 }
 
 }
