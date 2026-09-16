@@ -29,7 +29,7 @@ public sealed class SignInContextTests
     }
 
     [Fact]
-    public void ATokenWithOnlyTheAccessTokenSetLeavesTheOptionalFieldsAbsent()
+    public void ATokenWithOnlyTheAccessTokenSetLeavesTheRefreshTokenAbsent()
     {
         var environment = new Dictionary<string, string>
         {
@@ -40,36 +40,56 @@ public sealed class SignInContextTests
 
         Assert.Equal("access-token-value", context.PlayerAccessToken);
         Assert.Null(context.PlayerRefreshToken);
-        Assert.False(context.DeveloperTokenProvided);
     }
 
     [Fact]
-    public void RefreshAndDeveloperTokensAreReadWhenPresent()
+    public void RefreshTokenIsReadWhenPresent()
     {
         var environment = new Dictionary<string, string>
         {
             [SignInContext.PlayerAccessTokenVariable] = "access-token-value",
             [SignInContext.PlayerRefreshTokenVariable] = "  refresh-token-value  ",
-            [SignInContext.DeveloperTokenVariable] = "ybt_something",
         };
 
         var context = SignInContext.LoadFromEnvironment(EnvironmentOf(environment));
 
         Assert.Equal("refresh-token-value", context.PlayerRefreshToken);
-        Assert.True(context.DeveloperTokenProvided);
     }
 
     [Fact]
-    public void ABlankDeveloperTokenVariableIsReportedAsAbsent()
+    public void ABlankRefreshTokenIsTreatedAsAbsent()
     {
         var environment = new Dictionary<string, string>
         {
             [SignInContext.PlayerAccessTokenVariable] = "access-token-value",
-            [SignInContext.DeveloperTokenVariable] = "   ",
+            [SignInContext.PlayerRefreshTokenVariable] = "   ",
         };
 
         var context = SignInContext.LoadFromEnvironment(EnvironmentOf(environment));
 
-        Assert.False(context.DeveloperTokenProvided);
+        Assert.Null(context.PlayerRefreshToken);
+    }
+
+    // The probe holds only the credential its steps actually send. It never reads a developer token
+    // or any other secret-bearing variable, so there is nothing else to leak.
+    [Fact]
+    public void OnlyThePlayerTokenVariablesAreRead()
+    {
+        var requested = new List<string>();
+        var environment = new Dictionary<string, string>
+        {
+            [SignInContext.PlayerAccessTokenVariable] = "access-token-value",
+            ["YOGABASE_DEVELOPER_TOKEN"] = "ybt_should_never_be_read",
+        };
+
+        SignInContext.LoadFromEnvironment(name =>
+        {
+            requested.Add(name);
+            return environment.TryGetValue(name, out var value) ? value : null;
+        });
+
+        Assert.Equal(
+            [SignInContext.PlayerAccessTokenVariable, SignInContext.PlayerRefreshTokenVariable],
+            requested);
     }
 }

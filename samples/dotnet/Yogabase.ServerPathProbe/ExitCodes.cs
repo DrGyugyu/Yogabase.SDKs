@@ -19,7 +19,7 @@ internal static class ExitCodes
     /// <summary>Step 2, <c>Servers.StartAsync</c>, threw (no address delivered, refusal, or transport failure).</summary>
     internal const int ServersStartFailed = 4;
 
-    /// <summary>Step 3, sending the one UDP datagram, threw a socket exception.</summary>
+    /// <summary>Step 3 could not resolve the target host or send the one UDP datagram.</summary>
     internal const int UdpSendFailed = 5;
 
     /// <summary>Step 4, <c>Functions.InvokeAsync</c>, threw (a returned Failed/Rejected outcome is not this — it is printed, not thrown).</summary>
@@ -28,7 +28,10 @@ internal static class ExitCodes
     /// <summary>Step 5, the realtime subscription, threw something other than the capability-absent case, which is a skip, not a failure.</summary>
     internal const int RealtimeFailed = 7;
 
-    /// <summary>The overall <c>--timeout-seconds</c> bound was reached before every requested step finished.</summary>
+    /// <summary>
+    /// The overall <c>--timeout-seconds</c> bound was reached, or Ctrl+C was pressed, before every
+    /// requested step finished. A step whose own request times out exits with that step's code.
+    /// </summary>
     internal const int TimedOut = 8;
 
     /// <summary>Anything else unhandled.</summary>

@@ -50,8 +50,6 @@ internal static class Program
         Console.WriteLine("[0/5] Sign-in context loaded from the environment (values never printed).");
         Console.WriteLine("      player access token: present");
         Console.WriteLine($"      player refresh token: {(signIn.PlayerRefreshToken is null ? "absent" : "present")}");
-        Console.WriteLine(
-            $"      developer token: {(signIn.DeveloperTokenProvided ? "present (reserved, unused by this probe's five steps)" : "absent")}");
 
         using var overallCts = new CancellationTokenSource(TimeSpan.FromSeconds(options.TimeoutSeconds));
         ConsoleCancelEventHandler cancelHandler = (_, eventArgs) =>
@@ -113,9 +111,9 @@ internal static class Program
                 },
                 cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
-            Console.Error.WriteLine($"      FAILED: {exception.Message}");
+            Console.Error.WriteLine($"      FAILED: {Describe(exception)}");
             return ExitCodes.ClientBootstrapFailed;
         }
 
@@ -135,9 +133,9 @@ internal static class Program
             {
                 server = await client.Servers.StartAsync(options.Service, cancellationToken).ConfigureAwait(false);
             }
-            catch (Exception exception) when (exception is not OperationCanceledException)
+            catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
             {
-                Console.Error.WriteLine($"      FAILED: {exception.Message}");
+                Console.Error.WriteLine($"      FAILED: {Describe(exception)}");
                 return ExitCodes.ServersStartFailed;
             }
 
@@ -183,11 +181,11 @@ internal static class Program
                     var stopped = await client.Servers.StopAsync(server.ServerId, cancellationToken).ConfigureAwait(false);
                     Console.WriteLine($"      state after stop: {stopped.State}");
                 }
-                catch (Exception exception) when (exception is not OperationCanceledException)
+                catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
                 {
                     // Cleanup is best-effort: the walk itself already succeeded, so a failed release
                     // is reported but does not change the exit code.
-                    Console.Error.WriteLine($"      stop failed (non-fatal): {exception.Message}");
+                    Console.Error.WriteLine($"      stop failed (non-fatal): {Describe(exception)}");
                 }
             }
         }
@@ -256,9 +254,9 @@ internal static class Program
                 Console.WriteLine("      --udp-timeout-ms 0: not waiting for a reply.");
             }
         }
-        catch (SocketException exception)
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
-            Console.Error.WriteLine($"      FAILED: {exception.Message}");
+            Console.Error.WriteLine($"      FAILED: {Describe(exception)}");
             return ExitCodes.UdpSendFailed;
         }
 
@@ -286,9 +284,9 @@ internal static class Program
                 .InvokeAsync(options.FunctionId, options.FunctionVersion, request, cancellationToken)
                 .ConfigureAwait(false);
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
-            Console.Error.WriteLine($"      FAILED: {exception.Message}");
+            Console.Error.WriteLine($"      FAILED: {Describe(exception)}");
             return ExitCodes.LambdaInvokeFailed;
         }
 
@@ -334,7 +332,7 @@ internal static class Program
 
         Task OnMessage(YogabaseRealtimeEvent realtimeEvent)
         {
-            receivedCount++;
+            Interlocked.Increment(ref receivedCount);
             Console.WriteLine(
                 $"      event: topic={realtimeEvent.Topic ?? "(none)"} eventId={realtimeEvent.EventId} "
                 + $"correlationId={realtimeEvent.CorrelationId} "
@@ -355,14 +353,9 @@ internal static class Program
 
             await client.Realtime.DisconnectAsync(cancellationToken).ConfigureAwait(false);
         }
-        catch (NotSupportedException exception)
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
-            Console.WriteLine($"      the realtime surface refused this capability ({exception.Message}); skipping.");
-            return null;
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            Console.Error.WriteLine($"      FAILED: {exception.Message}");
+            Console.Error.WriteLine($"      FAILED: {Describe(exception)}");
             return ExitCodes.RealtimeFailed;
         }
         finally
@@ -370,7 +363,16 @@ internal static class Program
             client.Realtime.MessageReceived -= OnMessage;
         }
 
-        Console.WriteLine($"      received {receivedCount.ToString(CultureInfo.InvariantCulture)} event(s) in the window.");
+        Console.WriteLine(
+            $"      received {Volatile.Read(ref receivedCount).ToString(CultureInfo.InvariantCulture)} event(s) in the window.");
         return null;
     }
+
+    // The gateway's refusal code, status and trace id are what an owner needs to tell one failure
+    // from another; the exception message alone often says only "request failed".
+    private static string Describe(Exception exception) =>
+        exception is YogabaseApiException api
+            ? $"{api.StatusCode.ToString(CultureInfo.InvariantCulture)} {api.Code}: {api.Message}"
+                + (api.TraceId is null ? string.Empty : $" (trace {api.TraceId})")
+            : $"{exception.GetType().Name}: {exception.Message}";
 }

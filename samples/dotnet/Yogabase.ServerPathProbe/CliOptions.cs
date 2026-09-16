@@ -83,12 +83,8 @@ internal static class CliParser
                                            out of band and exports it before running the probe.
           YOGABASE_PLAYER_REFRESH_TOKEN   Optional. Lets the client refresh the access token if the
                                            run outlives it.
-          YOGABASE_DEVELOPER_TOKEN        Optional. Accepted and its presence is reported; reserved
-                                           for a future Control-Plane step (e.g. a build upload). None
-                                           of this probe's five steps is a Control-Plane call, so the
-                                           value is read only far enough to say whether it was set and
-                                           is then discarded.
-        No token value is ever printed, logged, or written to disk by this tool.
+        No token value is ever printed, logged, or written to disk by this tool, and no other
+        credential (a developer token included) is read.
 
         EXIT CODES
           0   every requested step completed
@@ -100,6 +96,8 @@ internal static class CliParser
               not treated as this failure -- only a transport or protocol exception is)
           7   step 5, the realtime subscription, failed (skipping because the installation does not
               publish the realtime-subscribe capability is not this -- it is reported and exits 0)
+          A step that times out on its own request exits with that step's code; 8 is only the
+          overall bound or Ctrl+C.
           8   --timeout-seconds was reached, or the run was cancelled (Ctrl+C), before every
               requested step finished
           70  an unexpected, otherwise uncategorized error

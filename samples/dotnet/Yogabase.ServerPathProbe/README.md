@@ -15,22 +15,28 @@ the same five things a Unity demo client would exercise, through `Yogabase.Yogab
    with a bounded payload preview — skipped, not failed, when the installation does not report the
    `realtime-subscribe` capability as available.
 
-This is a sample and a diagnostic tool, not a published package. `IsPackable` is `false`, it carries
-no package identity, and it is not referenced by any `dotnet pack` command in this repository (see
-the root [README.md](../../../README.md#local-verification) — packing is always one explicit
-`.csproj` path, never the whole solution). It also never signs in, claims a seat, or creates an
-account: it only consumes a player access token the owner already holds.
+This is a sample and a diagnostic tool, not a published package. `IsPackable` is `false`, so even a
+`dotnet pack` of the whole solution produces no package for it, and the root
+[README.md](../../../README.md#local-verification) packs one explicit `.csproj` path. It also never
+signs in, claims a seat, or creates an account: it only consumes a player access token the owner
+already holds.
 
 ## Sign-in context
 
-Read from environment variables only. None of these is ever accepted as a command-line argument,
-printed, logged, or written to disk.
+Read from environment variables only. Neither is ever accepted as a command-line argument, printed,
+logged, or written to disk, and the tokens live only in an in-memory session store for the length
+of the run.
 
 | Variable | Required | Meaning |
 | --- | --- | --- |
 | `YOGABASE_PLAYER_ACCESS_TOKEN` | Yes | The signed-in player's OIDC access token. This tool does not sign in itself — no browser, no PKCE, no password grant — the owner obtains the token out of band (for example from a real client's own sign-in flow) and exports it before running the probe. |
 | `YOGABASE_PLAYER_REFRESH_TOKEN` | No | Lets the client refresh the access token if a run outlives it. |
-| `YOGABASE_DEVELOPER_TOKEN` | No | Accepted and its presence is reported at startup; reserved for a future step (for example a Control-Plane build upload). None of this probe's five steps is a Control-Plane call, so today the value is read only far enough to say whether it was set, then discarded. |
+
+No other credential is read. In particular a developer token is never needed: every step here is a
+player-authenticated gateway call, not a Control Plane call.
+
+The Lambda result and realtime payload previews print whatever the function or event carried, cut
+to 200 characters. Do not point the probe at a function whose response carries a secret.
 
 ## Running it
 
@@ -64,7 +70,8 @@ dotnet run --project samples/dotnet/Yogabase.ServerPathProbe -- \
 Run `dotnet run --project samples/dotnet/Yogabase.ServerPathProbe -- --help` for the full option
 list, the exact environment variable names, and the exit-code table (one code per step, documented
 in [`CliOptions.cs`](CliOptions.cs) and [`ExitCodes.cs`](ExitCodes.cs) — keep both in sync with the
-help text when either changes).
+help text when either changes). A step whose own request times out exits with that step's code; the
+timeout code is reserved for the overall `--timeout-seconds` bound and Ctrl+C.
 
 ## What this does and does not prove
 
@@ -78,9 +85,8 @@ building or running Unity. It does **not** prove:
 - that a game workload on the allocated port actually understands the demo's own protocol — step 3
   sends one opaque UDP datagram and reports whether an unsolicited reply arrived within a bounded
   window, which most UDP workloads never send, so no reply is expected and not a failure;
-- the two-client "addressed event reaches only its recipient" proof from the full Unity demo walk
-  (HANDOFF item 10, step W9) — this probe drives one player identity through one process. That proof
-  still needs two signed-in clients the owner drives themselves.
+- that an addressed event reaches only its recipient — this probe drives one player identity through
+  one process, and that proof needs two signed-in clients.
 
 ## Tests
 
