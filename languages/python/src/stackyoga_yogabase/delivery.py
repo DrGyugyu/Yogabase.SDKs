@@ -624,12 +624,18 @@ def _parse_sse_event(lines: list[str]) -> DeliveryOperationStreamEvent | None:
         if line.startswith(":"):
             continue
         if line.startswith("id:"):
-            event["id"] = line[3:].lstrip()
+            event["id"] = _sse_field_value(line[3:])
         elif line.startswith("event:"):
-            event["event"] = line[6:].lstrip()
+            event["event"] = _sse_field_value(line[6:])
         elif line.startswith("data:"):
-            data_lines.append(line[5:].lstrip())
+            data_lines.append(_sse_field_value(line[5:]))
     if not data_lines:
         return None
     event["data"] = cast(DeliveryOperationEvent, json.loads("\n".join(data_lines)))
     return event
+
+
+def _sse_field_value(value: str) -> str:
+    # The SSE grammar removes a single U+0020 after the field colon. Resume ids are opaque, so any
+    # further leading whitespace belongs to the value and must round-trip unchanged.
+    return value[1:] if value.startswith(" ") else value

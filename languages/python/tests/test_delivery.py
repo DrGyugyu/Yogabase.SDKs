@@ -168,6 +168,27 @@ class DeliveryClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(events[0]["event"], "delivery-operation")
         self.assertEqual(events[0]["data"]["state"], "Succeeded")
 
+    async def test_sse_field_values_lose_exactly_one_leading_space(self) -> None:
+        # The resume id is opaque and must round-trip unchanged: the SSE grammar, the .NET client
+        # and the Dart parser all remove exactly one U+0020 after the colon, and nothing else.
+        body = (
+            b'id:  spaced-resume\n'
+            b'event:\tdelivery-operation\n'
+            b'data: {"operationId":"operation-1","state":"Running","detail":"","occurredAt":"2026-09-01T00:00:00Z"}\n\n'
+            b'id:unspaced-resume\n'
+            b'event:delivery-operation\n'
+            b'data:{"operationId":"operation-1","state":"Succeeded","detail":"","occurredAt":"2026-09-01T00:00:01Z"}\n\n'
+        )
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=body, headers={"Content-Type": "text/event-stream"}, request=request)
+
+        async with AsyncDeliveryClient(delivery_host="https://delivery.example.test", access_token="token", http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))) as client:
+            events = [event async for event in client.stream_operation_events("project")]
+        self.assertEqual([event["id"] for event in events], [" spaced-resume", "unspaced-resume"])
+        self.assertEqual([event["event"] for event in events], ["\tdelivery-operation", "delivery-operation"])
+        self.assertEqual([event["data"]["state"] for event in events], ["Running", "Succeeded"])
+
 
 if __name__ == "__main__":
     unittest.main()
