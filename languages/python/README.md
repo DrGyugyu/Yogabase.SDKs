@@ -97,3 +97,31 @@ callers may explicitly pass back as `last_event_id`; heartbeat comment frames ar
 resume tokens are never persisted or parsed by the client. Artifact admission submits immutable
 source and evidence metadata plus digests; it does not upload bundle bytes and this client adds no
 custom-build, Kubernetes, Agones, PlayFlow, or other compatibility operations.
+
+## Local verification
+
+```text
+cd languages/python
+python3 -m venv .venv
+.venv/bin/python -m pip install --require-hashes -r requirements.lock -r build-requirements.lock
+PYTHONPATH=src .venv/bin/python -m unittest discover -s tests
+.venv/bin/python -m build --no-isolation
+```
+
+`requirements.lock` hash-pins the runtime closure of the two direct pins (22 wheels, one of them
+only for Python below 3.11). `build-requirements.lock` hash-pins `build` 1.6.1 and the setuptools
+84.0.0 backend, so the wheel and sdist are built with exactly those tools rather than whatever an
+isolated build environment resolves. The tests import whichever `stackyoga_yogabase` is on the path:
+with `PYTHONPATH=src` they check this source tree; in a fresh environment holding only
+`requirements.lock` and the built wheel (`pip install --no-index dist/*.whl`), running
+`python -P -m unittest discover -s tests` from this folder checks the installed wheel instead.
+`test_generated_surface.py` imports every module file in the package, because the generated
+subpackages have no `__init__.py` and a package walk would miss them, and round-trips the generated
+game-server list and refusal through a real Kiota `HttpxRequestAdapter` over an in-memory transport.
+
+Last run on 2026-09-17 on CPython 3.13.12 and 3.12.13 (macOS arm64, pip 26.0): both locks installed
+with `--require-hashes`; 15 tests passed from source under `-X dev` with `ResourceWarning` as an
+error; `build --no-isolation` produced the wheel (88 Python files) and the sdist; in a second fresh
+environment the wheel installed offline over the runtime lock, `pip check` reported no broken
+requirements, and the same 15 tests passed against the installed wheel. Python 3.10 and 3.11, a
+live gateway, and a published index were not exercised.

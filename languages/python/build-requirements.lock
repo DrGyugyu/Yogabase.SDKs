@@ -1,0 +1,30 @@
+# Hash-pinned build tools for stackyoga-yogabase-client-preview: the `build` frontend and the
+# setuptools backend that pyproject.toml's `setuptools>=80` resolved to on 2026-09-17.
+#
+# Resolved on 2026-09-17 with pip 26.0 on CPython 3.13.12 (macOS arm64) from build==1.6.1 and
+# setuptools==84.0.0, using `pip install --dry-run --ignore-installed --only-binary :all: --report`.
+# Each version and sha256 below is copied from that report; every artifact is a none-any wheel.
+# colorama (Windows), importlib_metadata and zipp (Python below 3.10.2) and tomli (below 3.11) are
+# build's own conditional requirements; they were resolved the same way, but no Windows host and no
+# interpreter below 3.11 was available, so they have never been installed from this file.
+#
+# Build the wheel and sdist with exactly these tools, without a network-resolved isolated env:
+#   python -m pip install --require-hashes -r requirements.lock -r build-requirements.lock
+#   python -m build --no-isolation
+
+build==1.6.1 \
+    --hash=sha256:ecd351a4be9d35a9eaaba244a7687143c9c7d4aea6ac964e7e7ddab20cbcf4e7
+colorama==0.4.6 ; os_name == "nt" \
+    --hash=sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6
+importlib_metadata==9.0.1 ; python_full_version < "3.10.2" \
+    --hash=sha256:bba5600596a7e21f3eef53281cf28d6a5195634d2f2b78ff9501a3272c6eaab0
+packaging==26.3 \
+    --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
+pyproject_hooks==1.3.3 \
+    --hash=sha256:5fc53fdac9f7bd63fbcdc868fb5f90b4784d78a53a3d3388cd738b807441a20b
+setuptools==84.0.0 \
+    --hash=sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+tomli==2.4.1 ; python_version < "3.11" \
+    --hash=sha256:0d85819802132122da43cb86656f8d1f8c6587d54ae7dcaf30e90533028b49fe
+zipp==4.1.0 ; python_full_version < "3.10.2" \
+    --hash=sha256:25ad4e16390cd314347dd8f1de67a2ac538ae658ed4ab9db16029c07c188e97f

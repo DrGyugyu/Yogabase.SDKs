@@ -1,0 +1,58 @@
+# Hash-pinned runtime dependencies of stackyoga-yogabase-client-preview 0.3.0.dev1.
+#
+# Resolved on 2026-09-17 with pip 26.0 on CPython 3.13.12 (macOS arm64) from the two direct pins in
+# pyproject.toml (microsoft-kiota-bundle==1.9.10, httpx==0.28.1), using
+# `pip install --dry-run --ignore-installed --only-binary :all: --report`. Each version and sha256
+# below is copied from that report; every artifact is a py3-none-any wheel. Every pinned version
+# declares support for Python 3.10. exceptiongroup is required only below Python 3.11 (by anyio);
+# it was resolved the same way, but no interpreter below 3.11 was available, so it has never been
+# installed from this file.
+#
+# Install before running the tests or importing the source tree:
+#   python -m pip install --require-hashes -r requirements.lock
+# Hash-checking mode also refuses any dependency missing from this file.
+
+anyio==4.15.1 \
+    --hash=sha256:6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101
+certifi==2026.7.22 \
+    --hash=sha256:62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775
+exceptiongroup==1.3.1 ; python_version < "3.11" \
+    --hash=sha256:a7a39a3bd276781e98394987d3a5701d0c4edffb633bb7a5144577f82c773598
+h11==0.16.0 \
+    --hash=sha256:63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86
+h2==4.4.1 \
+    --hash=sha256:0e25f1462b23c9cb82d9eb02e28bc706dac2a68cb457c6a0d74d63c8a2a5d0e6
+hpack==4.2.0 \
+    --hash=sha256:858ac0b02280fa582b5080d68db0899c62a80375e0e5413a74970c5e518b6986
+httpcore==1.0.9 \
+    --hash=sha256:2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55
+httpx==0.28.1 \
+    --hash=sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad
+hyperframe==6.1.0 \
+    --hash=sha256:b03380493a519fce58ea5af42e4a42317bf9bd425596f7a0835ffce80f1a42e5
+idna==3.19 \
+    --hash=sha256:815e7be7a7806d54abb586dc943addc79e8b2ee16915059658cbeff4b1b43bf4
+microsoft-kiota-abstractions==1.9.10 \
+    --hash=sha256:cd169067ebe48e6feea1258630807034239e0c61c2abe5fd66896a58177e8f05
+microsoft-kiota-bundle==1.9.10 \
+    --hash=sha256:468aa9ba72d07e3633b8c25cc49fcb9334c5f76ef2d6f55c1f141b5ed9fad1ca
+microsoft-kiota-http==1.9.10 \
+    --hash=sha256:6127032c8d94f8607e4d36d0822b88bc8689ab368b4c00d6c7beb7d2d0f2ab10
+microsoft-kiota-serialization-form==1.9.10 \
+    --hash=sha256:765d3f6408668f58bfdf892c32b45967c579d9131f3ba5a6b6868cb7ab956bfe
+microsoft-kiota-serialization-json==1.9.10 \
+    --hash=sha256:0545ae910160b19caaa8c30c90c7416e1966294fbd6cc5af01f0e116a18f223a
+microsoft-kiota-serialization-multipart==1.9.10 \
+    --hash=sha256:7cadc26483b567c738f926b044521569e0b797446053c9e8eab02269d4a81062
+microsoft-kiota-serialization-text==1.9.10 \
+    --hash=sha256:742890cfd4450d12f58d42da7cfa474fe1ee5d6442e016bf70ab76e5c876c0ea
+opentelemetry-api==1.44.0 \
+    --hash=sha256:94b98c893a91b88657eaac1e3ba89618cdb85be6918196705354f34728b2cdef
+opentelemetry-sdk==1.44.0 \
+    --hash=sha256:df081c4c6bcfdb1211e3e86140376792643128a25f8d72d1d27675936e7e96ad
+opentelemetry-semantic-conventions==0.65b0 \
+    --hash=sha256:1cacde7b0ad306f84c5ef08c3dbe1bbaf20165bba6f8bff43b670e555a086bcb
+std-uritemplate==2.0.12 \
+    --hash=sha256:42b702d8d7eb8c13b586c527b8f2edaff456b69fee88e817d2f5dc5f088b8765
+typing_extensions==4.16.0 \
+    --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
