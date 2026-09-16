@@ -12,6 +12,7 @@ import 'yogabase_delivery_sse.dart';
 /// A cancellation signal for bounded delivery polling.
 class YogabaseCancellationToken {
   final Completer<void> _completer = Completer<void>();
+  final List<void Function()> _onCancel = <void Function()>[];
 
   bool get isCancelled => _completer.isCompleted;
   Future<void> get whenCancelled => _completer.future;
@@ -19,7 +20,23 @@ class YogabaseCancellationToken {
   void cancel() {
     if (!_completer.isCompleted) {
       _completer.complete();
+      final callbacks = List<void Function()>.of(_onCancel);
+      _onCancel.clear();
+      for (final callback in callbacks) {
+        callback();
+      }
     }
+  }
+
+  /// Registers [callback] to run synchronously on [cancel] and returns its removal.
+  ///
+  /// Unlike a listener on [whenCancelled], a registration can be withdrawn, so a
+  /// long-lived token does not accumulate one listener per polling delay.
+  void Function() _register(void Function() callback) {
+    _onCancel.add(callback);
+    return () {
+      _onCancel.remove(callback);
+    };
   }
 }
 
@@ -149,16 +166,25 @@ class YogabaseDeliveryClient {
     }
   }
 
+  /// Waits [interval] unless [token] is cancelled first. Cancellation stops the
+  /// delay's timer, so an abandoned poll does not keep the isolate alive for the
+  /// rest of the interval, and the token registration is withdrawn either way.
   static Future<void> _delayOrCancel(
     Duration interval,
     YogabaseCancellationToken token,
-  ) async {
-    await Future.any<void>(<Future<void>>[
-      Future<void>.delayed(interval),
-      token.whenCancelled.then<void>((_) {
-        throw const YogabaseOperationPollingCancelledException();
-      }),
-    ]);
+  ) {
+    _throwIfCancelled(token);
+    final delay = Completer<void>();
+    late final void Function() unregister;
+    final timer = Timer(interval, () {
+      unregister();
+      delay.complete();
+    });
+    unregister = token._register(() {
+      timer.cancel();
+      delay.completeError(const YogabaseOperationPollingCancelledException());
+    });
+    return delay.future;
   }
 }
 
