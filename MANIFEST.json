@@ -132,8 +132,8 @@
       "language": "Unity",
       "source": "languages/unity/com.stackyoga.yogabase-runtime-host",
       "packageId": "com.stackyoga.yogabase-runtime-host",
-      "version": "0.2.1-preview.1",
-      "qualification": "editor-scripts-compile-checked-2026-09-09-against-a-real-unity-6000.5.7f1-editor-reference-set-at-csharp-9-warnings-as-errors; no-unity-editor-import-of-this-version, no-il2cpp-build, no-publish-window-run, and-no-live-relay-session"
+      "version": "0.2.2-preview.1",
+      "qualification": "runtime-folder-compile-checked-2026-09-17-at-csharp-9-against-the-unity-6000.5.7f1-netstandard2.1-reference-set; editor-scripts-compile-checked-2026-09-09-against-a-real-unity-6000.5.7f1-editor-reference-set-at-csharp-9-warnings-as-errors; no-unity-editor-import-of-this-version, no-il2cpp-build, no-publish-window-run, and-no-live-relay-session"
     },
     {
       "language": "CSharp",

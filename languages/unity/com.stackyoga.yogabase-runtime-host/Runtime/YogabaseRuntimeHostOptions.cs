@@ -62,7 +62,9 @@ public sealed class YogabaseRuntimeHostOptions
     /// <c>retryAfterSeconds</c> hint, or 2 seconds when the body carries none. Every other refusal
     /// code (for example <c>RUNTIME_HOST_STALE_EPOCH</c>, <c>RUNTIME_HOST_SHUTDOWN_IN_PROGRESS</c>,
     /// <c>RUNTIME_HOST_TERMINATED</c>, <c>RUNTIME_HOST_INSTANCE_NOT_FOUND</c>) is thrown at once and
-    /// never counts against this budget.
+    /// never counts against this budget. The budget is per call, and it counts the waits taken, not
+    /// the time the attempts themselves spend in flight. Zero or a negative value disables the wait:
+    /// the first pending refusal is thrown.
     /// </summary>
     public TimeSpan StartupPendingBudget { get; set; }
 

@@ -266,6 +266,18 @@ await DrainAsync();
 await runtime.ShutdownAsync();
 ```
 
+**The first calls may be told to wait.** A Pod's first heartbeat or `Ready` can reach the relay
+before the member has reported that Pod, and the relay answers
+`503 RUNTIME_HOST_INSTANCE_PENDING` with a `retryAfterSeconds` hint. That is the platform's own
+timing, not a fault in your build, so `HeartbeatOnceAsync` and `ReadyAsync` wait it out (the hint,
+or 2 seconds) until `YogabaseRuntimeHostOptions.StartupPendingBudget` is spent (default 60 seconds)
+and only then throw. Every other refusal (`RUNTIME_HOST_STALE_EPOCH`,
+`RUNTIME_HOST_SHUTDOWN_IN_PROGRESS`, `RUNTIME_HOST_TERMINATED`, and the rest) is thrown on the first
+attempt. A build that quits on an exception from these calls therefore no longer quits during a
+Pod's normal startup window, and still quits at once for a terminal refusal.
+The background loop keeps running after a failed heartbeat; pass a callback,
+`runtime.Connect(exception => Log(exception.Message))`, to see those failures.
+
 Two details of the watch loop are worth knowing before you write your own:
 
 - **The resume token is advance-only.** The relay returns an empty token when it has no newer

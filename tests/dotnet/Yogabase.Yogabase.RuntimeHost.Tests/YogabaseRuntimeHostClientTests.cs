@@ -309,6 +309,8 @@ public sealed class YogabaseRuntimeHostClientTests
     [InlineData("RUNTIME_HOST_SHUTDOWN_IN_PROGRESS", 409)]
     [InlineData("RUNTIME_HOST_TERMINATED", 409)]
     [InlineData("RUNTIME_HOST_INSTANCE_NOT_FOUND", 404)]
+    // Same status as a pending refusal, and a retry hint in the body: only the code decides.
+    [InlineData("RUNTIME_HOST_UNAVAILABLE", 503)]
     public async Task ReadyAsyncDoesNotRetryStaleEpochOrShutdownInProgress(string code, int statusCode)
     {
         var callCount = 0;
@@ -317,13 +319,86 @@ public sealed class YogabaseRuntimeHostClientTests
             Interlocked.Increment(ref callCount);
             return Task.FromResult(Json((HttpStatusCode)statusCode, TerminalBody(code)));
         });
-        await using var client = Client(handler);
+        var recordedDelays = new List<TimeSpan>();
+        await using var client = PendingClient(handler, startupPendingBudget: TimeSpan.FromSeconds(60), recordedDelays);
 
         var exception = await Assert.ThrowsAsync<YogabaseRuntimeHostException>(
             () => client.ReadyAsync(TestContext.Current.CancellationToken));
 
         Assert.Equal(code, exception.Code);
         Assert.Equal(1, Volatile.Read(ref callCount));
+        Assert.Empty(recordedDelays);
+    }
+
+    [Fact]
+    public async Task ReadyAsyncWaitsOutInstancePendingThenSucceeds()
+    {
+        var paths = new List<string>();
+        var handler = new ScriptedHandler((request, _) =>
+        {
+            lock (paths)
+            {
+                paths.Add(request.RequestUri!.AbsolutePath);
+                return Task.FromResult(paths.Count == 1
+                    ? Json(HttpStatusCode.ServiceUnavailable, PendingBody(retryAfterSeconds: null))
+                    : Json(HttpStatusCode.OK, LeaseBody));
+            }
+        });
+        var recordedDelays = new List<TimeSpan>();
+        await using var client = PendingClient(handler, startupPendingBudget: TimeSpan.FromSeconds(60), recordedDelays);
+
+        var lease = await client.ReadyAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("Healthy", lease.State);
+        Assert.Equal(["/runtime-host/v1/self/ready", "/runtime-host/v1/self/ready"], paths);
+        Assert.Equal([TimeSpan.FromSeconds(2)], recordedDelays);
+    }
+
+    [Fact]
+    public async Task CancellingWhileWaitingOutInstancePendingStopsWithoutAnotherAttempt()
+    {
+        var callCount = 0;
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            Interlocked.Increment(ref callCount);
+            return Task.FromResult(Json(HttpStatusCode.ServiceUnavailable, PendingBody(retryAfterSeconds: 2)));
+        });
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        await using var client = new YogabaseRuntimeHostClient(
+            new YogabaseRuntimeHostOptions
+            {
+                Endpoint = new Uri("http://127.0.0.1:8090"),
+                StartupPendingBudget = TimeSpan.FromSeconds(60),
+                // The caller cancels while the client is waiting; the delay observes the token the
+                // client passed it, exactly as Task.Delay would.
+                StartupPendingDelay = (_, token) =>
+                {
+                    cancellation.Cancel();
+                    return Task.FromCanceled(token);
+                },
+            },
+            handler);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => client.HeartbeatOnceAsync(cancellation.Token));
+
+        Assert.Equal(1, Volatile.Read(ref callCount));
+    }
+
+    [Theory]
+    [InlineData("{\"code\":\"RUNTIME_HOST_INSTANCE_PENDING\",\"retryAfterSeconds\":\"2\"}")]
+    [InlineData("{\"code\":\"RUNTIME_HOST_INSTANCE_PENDING\",\"retryAfterSeconds\":2.5}")]
+    [InlineData("{\"code\":\"RUNTIME_HOST_INSTANCE_PENDING\",\"retryAfterSeconds\":99999999999}")]
+    [InlineData("{\"code\":\"RUNTIME_HOST_INSTANCE_PENDING\",\"retryAfterSeconds\":null}")]
+    [InlineData("{\"retryAfterSeconds\":1,\"retryAfterSeconds\":2}")]
+    [InlineData("[2]")]
+    [InlineData("not json")]
+    public void AMalformedRetryHintIsIgnoredRatherThanThrown(string bodyJson)
+    {
+        var exception = new YogabaseRuntimeHostException(HttpStatusCode.ServiceUnavailable, "RUNTIME_HOST_INSTANCE_PENDING", bodyJson);
+
+        Assert.Null(exception.RetryAfterSeconds);
+        Assert.Equal(bodyJson, exception.BodyJson);
     }
 
     [Fact]
@@ -501,8 +576,9 @@ public sealed class YogabaseRuntimeHostClientTests
             ? $"{{\"code\":\"RUNTIME_HOST_INSTANCE_PENDING\",\"detail\":\"pending\",\"retryAfterSeconds\":{seconds}}}"
             : "{\"code\":\"RUNTIME_HOST_INSTANCE_PENDING\",\"detail\":\"pending\"}";
 
+    // Carries a retry hint on purpose: whether a refusal is waited out is decided by its code alone.
     private static string TerminalBody(string code) =>
-        $"{{\"code\":\"{code}\",\"detail\":\"terminal\"}}";
+        $"{{\"code\":\"{code}\",\"detail\":\"terminal\",\"retryAfterSeconds\":1}}";
 
     private static bool LooksLikeInstanceId(string name) =>
         name.Contains("instanceid", StringComparison.OrdinalIgnoreCase);

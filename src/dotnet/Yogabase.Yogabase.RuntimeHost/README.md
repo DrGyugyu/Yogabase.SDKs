@@ -28,6 +28,21 @@ await foreach (var assignment in host.WatchAssignmentsAsync(TimeSpan.FromSeconds
 await host.ShutdownAsync();           // begin an auditable drain
 ```
 
+## Refusals and the startup window
+
+A refused call throws `YogabaseRuntimeHostException`, carrying the HTTP status, the relay's `code`
+and the raw body. One code is not terminal. A freshly started Pod's first calls can reach the relay
+before the member has reported that Pod, and the relay then answers
+`503 RUNTIME_HOST_INSTANCE_PENDING` with a `retryAfterSeconds` hint. `HeartbeatOnceAsync` and
+`ReadyAsync` wait that out, each wait being the hint (2 seconds without one), until
+`YogabaseRuntimeHostOptions.StartupPendingBudget` is spent (default 60 seconds; zero disables it),
+and then throw the last pending refusal. Every other code is thrown on the first attempt, and
+`ReserveAsync`, `ShutdownAsync` and the assignment watch never wait. Tests substitute
+`StartupPendingDelay` so nothing sleeps.
+
+The background loop that `Connect` starts keeps going after a failed heartbeat. Pass
+`Connect(onHeartbeatFailure)` to see those failures instead of losing them.
+
 ## What this client talks to
 
 The workload calls its member's Pod-local relay sidecar over loopback — by default

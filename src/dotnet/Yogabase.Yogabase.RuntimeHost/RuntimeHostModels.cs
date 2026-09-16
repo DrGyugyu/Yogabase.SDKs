@@ -20,7 +20,6 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 
 namespace Yogabase.Yogabase.RuntimeHost;
 
@@ -115,9 +114,11 @@ public sealed class YogabaseRuntimeHostException : Exception
 
     /// <summary>
     /// How long the relay says to wait before repeating the identical call, parsed from the
-    /// refusal body's <c>retryAfterSeconds</c> field. Present today only on
-    /// <c>RUNTIME_HOST_INSTANCE_PENDING</c>; null for every other code, an absent field, or a body
-    /// that does not parse as an object.
+    /// refusal body's <c>retryAfterSeconds</c> field. The relay sends it today only on
+    /// <c>RUNTIME_HOST_INSTANCE_PENDING</c>. Null when the field is absent, repeated, not a JSON
+    /// integer that fits in an <see cref="int"/>, or the body is not a JSON object; a malformed body
+    /// never makes this constructor throw. Whether a refusal is waited out is decided by
+    /// <see cref="Code"/>, never by the presence of this hint.
     /// </summary>
     public int? RetryAfterSeconds { get; }
 
@@ -128,20 +129,43 @@ public sealed class YogabaseRuntimeHostException : Exception
             return null;
         }
 
+        // JsonDocument rather than JsonNode: a JsonObject throws ArgumentException on first access
+        // to a body with a repeated property name, and this runs inside a public constructor.
         try
         {
-            if (JsonNode.Parse(bodyJson) is JsonObject body
-                && body["retryAfterSeconds"] is JsonValue value
-                && value.TryGetValue(out int seconds))
+            using var document = JsonDocument.Parse(bodyJson);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
             {
-                return seconds;
+                return null;
             }
+
+            int? hint = null;
+            var seen = false;
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (!string.Equals(property.Name, "retryAfterSeconds", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (seen)
+                {
+                    // Two hints are no hint.
+                    return null;
+                }
+
+                seen = true;
+                hint = property.Value.ValueKind == JsonValueKind.Number && property.Value.TryGetInt32(out var seconds)
+                    ? seconds
+                    : (int?)null;
+            }
+
+            return hint;
         }
         catch (JsonException)
         {
             // A body that does not parse carries no hint; the caller already has StatusCode/Code.
+            return null;
         }
-
-        return null;
     }
 }

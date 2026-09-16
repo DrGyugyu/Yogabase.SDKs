@@ -136,6 +136,12 @@ await foreach (var assignment in host.WatchAssignmentsAsync(TimeSpan.FromSeconds
 await host.ShutdownAsync();
 ```
 
+`HeartbeatOnceAsync` and `ReadyAsync` wait out `503 RUNTIME_HOST_INSTANCE_PENDING`, the relay's
+answer while the member has not reported a freshly started Pod yet, for up to
+`YogabaseRuntimeHostOptions.StartupPendingBudget` (default 60 seconds), and throw every other
+refusal at once. `Connect(onHeartbeatFailure)` reports the failures the background loop otherwise
+swallows. See `docs/UNITY_DEDICATED_SERVER.md` for the details.
+
 Two environment variables matter at runtime, both injected by the Yogabase platform into the
 workload's process environment:
 

@@ -2,6 +2,22 @@
 
 All notable changes to this package are documented in this file.
 
+## [0.2.2-preview.1]
+
+- The runtime-host client waits out `503 RUNTIME_HOST_INSTANCE_PENDING` on `HeartbeatOnceAsync` and
+  `ReadyAsync`, the relay's answer while the member has not yet reported a freshly started Pod.
+  Each wait is the refusal's `retryAfterSeconds` hint (2 seconds without one), within the new
+  `YogabaseRuntimeHostOptions.StartupPendingBudget` (default 60 seconds; zero disables it). Every
+  other refusal code is still thrown on the first attempt. Before this, a server that treated any
+  exception from its first heartbeat as fatal quit once on every Pod start.
+- `YogabaseRuntimeHostException.RetryAfterSeconds` exposes that hint. A malformed or repeated hint
+  reads as null and never makes the exception's constructor throw.
+- `Connect(onHeartbeatFailure)` reports the failures the background heartbeat loop keeps running
+  through; they were previously swallowed with no trace.
+- The `Runtime` folder compiles with no errors at C# 9 against the Unity 6000.5.7f1
+  `netstandard2.1` reference set, including its `System.Text.Json`. No Unity Editor has imported
+  this version, and no IL2CPP build has run it.
+
 ## [0.2.1-preview.1]
 
 - Aligns the Editor publish flow to the build surface the Control Plane actually serves

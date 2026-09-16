@@ -121,7 +121,10 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
     /// <param name="onHeartbeatFailure">
     /// Invoked, best-effort, with each exception the background loop would otherwise swallow
     /// silently. A throwing callback is itself swallowed so it can never break the loop's
-    /// resilience contract.
+    /// resilience contract. A <c>RUNTIME_HOST_INSTANCE_PENDING</c> refusal reaches it only once
+    /// <see cref="YogabaseRuntimeHostOptions.StartupPendingBudget"/> is spent, because each tick's
+    /// heartbeat waits it out first. The callback runs on the loop's thread and must not block.
+    /// Loop cancellation during disposal is never reported.
     /// </param>
     public void Connect(Action<Exception>? onHeartbeatFailure = null)
     {
