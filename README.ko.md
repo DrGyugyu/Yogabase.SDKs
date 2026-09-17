@@ -10,7 +10,7 @@ Yogabase는 표준을 준수하는 모든 Kubernetes 클러스터에 설치되�
 
 ## Yogabase가 하는 일
 
-Yogabase는 팀이 Kubernetes에서 데이터베이스와 애플리케이션 백엔드를 생성, 배포, 관찰 및 운영할 수 있는 하나의 권위 있는 위치를 제공합니다. 첫 범위는 **Yogabase Core**입니다. 여기에는 관리형 YugabyteDB 수명 주기, 지원되는 데이터베이스 API인 **YSQL**, Blazor Console, 중앙 Control Plane이 포함되며, 그 주변의 애플리케이션 플랫폼이 로그인, Lambda, 스토리지, realtime, 호스팅 게임 서버를 더합니다. 클러스터 프로비저닝은 선택적 바인딩입니다. AWS, Azure, Google Cloud, Oracle Cloud 적격성 프로필은 에뮬레이터를 대상으로 하며, 아직 완료된 프로필은 없습니다.
+Yogabase는 팀이 Kubernetes에서 데이터베이스와 애플리케이션 백엔드를 생성, 배포, 관찰 및 운영할 수 있는 하나의 권위 있는 위치를 제공합니다. 첫 범위는 **Yogabase Core**입니다. 여기에는 관리형 YugabyteDB 수명 주기, 지원되는 데이터베이스 API인 **YSQL**, Blazor Console, 중앙 Control Plane이 포함되며, 그 주변의 애플리케이션 플랫폼이 로그인, Lambda, 스토리지, realtime, 호스팅 게임 서버를 더합니다. 클러스터 프로비저닝은 AWS, Azure, Google Cloud, Oracle Cloud 프로필을 갖춘 선택적 바인딩이며, 아직 적격성 검증을 통과한 프로필은 없습니다.
 
 Yogabase는 하나의 Helm 차트와 하나의 조정된 이미지 제품군으로 이루어진 단일 Kubernetes 제품이며, 로컬 k3d 클러스터부터 Amazon EKS까지 표준을 준수하는 모든 Kubernetes 클러스터에 설치됩니다. AWS Marketplace 등록 상품은 이 제품의 선택적 배포 경로 중 하나일 뿐 제품의 정체성이 아닙니다. 차트에는 두 가지 설치 모드가 있습니다.
 
@@ -25,7 +25,7 @@ Control Plane은 Yogabase에서 허용된 관리 의도의 유일한 출처입�
 
 ![Amazon EKS 기반 Yogabase AWS Marketplace 배포 경로](assets/marketplace-architecture.ko.svg)
 
-이 다이어그램은 베타용으로 처음 그려진, Amazon EKS 기반의 선택적 AWS Marketplace 배포 경로를 보여 줍니다. 같은 차트는 표준을 준수하는 모든 Kubernetes 클러스터에 설치됩니다. 이 배포 경로에서는 데이터베이스, Secret 및 운영 상태가 고객의 AWS 계정 안에 유지되고, member는 권위 있는 Control Plane에 아웃바운드로만 연결하며, 고객은 선택적 백업 대상을 제어합니다.
+이 다이어그램은 베타용으로 처음 그려진, Amazon EKS 기반의 선택적 AWS Marketplace 배포 경로를 보여 줍니다. 같은 차트는 표준을 준수하는 모든 Kubernetes 클러스터에 설치됩니다. 이 배포 경로에서는 데이터베이스, Secret 및 운영 상태가 고객의 AWS 계정 안에 유지되고, member는 권위 있는 Control Plane에 아웃바운드로만 연결하며, 고객은 선택적 백업 대상을 제어합니다. 이 배포 경로는 아직 릴리스 적격성 검증을 통과하지 않았습니다.
 
 ## Console 경험
 
@@ -49,7 +49,7 @@ Console 로그인은 설치본이 명명된 Console 시트와 외부 OIDC 공급
 
 ### 데이터베이스 작업
 
-Core는 선택된 Kubernetes 클러스터에서 논리적 YugabyteDB 데이터베이스 서비스를 관리합니다. YSQL 우선 데이터베이스 수명 주기, 상태/토폴로지 가시성, 명시적 RF1/RF3/RF5 토폴로지 선택, 보호된 scale-out, 컴퓨트 크기 조정, 스토리지 확장, 허용 목록 기반 패치 업그레이드, 안전한 삭제, 유지된 PVC, 진단 및 민감 정보가 제거된 지원 번들을 지원합니다. 논리 암호화 백업과 새 대상 또는 비어 있는 대상으로의 복원은 내구성 있는 데이터베이스 작업으로 정의되어 있지만, Console은 Backup을 Enterprise 계층에 두고 있으며 아직 Backup 페이지가 없습니다.
+Core는 선택된 Kubernetes 클러스터에서 논리적 YugabyteDB 데이터베이스 서비스를 관리합니다. YSQL 우선 데이터베이스 수명 주기, 상태/토폴로지 가시성, 명시적 RF1/RF3/RF5 토폴로지 선택, 보호된 scale-out, 컴퓨트 크기 조정, 스토리지 확장, 허용 목록 기반 패치 업그레이드, 안전한 삭제, 유지된 PVC, 진단 및 민감 정보가 제거된 지원 번들을 지원합니다. Console은 각 데이터베이스에서 논리 암호화 백업과, 새 대상 또는 비어 있는 대상으로의 복원도 내구성 있는 작업으로 제공하지만, 둘 다 아직 실제 환경 적격성 검증을 통과하지 않았습니다.
 
 모든 변경은 내구성 있는 작업으로 설계됩니다.
 
@@ -58,7 +58,7 @@ Core는 선택된 Kubernetes 클러스터에서 논리적 YugabyteDB 데이터�
 3. 변경이 대기해야 하는지는 설치본의 승인 정책이 결정합니다. 기본 제공 정책은 제출 시 설치 정책으로 승인하며, 독립(four-eyes) 승인은 Enterprise 계층에서 선택하는 옵션입니다.
 4. 수락된 작업은 감사 가능하고 복구 가능하며, 꾸며 낸 상태가 아닌 제한된 관찰 사실을 보고합니다.
 
-어떤 클라이언트 SDK 계약도 SQL을 전달하지 않습니다. 개발자 DDL과 DML은 Console의 Table Editor, SQL Editor, Migrations 페이지에서만 실행되며, `schema-runner` 역할이 환경의 스키마 ID로 실행하고 모든 쓰기를 digest에 바인딩된 migration으로 기록합니다. Lambda는 서버 측에서 프로젝트 데이터베이스에 접근합니다. Yogabase는 엔진 내부 토폴로지를 클라이언트 계약으로 노출하거나, 원격 셸 접근, `pods/exec` 워크플로, peer gossip 또는 대체 Control Plane을 제공하지 않습니다. YCQL, 자동 scale-in, PITR, 다운그레이드, 교차 클러스터 데이터베이스 배포는 현재 Core 범위 밖입니다.
+어떤 클라이언트 SDK 계약도 SQL을 전달하지 않습니다. Console은 개발자 DDL과 DML을 Table Editor, SQL Editor, Migrations 페이지에서만 실행하며, `schema-runner` 역할이 환경의 스키마 ID로 실행하고 모든 쓰기를 digest에 바인딩된 migration으로 기록합니다. Lambda 자체 코드는 서버 측에서 프로젝트 데이터베이스에 접근합니다. Yogabase는 엔진 내부 토폴로지를 클라이언트 계약으로 노출하거나, 원격 셸 접근, `pods/exec` 워크플로, peer gossip 또는 대체 Control Plane을 제공하지 않습니다. YCQL, 자동 scale-in, PITR, 다운그레이드, 교차 클러스터 데이터베이스 배포는 현재 Core 범위 밖입니다.
 
 ### 작업 중 일어나는 일
 
@@ -114,7 +114,7 @@ Yogabase는 승인된 애플리케이션 작업을 위한 클러스터 로컬 �
 - Stateless Functions는 제한된 공개 계약으로 정확히 등록된 버전을 호출합니다.
 - Actor Lambdas는 버전이 지정된 프로젝트 로컬 인스턴스 하나를 대상으로 하며, Workflow Lambdas는 변경 불가능한 정의 버전 하나를 시작하고 v1 cancel 작업만 노출합니다.
 - Realtime은 별도로 반환된 SignalR origin을 사용하여 topic subscribe/unsubscribe, 서명된 Lambda binding 호출, Lambda가 topic에 게시하거나 로그인한 사용자 한 명에게 보내는 이벤트, at-least-once 완료 이벤트를 제공합니다. 작성된 .NET 클라이언트는 완료 이벤트를 `eventId`로 중복 제거합니다. JSON이 기본 Hub 프로토콜로 유지됩니다.
-- 게임 서버: 로그인한 플레이어는 `/v1/servers/*`를 통해 호스팅된 서버 인스턴스를 시작, 목록 조회, 단건 조회, 중지할 수 있으며, 이 표면은 접속할 호스트와 포트를 반환합니다.
+- 게임 서버: 로그인한 플레이어는 `/v1/servers/*`를 통해 호스팅 서비스의 Ready 인스턴스 하나를 할당받고, 자신의 환경에 속한 인스턴스를 목록 조회 및 단건 조회하며, 자신의 할당을 해제할 수 있습니다(`stop`은 인스턴스를 삭제하지 않습니다). 할당은 member가 관찰한 노드 주소와 포트를 반환합니다.
 
 클라이언트는 공급자 중립적이고 shard를 인식하지 않습니다. 클라우드 선택기, 클라우드 자격 증명, Kubernetes ID, TServer 주소, tablet/shard 식별자, shard key, 물리적 배치 맵 또는 토폴로지 생성을 받지 않습니다. YugabyteDB가 내부 라우팅과 배치를 소유합니다. Yogabase는 또 다른 데이터 경로 라우터를 도입하지 않고 제한된 상태 및 용량 사실을 관찰합니다.
 
@@ -135,10 +135,10 @@ Yogabase는 서명된 관찰과 릴리스에 고정된 증거를 통해 모듈 �
 |---|---|
 | Core | 주 제품 범위입니다. 설치본의 승인 정책 아래에서 내구성 있는 작업으로 수행되는 관리형 YugabyteDB/YSQL 작업입니다(기본값은 제출 시 승인이며, four-eyes 승인은 Enterprise 옵션입니다). |
 | 애플리케이션 모듈 | Authentication, Storage, Realtime(SignalR), Remote Config는 차트에서 활성화된 상태로 제공됩니다. Realtime에는 Authentication이 필요하며, Storage는 오브젝트 스토어가 연결될 때까지 오브젝트 스토어를 기다리는 상태로 보고합니다. |
-| YB Lambda(이전 명칭 Extended) | Stateless Functions, Actor Lambdas, Workflow Lambdas, Dynamic Code, sandbox, Scheduler/Jobs, consumer trigger, 그리고 호스팅된 자체 포함(self-contained) 서비스를 다루며, 선택적으로 Orleans, SignalR, Redis(Valkey), Kafka, RabbitMQ/AMQP(RobustMQ) API를 제공합니다. 이 기능들은 기본적으로 활성화되어 있으며 로컬 증거(in-process 리허설 및 k3d conformance 실행)로 적격성이 확인되었습니다. 동적 Stateless/Actor Lambda를 위해 고객이 제출한 C#을 요청 시 컴파일하는 기능은 꺼진 상태로 유지되며, RobustMQ AMQP 큐에서 트리거되는 Lambda는 현재 범위 밖입니다. Lambda 측 타입 지정 데이터 API와 Entity Framework Core는 2026-09-17에 결정되었으나 아직 제공되지 않습니다. Console은 YB Lambda를 Authentication, Storage, Realtime, Remote Config, Valkey, RobustMQ와 함께 Extended 계층으로 묶습니다. |
+| YB Lambda(이전 명칭 Extended) | Stateless Functions, Actor Lambdas, Workflow Lambdas, Dynamic Code, sandbox, Scheduler/Jobs, consumer trigger, 그리고 호스팅된 자체 포함(self-contained) 서비스를 다루며, 선택적으로 Orleans, SignalR, Redis(Valkey), Kafka, RabbitMQ/AMQP(RobustMQ) API를 제공합니다. 이 기능들은 차트에서 활성화된 상태로 제공되며, 컴파일된 증거 게이트 뒤에 있는 기능(호스팅 서비스, runtime host, consumer 및 consumer trigger, Lambda의 Valkey 및 RobustMQ API)은 로컬 증거(in-process 리허설 및 k3d conformance 실행)로 적격성이 확인되었습니다. Console에서 작성한 함수는 설치본 자체 빌더가 컴파일, 스캔, 서명한 뒤 릴리스합니다. 고객이 제출한 C#을 요청 시 실행하는 별도의 동적 Stateless/Actor Lambda 모듈은 꺼진 상태로 유지되며, RobustMQ AMQP 큐에서 트리거되는 Lambda는 현재 범위 밖입니다. Lambda 측 타입 지정 데이터 API와 Entity Framework Core는 2026-09-17에 결정되었으나 아직 제공되지 않습니다. Console은 YB Lambda를 Authentication, Storage, Realtime, Remote Config, Valkey, RobustMQ와 함께 Extended 계층으로 묶습니다. |
 | Valkey | Yogabase 소유 C# reconciler를 사용합니다. 수명 주기, Job으로 실행되는 승격, Redis 프로토콜 의미론은 로컬 conformance 증거로 적격성이 확인되었고, 프로젝트별 ACL ID로 TLS를 통해 Lambda가 직접 접근하는 경로도 마찬가지입니다. 실제 클라우드 실행은 후속 검증으로 남아 있습니다. |
 | RobustMQ | 제한된 Yogabase 소유 C# 수명 주기 포트를 사용합니다. 수명 주기와 인증된 MQTT는 로컬 증거로 적격성이 확인되었고, 게이트웨이를 거친 MQTT/Kafka/AMQP Lambda 게시와 Kafka consumer trigger도 마찬가지입니다. 네이티브 Kafka 및 AMQP 클라이언트 TLS와, 브로커에 직접 접속하는 임의의 외부 Kafka 또는 AMQP 클라이언트는 적격성이 확인되지 않았습니다. |
-| Enterprise | 설치본이 Enterprise 계층에 도달하기 전에는 사용할 수 없습니다. Console의 Enterprise 그룹은 Audit, Approvals, Authorizations, database SWE assurance tiers, Migrations, Backup을 나열하며, Enterprise 이전 설치본에서는 모든 행을 잠급니다. Authorizations, assurance tiers, Backup은 아직 어떤 계층에도 페이지가 없습니다. |
+| Enterprise | 독립(four-eyes) 승인은 설치본이 선택하는 Enterprise 계층 정책입니다. Console의 Enterprise 그룹은 Audit, Approvals, Authorizations, database SWE assurance tiers, Migrations, Backup을 나열하며 Enterprise 이전 설치본에서는 모든 행을 잠그지만, 감사 기록, 스키마 migration, 데이터베이스 백업 작업은 모든 계층에 존재합니다. database assurance tiers는 어떤 계층에도 구현되어 있지 않습니다. |
 
 이 README는 제품 아키텍처와 경계를 설명합니다. 비활성화되었거나 증거에 의해 제한된 기능이 현재 사용 가능하다는 약속이 아닙니다.
 
@@ -150,12 +150,12 @@ Yogabase는 서명된 관찰과 릴리스에 고정된 증거를 통해 모듈 �
 |---|---|---|---|
 | .NET | `src/dotnet/Yogabase.Yogabase.Client` | `Yogabase.Yogabase.Client` `0.3.0-preview.1` | 작성된 애플리케이션, PKCE, SignalR, Delivery, 게임 서버 및 빌드 클라이언트; `netstandard2.1` 및 `net10.0`; fake transport 테스트만 있으며 실제 설치 증거 없음 |
 | TypeScript | `languages/typescript` | `@stackyoga/yogabase-client-preview` `0.3.0-preview.1` | 생성된 애플리케이션 클라이언트와 작성된 Delivery/storage-key facade |
-| Python | `languages/python` | `stackyoga-yogabase-client-preview` `0.3.0.dev1` | 생성된 애플리케이션 클라이언트와 작성된 비동기 Delivery/storage-key facade; 2026-09-09에 재생성된 소스는 구문 컴파일만 되었고, 그 이후 테스트와 패키지 빌드를 다시 실행하지 않음 |
+| Python | `languages/python` | `stackyoga-yogabase-client-preview` `0.3.0.dev1` | 생성된 애플리케이션 클라이언트와 작성된 비동기 Delivery/storage-key facade; 2026-09-09에 재생성된 소스는 2026-09-12에 Python 3.13.12에서 소스 기준으로 작성된 테스트 10개를 통과했으며, 재생성 이후 패키지 빌드는 다시 실행하지 않음 |
 | Java/JVM | `languages/java` | `io.stackyoga:yogabase-client-preview` `0.3.0-preview.1` | 생성된 애플리케이션/Delivery 클라이언트와 작성된 JVM facade; Kotlin/JVM 상호 운용 경로 |
 | Dart | `languages/dart` | `stackyoga_yogabase_client_preview` `0.3.0-dev.1` | 실험적 생성 애플리케이션/Delivery 소스와 작성된 facade; 2026-09-09에 재생성된 소스는 그 이후 분석하거나 실행하지 않음 |
 | .NET Lambda 컨텍스트 | `src/dotnet/Yogabase.Lambda` | `Yogabase.Lambda` `0.1.0-preview.1` | Lambda 번들을 위한 작성된 런타임 컨텍스트 래퍼: 프로젝트 데이터베이스, Storage, Users, Realtime(사용자 한 명에게 게시 포함), 호출자, Actor/Workflow/reminder 호출, Valkey 직접 접근, 게이트웨이를 거친 MQTT/Kafka/AMQP 게시; `netstandard2.1` 및 `net10.0`(데이터베이스 핸들은 `net10.0`에만 존재); 타입 지정 데이터 API나 Entity Framework 지원은 아직 없음(2026-09-17 결정); fake provider 테스트만 있으며 실제 설치 증거 없음 |
-| .NET runtime host | `src/dotnet/Yogabase.Yogabase.RuntimeHost` | `Yogabase.Yogabase.RuntimeHost` `0.1.0-preview.1` | 작성된 self-scoped runtime-host 클라이언트; `netstandard2.1` 및 `net10.0`; 첫 heartbeat와 Ready 호출에서 `503 RUNTIME_HOST_INSTANCE_PENDING`을 받으면 거부 응답의 `RetryAfterSeconds`에 따라 `StartupPendingBudget`(기본 60초) 안에서 기다리고, 백그라운드 heartbeat 실패를 `Connect(onHeartbeatFailure)`로 보고함(버전 변경 없이 추가됨); 이 저장소에서는 fake transport 테스트만 있음 — 이전 사본이 Unity 패키지 0.1.0의 runtime 모듈로서만 실제로 실행됨 |
-| Unity | `languages/unity/com.stackyoga.yogabase-runtime-host` | `com.stackyoga.yogabase-runtime-host` `0.2.2-preview.1` | runtime-host 모듈(위의 시작 대기 동작 포함), `link.xml`, Editor 게시 흐름(`Yogabase ▸ Publish Server`)을 담은 UPM 패키지; Runtime 폴더와 Editor 스크립트는 Unity 6000.5.7f1 참조 어셈블리 세트에 대해 C# 9로 컴파일되지만, 이 버전을 담은 IL2CPP 빌드도, 이 버전으로 실행한 실제 relay 세션도 없으며, Editor에서 게시 창을 실행한 적도 없음. 0.1.0 runtime 모듈은 IL2CPP 전용 서버에서 실제로 실행됨(플랫폼 적격성 참조) |
+| .NET runtime host | `src/dotnet/Yogabase.Yogabase.RuntimeHost` | `Yogabase.Yogabase.RuntimeHost` `0.1.0-preview.1` | 작성된 self-scoped runtime-host 클라이언트; `netstandard2.1` 및 `net10.0`; heartbeat 또는 Ready 호출에서 `503 RUNTIME_HOST_INSTANCE_PENDING`을 받으면 거부 응답의 `RetryAfterSeconds`에 따라 호출마다 `StartupPendingBudget`(기본 60초)까지 기다리고, 백그라운드 heartbeat 실패를 `Connect(onHeartbeatFailure)`로 보고함(버전 변경 없이 추가됨); 이 저장소에서는 fake transport 테스트만 있음 — 이전 사본이 Unity 패키지 0.1.0의 runtime 모듈로서만 실제로 실행됨 |
+| Unity | `languages/unity/com.stackyoga.yogabase-runtime-host` | `com.stackyoga.yogabase-runtime-host` `0.2.2-preview.1` | runtime-host 모듈(위의 시작 대기 동작 포함), `link.xml`, Editor 게시 흐름(`Yogabase ▸ Publish Server`)을 담은 UPM 패키지; Runtime 폴더와 Editor 스크립트는 Unity 6000.5.7f1 참조 어셈블리 세트에 대해 C# 9로 컴파일되지만, 이 버전을 Unity Editor로 가져온 기록도, 이 버전을 담은 IL2CPP 빌드도, 이 버전으로 실행한 실제 relay 세션도 없으며, Editor에서 게시 창을 실행한 적도 없음. 0.1.0 runtime 모듈은 IL2CPP 전용 서버에서 실제로 실행됨(플랫폼 적격성 참조) |
 | .NET 샘플 | `samples/dotnet/Yogabase.ServerPathProbe` | 패키지 아님 | 서버 측 게임 경로(서버 시작, UDP datagram 하나, Lambda 호출, 선택적 realtime 구독)를 Editor 없이 점검하는 진단 도구로, 플레이어 access token은 환경 변수에서만 읽음; 인수, 로그인 컨텍스트, 미리보기 테스트만 있으며 실제 설치에 대해 실행한 적 없음 |
 
 변경 불가능한 애플리케이션 스냅샷은 `contracts/yogabase-client-v1.openapi.json`이며 SHA-256은 `e1fe951a95e2da44efffbd4b4dc2985aa8ca09118d89a5360a1eebddb04d8582`입니다. 이 스냅샷은 플레이어 대상 `/v1/servers/*` 게임 서버 표면을 포함하므로 모든 언어에서 생성됩니다. 빌드 수집 스냅샷은 `contracts/yogabase-builds-v1.openapi.json`이며 SHA-256은 `8b2aa93166f0f0990c78c1983ee9bb54b7d6dbb10748da504b572c0d9a63efd6`입니다. 이는 프로젝트 범위의 `ybt_` 개발자 토큰으로 접근하는 개발자 도구 표면으로, .NET `YogabaseBuildsClient`와 Unity Editor 패키지가 구현하며 다른 언어에서는 의도적으로 생성하지 않습니다. 워크로드 스냅샷은 `contracts/yogabase-delivery-v1.openapi.json`이며 SHA-256은 `1eca152807ed2c6ab834b6ad7fea5fedb514ce359bd8f02f028635b03b8b6cc4`입니다. runtime-host 스냅샷은 `contracts/yogabase-runtime-host-v1.openapi.json`이며 SHA-256은 `82697bd4a5f9445ac4a5c3932434e06daa3862a1f870759b09500b996b0056bb`입니다. 이 문서는 수명 주기 상태와 오류 코드를 위한 서버 측 참조로만 체크인되며 의도적으로 코드 생성을 하지 않습니다. 워크로드는 그 문서가 선언한 instance 주소 경로가 아니라 self-scoped relay 경로를 호출하기 때문입니다. 인접한 checksum, Kiota lock 및 `MANIFEST.json`은 이 저장소를 정확한 계약과 generator에 바인딩합니다.
@@ -210,6 +210,6 @@ publishable key는 Secret이 아닙니다. 이는 게이트웨이에 프로젝�
 
 ## 플랫폼 적격성
 
-생성된 REST 소스만으로 production 플랫폼 통합이 적격해지는 것은 아닙니다. `netstandard2.1` 호환성만으로 Unity 또는 AOT가 적격하다는 뜻도 아닙니다. Dart 소스는 2026-09-09 재생성 이전에 Dart 3.13.2 분석과 작성 소스 검사를 마지막으로 통과했으며, 재생성된 Dart 소스와 Python 소스는 그 이후 분석되거나 테스트되지 않았습니다. Android, Flutter, Kotlin/JVM 런타임 통합, 애플리케이션 클라이언트의 Unity IL2CPP, 네이티브 보안 저장소, interactive cookie 처리, .NET 이외의 SignalR 통합 및 live-gateway conformance는 지원을 주장하기 전에 각각 명시적인 플랫폼 증거가 필요합니다.
+생성된 REST 소스만으로 production 플랫폼 통합이 적격해지는 것은 아닙니다. `netstandard2.1` 호환성만으로 Unity 또는 AOT가 적격하다는 뜻도 아닙니다. Dart 소스는 2026-09-09 재생성 이전에 Dart 3.13.2 분석과 작성 소스 검사를 마지막으로 통과했으며 그 이후 분석되거나 실행되지 않았습니다. 재생성된 Python 소스의 작성된 테스트는 2026-09-12에 마지막으로 통과했습니다. Android, Flutter, Kotlin/JVM 런타임 통합, 애플리케이션 클라이언트의 Unity IL2CPP, 네이티브 보안 저장소, interactive cookie 처리, .NET 이외의 SignalR 통합 및 live-gateway conformance는 지원을 주장하기 전에 각각 명시적인 플랫폼 증거가 필요합니다.
 
-runtime-host 모듈과 Unity 패키지는 체크인된 계약을 기준으로 작성되었고, 이 저장소에서는 fake transport 단위 테스트로 검증됩니다. Unity 패키지의 0.1.0 runtime 모듈은 실제로 실행되었습니다. Unity 6000.5.7f1로 IL2CPP Linux arm64 전용 서버에 컴파일되어 자체 호스팅 Yogabase 설치본에서 호스팅되었고, heartbeat와 Ready 호출이 Pod 로컬 relay를 통해 수락되었습니다. 처음은 인스턴스가 Ready에 도달한 2026-09-07이었고, 2026-09-16과 2026-09-17에도 다시 수락되었습니다. 같은 실행에서 query string `resumeToken`을 담은 assignment polling이 첫 페이지 이후로 넘어가지 못한다는 사실도 드러났습니다. 2026-09-17 제품 변경 전까지 제품의 relay가 query string을 버렸기 때문이며, 아직 relay를 통해 빌드에 allocation이 전달된 적은 없습니다. 현재 버전인 .NET 패키지와 Unity 패키지 0.2.2는 시작 대기 동작을 포함해 IL2CPP 빌드나 실제 relay에서 실행된 적이 없으며, 계열별 runtime-host conformance 배터리(restart, replay, duplicate, stale-epoch, double-allocation, reservation-expiry, disconnect, Pod 교체, drain/shutdown 경합, credential-confusion, secret-negative)도 실행하지 않았습니다. 두 가지 모두 적격성이 검증되지 않은 preview로 취급하세요.
+runtime-host 모듈과 Unity 패키지는 체크인된 계약을 기준으로 작성되었고, 이 저장소에서는 fake transport 단위 테스트로 검증됩니다. Unity 패키지의 0.1.0 runtime 모듈은 실제로 실행되었습니다. Unity 6000.5.7f1로 IL2CPP Linux arm64 전용 서버에 컴파일되어 자체 호스팅 Yogabase 설치본에서 호스팅되었고, heartbeat와 Ready 호출이 Pod 로컬 relay를 통해 수락되었습니다. 처음은 인스턴스가 Ready에 도달한 2026-09-07이었고, 2026-09-16과 2026-09-17에도 다시 수락되었습니다. 같은 실행에서 query string `resumeToken`을 담은 assignment polling이 첫 페이지 이후로 넘어가지 못한다는 사실도 드러났습니다. 제품의 relay가 query string을 버렸기 때문입니다. 2026-09-17에 이루어진 제품 수정은 아직 실제 환경에서 관찰되지 않았으며, 아직 relay를 통해 빌드에 allocation이 전달된 적은 없습니다. 현재 버전인 .NET 패키지와 Unity 패키지 0.2.2는 시작 대기 동작을 포함해 IL2CPP 빌드나 실제 relay에서 실행된 적이 없으며, 계열별 runtime-host conformance 배터리(restart, replay, duplicate, stale-epoch, double-allocation, reservation-expiry, disconnect, Pod 교체, drain/shutdown 경합, credential-confusion, secret-negative)도 실행하지 않았습니다. 두 가지 모두 적격성이 검증되지 않은 preview로 취급하세요.
