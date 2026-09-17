@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1400" height="760" viewBox="0 0 1400 760" role="img" aria-labelledby="title desc">
   <title id="title">Yogabase custom build delivery and runtime flow</title>
-  <desc id="desc">A customer build workflow uses the Yogabase Delivery SDK to submit an immutable artifact to the Control Plane. The Control Plane admits and releases it through the outbound fleet channel and member actuator into Kubernetes. The running workload uses the target-local application gateway and never receives Kubernetes or cloud credentials.</desc>
+  <desc id="desc">A customer build workflow uses the Yogabase Delivery SDK to submit an immutable artifact to the Control Plane. The Control Plane admits and releases it through the outbound fleet channel and member actuator into Kubernetes. The running workload uses the cluster-local application gateway, reports its lifecycle through the self-scoped runtime-host contract over its Pod-local relay, and never receives Kubernetes or cloud credentials.</desc>
   <defs>
     <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#f8fbfa"/>
@@ -35,7 +35,7 @@
 
   <rect width="1400" height="760" fill="url(#background)"/>
   <text x="54" y="54" class="title">Custom build → Control Plane → Kubernetes</text>
-  <text x="54" y="80" class="subtitle">Agones, PlayFlow, Nakama, Firebase, and Supabase inform SDK ergonomics only; Yogabase contracts remain authoritative.</text>
+  <text x="54" y="80" class="subtitle">Agones' client loop is adapted under Apache-2.0; PlayFlow, Firebase, and Supabase inform SDK ergonomics only; Yogabase contracts remain authoritative.</text>
 
   <text x="54" y="122" class="lane">BUILD AND DELIVERY</text>
 
@@ -60,7 +60,7 @@
   <path d="M790 175h12M792 170h8M794 165h4" stroke="#287c66" stroke-width="2" fill="none" stroke-linecap="round"/>
   <text x="820" y="178" class="box-title">Yogabase Control Plane</text>
   <text x="790" y="210" class="box-text">Durable admission and operation</text>
-  <text x="790" y="232" class="box-text">Approval-gated release intent</text>
+  <text x="790" y="232" class="box-text">Release intent under approval policy</text>
   <text x="790" y="254" class="box-text">Sole source of management policy</text>
 
   <path d="M334 208H390" class="arrow"/>
@@ -97,17 +97,19 @@
 
   <text x="54" y="626" class="lane">APPLICATION RUNTIME</text>
   <rect x="500" y="644" width="430" height="62" class="box"/>
-  <text x="524" y="670" class="box-title">Target-local application gateway</text>
-  <text x="524" y="691" class="box-text">Auth, typed data, storage, Functions, Actors, Workflows, Realtime</text>
+  <text x="524" y="670" class="box-title">Cluster-local application gateway</text>
+  <text x="524" y="691" class="box-text">Auth, storage, Lambdas, Realtime, and hosted game servers</text>
   <path d="M1163 570C1163 676 974 676 940 676" class="arrow-muted dashed"/>
 
   <rect x="54" y="358" width="390" height="212" rx="14" fill="#fff8e8" stroke="#e0bf78" stroke-width="1.5"/>
-  <text x="78" y="392" class="note-title">Current runtime-host boundary</text>
-  <text x="78" y="422" class="note-text">The implemented Delivery API covers build admission,</text>
-  <text x="78" y="442" class="note-text">release, durable operations, polling, and events.</text>
-  <text x="78" y="474" class="note-text">There is currently no customer-build API for health,</text>
-  <text x="78" y="494" class="note-text">ready, allocation, reservation, or shutdown signals.</text>
-  <text x="78" y="526" class="note-text">The SDK does not fabricate those server operations.</text>
+  <text x="78" y="392" class="note-title">Runtime-host boundary</text>
+  <text x="78" y="422" class="note-text">The Delivery API covers build admission, release,</text>
+  <text x="78" y="442" class="note-text">durable operations, polling, and events.</text>
+  <text x="78" y="474" class="note-text">A running build reports health and readiness, may reserve</text>
+  <text x="78" y="494" class="note-text">itself, reads its assignments, and drains on shutdown</text>
+  <text x="78" y="514" class="note-text">through the self-scoped Runtime Host v1 contract over its</text>
+  <text x="78" y="534" class="note-text">Pod-local relay. The workload is offered no allocation call</text>
+  <text x="78" y="554" class="note-text">and never holds a Kubernetes or cloud credential.</text>
 
   <text x="54" y="742" class="small">Reference patterns improve lifecycle handling; they never grant Kubernetes authority or imply Agones, PlayFlow, Nakama, Firebase, or Supabase compatibility.</text>
 </svg>

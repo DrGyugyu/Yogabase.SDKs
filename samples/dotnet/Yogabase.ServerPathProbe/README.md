@@ -17,7 +17,7 @@ the same five things a Unity demo client would exercise, through `Yogabase.Yogab
 
 This is a sample and a diagnostic tool, not a published package. `IsPackable` is `false`, so even a
 `dotnet pack` of the whole solution produces no package for it, and the root
-[README.md](../../../README.md#local-verification) packs one explicit `.csproj` path. It also never
+[README.md](../../../README.md#local-verification) packs only the three library `.csproj` paths. It also never
 signs in, claims a seat, or creates an account: it only consumes a player access token the owner
 already holds.
 

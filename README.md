@@ -4,57 +4,61 @@ English | [한국어](README.ko.md)
 
 Client SDK previews for applications built on **Yogabase**.
 
-Yogabase is a .NET 10 control plane for operating data services across Kubernetes. This repository is deliberately independent of the private Yogabase product repository, its Helm chart, images, Control Plane, and Marketplace delivery graph. It contains application-facing and workload-delivery client libraries plus their contract fixtures; it is not a Kubernetes operator, a cloud-provisioning tool, or a generic management SDK.
+Yogabase is a .NET 10 Control Plane that installs into any conformant Kubernetes cluster and gives an application developer a managed database plus sign-in, Lambdas, storage, realtime, and hosted game servers. This repository is deliberately independent of the private Yogabase product repository, its Helm chart, images, Control Plane, and release graph; what it takes from the product is byte-identical copies of the product's published OpenAPI contracts. It contains application-facing, workload-delivery, runtime-host, and Lambda-context client libraries, a Unity package with an Editor publisher, a diagnostic sample, and their contract fixtures; it is not a Kubernetes operator, a cloud-provisioning tool, or a generic management SDK.
 
 > **Preview status:** the packages in this repository are unpublished previews. A successful local build does not authorize publication to NuGet, npm, PyPI, Maven Central, pub.dev, GitHub Packages, or any other registry.
 
 ## What Yogabase does
 
-Yogabase gives a team one authoritative place to plan, approve, deploy, observe, and operate its data services on Kubernetes. The first product scope is **Yogabase Core**: a managed YugabyteDB lifecycle with **YSQL** as the supported database API, a Blazor Console, a central Control Plane, and portable Kubernetes provisioning for AWS, Azure, Google Cloud, and Oracle Cloud qualification profiles.
+Yogabase gives a team one authoritative place to create, deploy, observe, and operate its databases and application backends on Kubernetes. Its first scope is **Yogabase Core**: a managed YugabyteDB lifecycle with **YSQL** as the supported database API, a Blazor Console, and a central Control Plane; the application platform around it adds sign-in, Lambdas, storage, realtime, and hosted game servers. Cluster provisioning is an optional binding: its AWS, Azure, Google Cloud, and Oracle Cloud qualification profiles target emulators, and none has completed yet.
 
-It is one Kubernetes Marketplace product delivered through one Helm chart and one coordinated image family. The chart has two installation modes:
+It is one Kubernetes product — one Helm chart and one coordinated image family — that installs into any conformant Kubernetes cluster, from a local k3d cluster to Amazon EKS. An AWS Marketplace listing is one optional distribution of that product, not its identity. The chart has two installation modes:
 
 | Mode | Role |
 |---|---|
-| `control-plane` | Runs the authoritative Control Plane, Console, REST API, fleet gateway, provisioning workflow, billing/metering, local actuator/agent, and its dedicated RF1 YSQL catalog. |
-| `member` | Runs the lightweight services installed in each managed target: the outbound fleet agent and the deterministic local actuator. |
+| `control-plane` | Runs the authoritative Control Plane, Console, REST API, fleet gateway, billing, the local actuator/agent, and its dedicated YSQL catalog (RF1 by default). The Pulumi provisioning worker renders only when provisioning is enabled, Marketplace entitlement and metering stay dormant unless an AWS Marketplace binding is configured, and the Yogabase-owned object store is optional. |
+| `member` | Runs the lightweight services installed in each managed cluster: the outbound fleet agent and the deterministic local actuator, plus the optional Yogabase-owned object store. |
 
 The Control Plane is Yogabase's sole source of accepted management intent. A member never exposes an inbound management API, never decides product policy, and never becomes a peer control plane. Members connect **outbound** to the Control Plane over mutually authenticated gRPC, persist signed target-bound intent, and keep reconciling already accepted local work while the Control Plane is unavailable.
 
-## Marketplace architecture
+## AWS Marketplace distribution (optional)
 
-![Yogabase EKS Beta marketplace architecture](assets/marketplace-architecture.svg)
+![Yogabase AWS Marketplace distribution on Amazon EKS](assets/marketplace-architecture.svg)
 
-The EKS Beta architecture keeps databases, secrets, and operational state inside the customer's AWS account. Members connect outbound-only to the authoritative Control Plane; the customer retains control of the optional backup destination.
+This diagram shows the optional AWS Marketplace distribution on Amazon EKS as first drawn for its beta; the same chart installs into any conformant Kubernetes cluster. In that distribution, databases, secrets, and operational state stay inside the customer's AWS account, members connect outbound-only to the authoritative Control Plane, and the customer controls the optional backup destination.
 
 ## Console experience
 
 ![Illustrative Yogabase Blazor Console concept](assets/yogabase-console-concept-v2.png)
 
-_Source-informed Console concept, not a live environment or status display. It intentionally uses empty states and does not represent customer data, metrics, or enabled capabilities._
+_Early Console concept, not a live environment or status display. It predates the current Console: it shows an AWS Marketplace/EKS installation badge and an operations-first navigation, whereas an installation is now identified by its Kubernetes cluster and a developer lands on Get started. It intentionally uses empty states and does not represent customer data, metrics, or enabled capabilities._
 
 ## How the architecture works
 
 ![Yogabase Control Plane and member architecture](assets/yogabase-architecture.svg)
 
+Approval follows the installation's approval policy (approved at submission by default), and the Provisioner is present only when the optional provisioning binding is enabled.
+
 The local actuator is intentionally subordinate. It is the only component that writes Yogabase-owned Kubernetes workloads, but it can translate only Control Plane-signed, allowlisted intent into deterministic resources. It does not read arbitrary Secrets, execute commands in Pods, or originate management policy.
 
 ### Cloud and target identity
 
-Cloud provider selection is an installation identity, not a console dropdown or client API parameter. The Marketplace release fixes the Control Plane provider; each member's provider and managed-cluster kind are attested during enrollment and become immutable target identity. Provisioning remains behind a .NET `ICloudProvisioner` boundary and uses Pulumi .NET programs, while the product retains one provider-neutral Control Plane and one Helm chart.
+Installation identity is the Kubernetes cluster Yogabase is installed into, attested at enrollment; it is never a console dropdown or a client API parameter. A cloud object store, workload identity, or cluster provisioning is an optional binding attached independently, and a cloud provider names the vendor of such a binding, not the installation. Each member's cluster identity is attested during enrollment. Provisioning, when used, stays behind a .NET `ICloudProvisioner` boundary with Pulumi .NET programs; installing or operating Yogabase never requires it, and the product keeps one provider-neutral Control Plane and one Helm chart.
+
+Console sign-in is the installation's choice of named seats or an external OIDC provider, with an optional AWS IAM Identity Center preset. A console identity never authenticates application or SDK calls.
 
 ### Database operations
 
-Core manages logical YugabyteDB database services on selected Kubernetes targets. It supports YSQL-first database lifecycle, health/topology visibility, explicit RF1/RF3/RF5 topology selection, guarded scale-out, compute resize, storage expansion, optional logical encrypted backup, restore into a new or empty target, allowlisted patch upgrades, safe deletion, retained PVCs, diagnostics, and redacted support bundles.
+Core manages logical YugabyteDB database services on selected Kubernetes clusters. It supports YSQL-first database lifecycle, health/topology visibility, explicit RF1/RF3/RF5 topology selection, guarded scale-out, compute resize, storage expansion, allowlisted patch upgrades, safe deletion, retained PVCs, diagnostics, and redacted support bundles. Logical encrypted backup and restore into a new or empty target are defined as durable database operations; the Console lists Backup under the Enterprise tier and has no Backup page yet.
 
 Every change is designed as a durable operation:
 
 1. Yogabase produces a preview of the exact requested change.
 2. The request is checked against the current resource revision and an idempotency key.
-3. Risky work requires the appropriate approval.
+3. The installation's approval policy decides whether the change waits: the shipped default approves it at submission by installation policy, and independent (four-eyes) approval is an Enterprise-tier opt-in.
 4. Accepted work is auditable, recoverable, and reports bounded observed facts rather than fabricated status.
 
-Yogabase does not expose arbitrary SQL, engine-internal topology as a client contract, remote shell access, `pods/exec` workflows, peer gossip, or an alternate control plane. YCQL, automatic scale-in, PITR, downgrade, and cross-cluster database deployments are outside the current Core scope.
+No client SDK contract carries SQL. Developer DDL and DML run only from the Console's Table Editor, SQL Editor, and Migrations page, through the `schema-runner` role as the environment's schema identity, with every write recorded as a digest-bound migration; a Lambda reaches its project database server-side. Yogabase does not expose engine-internal topology as a client contract, remote shell access, `pods/exec` workflows, peer gossip, or an alternate control plane. YCQL, automatic scale-in, PITR, downgrade, and cross-cluster database deployments are outside the current Core scope.
 
 ### What happens during an operation
 
@@ -78,8 +82,8 @@ A custom-build workflow reaches Kubernetes through the authoritative Control Pla
 receiving Kubernetes or cloud credentials. The separately configured Delivery client uses a
 short-lived workload OIDC token to call the TLS-only `/api/v1/delivery` host. It can discover
 approved templates, preview and submit environments and immutable artifact admissions, create
-releases, promote or roll back them, decommission an environment, and follow the resulting durable
-operation through bounded polling or server-sent events.
+releases, promote or roll back them, decommission an environment, abandon a stuck operation, and
+follow the resulting durable operation through bounded polling or server-sent events.
 
 Artifact submission carries a credential-free provider-native locator and exact bundle, manifest,
 SBOM, and scan-evidence digests. The Control Plane records intent; an isolated admission job verifies
@@ -91,59 +95,77 @@ and readiness, be reserved or allocated, and drain on shutdown
 (`contracts/yogabase-runtime-host-v1.openapi.json`). `Yogabase.Yogabase.RuntimeHost` implements the
 workload side of it as a faithful, modified C# derivative of Agones' client loop shape under
 Apache-2.0; see [`docs/REFERENCE_REVIEW.md`](docs/REFERENCE_REVIEW.md) and
-[`docs/UNITY_DEDICATED_SERVER.md`](docs/UNITY_DEDICATED_SERVER.md). PlayFlow, Nakama, Firebase, and
-Supabase remain reference-only, informing client lifecycle, session, cancellation, polling,
-event-stream, and platform ergonomics.
+[`docs/UNITY_DEDICATED_SERVER.md`](docs/UNITY_DEDICATED_SERVER.md). PlayFlow, Firebase, Supabase,
+and the Nakama .NET/Unity client remain reference-only, informing client lifecycle, session,
+cancellation, polling, event-stream, and platform ergonomics. `Yogabase.Lambda` adopts the shape of
+the Nakama Plus runtime-module API in C# under Apache-2.0, with its licence packed; see
+[`docs/REFERENCE_REVIEW.md`](docs/REFERENCE_REVIEW.md).
 
 ## Application runtime and SDK boundary
 
-Yogabase can expose a target-local application gateway for approved application operations. That is the boundary these SDKs implement:
+Yogabase can expose a cluster-local application gateway for approved application operations. That is the boundary these SDKs implement:
 
 - Bootstrap returns non-secret, project-bound REST, identity, and separately deployed realtime endpoint configuration.
 - Authentication covers signup, login/logout, email confirmation, password reset, MFA and recovery codes, external-identity callbacks, plus authorization code with PKCE and rotating refresh tokens. SDKs never contain confidential client credentials.
-- **There is no client-facing data surface.** The Data API module is withdrawn (owner decision,
-  2026-09-08). An application reaches its project's data through a Lambda, which runs server-side
-  with a full-access database context, and through Auth, Storage and Realtime.
+- **There is no client-facing data surface in these SDKs today.** The Data API module was withdrawn
+  on 2026-09-08. On 2026-09-17 the owner decided to restore it — clients querying and writing
+  project tables through the gateway under row-level security as the signed-in user — and to give
+  Lambdas a typed data API and Entity Framework Core, which stays server-side (no client SDK will
+  carry EF code or a model). None of this is implemented yet: the mirrored application contract
+  declares no `/v1/data` route and no SDK here has a Data client. Today an application reaches its
+  project's data through a Lambda, which runs server-side with a full-access database context, and
+  through Auth, Storage and Realtime.
 - Storage is mediated, digest- and idempotency-bound, and never returns provider credentials or signed URLs.
 - Stateless Functions invoke an exact registered version through the bounded public contract.
 - Actor Lambdas address one versioned, project-local instance; Workflow Lambdas start one immutable definition version and expose only the v1 cancel operation.
-- Realtime uses the separately returned SignalR origin for topic subscribe/unsubscribe, signed Lambda-binding invocation, and at-least-once completion events deduplicated by `eventId` in the authored .NET client. JSON remains the default Hub protocol.
+- Realtime uses the separately returned SignalR origin for topic subscribe/unsubscribe, signed Lambda-binding invocation, events a Lambda publishes to a topic or addresses to one signed-in user, and at-least-once completion events deduplicated by `eventId` in the authored .NET client. JSON remains the default Hub protocol.
+- Game servers: a signed-in player starts, lists, reads, and stops a hosted server instance through `/v1/servers/*`, which returns the host and ports to dial.
 
 Clients are provider-neutral and shard-oblivious. They never receive a cloud selector, cloud credential, Kubernetes identity, TServer address, tablet/shard identifier, shard key, physical placement map, or topology generation. YugabyteDB owns its internal routing and placement; Yogabase observes bounded health and capacity facts without introducing another data-path router.
 
-The SDKs deliberately exclude generic human Control Plane management APIs, infrastructure provisioning, fleet commands, Kubernetes CRDs, approval mutation, remote shell, `pods/exec`, general notifications, analytics, GameSessions, and provider credentials. The only Control Plane surfaces are the exact workload-authenticated Delivery v1 contract described above and the self-scoped Runtime Host v1 contract that a hosted workload reaches over loopback, which accepts no application or Delivery credential and exposes no allocation call to the workload.
+The SDKs deliberately exclude generic human Control Plane management APIs, infrastructure provisioning, fleet commands, Kubernetes CRDs, approval mutation, remote shell, `pods/exec`, general notifications, analytics, GameSessions, and provider credentials. The only Control Plane surfaces are the workload-authenticated Delivery v1 contract described above, the Builds v1 build-ingest contract that a developer tool (the .NET `YogabaseBuildsClient` or the Unity Editor publisher) calls with a project-scoped `ybt_` developer token, and the self-scoped Runtime Host v1 contract that a hosted workload reaches over loopback through its Pod-local relay, which accepts no application or Delivery credential and exposes no allocation call to the workload.
+
+Further owner decisions recorded on 2026-09-17 will change these surfaces and are not shipped yet; none is in the mirrored contracts or in these packages:
+
+- A Lambda uploaded through Builds will have to declare its execution kind and its realtime ingress and egress binding ids, and an upload without them will be refused at ingest. This affects `YogabaseBuildsClient` and the Unity publisher.
+- A Lambda's realtime publish to a topic its function version did not declare will be refused with `403 realtime_binding_not_declared`.
+- The runtime-host assignments page will gain an additive head state and sequence.
+- A game-server allocation will return an address a client can actually dial, rather than a node-internal address.
 
 ## Capability truth
 
-Yogabase reports module and protocol availability from signed observations and release-locked evidence. Configuration alone is never treated as a successful deployment.
+Yogabase reports module and protocol availability from signed observations and release-locked evidence. Configuration alone is never treated as a successful deployment. A capability gate opens on passing local conformance evidence (k3d runs and in-process rehearsals); real-cloud runs are follow-up validation, not prerequisites.
 
 | Area | Current boundary |
 |---|---|
-| Core | The primary product scope: managed YugabyteDB/YSQL operations with durable, approval-aware workflows. |
-| Extended | Scoped to Functions, Actor Lambdas, Workflow Lambdas, Dynamic Code, sandboxing, and Scheduler/Jobs. Capabilities remain unavailable until their own runtime evidence qualifies them. |
-| Valkey | Uses a Yogabase-owned C# reconciliation path. Promotion and Redis protocol claims remain gated on live qualification evidence. |
-| RobustMQ | Uses a bounded Yogabase-owned C# lifecycle port. Lifecycle and Kafka/AMQP/MQTT protocol claims remain unavailable until independently qualified. |
+| Core | The primary product scope: managed YugabyteDB/YSQL operations as durable operations under the installation's approval policy (approved at submission by default; four-eyes approval is an Enterprise opt-in). |
+| Application modules | Authentication, Storage, Realtime (SignalR), and Remote Config ship enabled in the chart. Realtime requires Authentication, and Storage reports that it is waiting for an object store until one is bound. |
+| YB Lambda (formerly Extended) | Stateless Functions, Actor Lambdas, Workflow Lambdas, Dynamic Code, the sandbox, Scheduler/Jobs and consumer triggers, plus hosted self-contained services, with optional Orleans, SignalR, Redis (Valkey), Kafka and RabbitMQ/AMQP (RobustMQ) APIs. These are enabled by default and qualified on local evidence (in-process rehearsals and k3d conformance runs); on-demand compilation of customer-submitted C# for dynamic Stateless and Actor Lambdas stays off, and Lambdas triggered from a RobustMQ AMQP queue are out of the current scope. A Lambda-side typed data API and Entity Framework Core were decided on 2026-09-17 and are not shipped. The Console groups YB Lambda with Authentication, Storage, Realtime, Remote Config, Valkey and RobustMQ under its Extended tier. |
+| Valkey | Uses a Yogabase-owned C# reconciler. Lifecycle, Job-actuated promotion, and Redis protocol semantics are qualified on local conformance evidence, as is direct Lambda access over TLS under a per-project ACL identity; real-cloud runs remain follow-up validation. |
+| RobustMQ | Uses a bounded Yogabase-owned C# lifecycle port. Lifecycle and authenticated MQTT are qualified on local evidence, as are gateway-mediated Lambda publication over MQTT, Kafka and AMQP and Kafka consumer triggers. Native Kafka and AMQP client TLS, and arbitrary external Kafka or AMQP clients of the broker, remain unqualified. |
+| Enterprise | Unavailable until an installation reaches the Enterprise tier. The Console's Enterprise group lists Audit, Approvals, Authorizations, database SWE assurance tiers, Migrations, and Backup, and locks every row on a pre-Enterprise installation; Authorizations, assurance tiers, and Backup have no page on any tier yet. |
 
 This README describes product architecture and boundaries, not a promise that a disabled or evidence-gated capability is currently enabled.
 
 ## Packages
 
-The non-.NET package identifiers retain their existing preview names for continuity. They do not imply registry publication or a support commitment. Version `0.3` adds the workload-authenticated Control Plane Delivery v1 surface and cross-platform lifecycle improvements while retaining the existing application contract.
+The non-.NET package identifiers retain their existing preview names for continuity. They do not imply registry publication or a support commitment. Version `0.3` added the workload-authenticated Control Plane Delivery v1 surface and cross-platform lifecycle improvements. The application contract has changed since without a version change: the client-facing Data API was removed (2026-09-08), the `/v1/servers/*` game-server surface was added, and the .NET package gained its Servers and Builds clients, all still versioned `0.3.0-preview.1`.
 
 | Platform | Location | Current package identity | Qualification |
 |---|---|---|---|
-| .NET | `src/dotnet/Yogabase.Yogabase.Client` | `Yogabase.Yogabase.Client` `0.3.0-preview.1` | Authored application, PKCE, SignalR, Delivery, game-server, and build clients; `netstandard2.1` and `net10.0` |
+| .NET | `src/dotnet/Yogabase.Yogabase.Client` | `Yogabase.Yogabase.Client` `0.3.0-preview.1` | Authored application, PKCE, SignalR, Delivery, game-server, and build clients; `netstandard2.1` and `net10.0`; fake-transport tests only, no live installation evidence |
 | TypeScript | `languages/typescript` | `@stackyoga/yogabase-client-preview` `0.3.0-preview.1` | Generated application client plus authored Delivery and storage-key facades |
-| Python | `languages/python` | `stackyoga-yogabase-client-preview` `0.3.0.dev1` | Generated application client plus authored async Delivery and storage-key facades |
+| Python | `languages/python` | `stackyoga-yogabase-client-preview` `0.3.0.dev1` | Generated application client plus authored async Delivery and storage-key facades; the source regenerated on 2026-09-09 was only syntax-compiled, and its tests and package build have not been re-run since |
 | Java/JVM | `languages/java` | `io.stackyoga:yogabase-client-preview` `0.3.0-preview.1` | Generated application/Delivery clients plus authored JVM facades; Kotlin/JVM interop path |
-| Dart | `languages/dart` | `stackyoga_yogabase_client_preview` `0.3.0-dev.1` | Experimental generated application/Delivery source plus authored facades |
-| .NET Lambda context | `src/dotnet/Yogabase.Lambda` | `Yogabase.Lambda` `0.1.0-preview.1` | Authored runtime-context wrapper for a Lambda bundle; `netstandard2.1` and `net10.0` (the database handle only on `net10.0`); fake-provider tests only, no live installation evidence |
-| .NET runtime host | `src/dotnet/Yogabase.Yogabase.RuntimeHost` | `Yogabase.Yogabase.RuntimeHost` `0.1.0-preview.1` | Authored self-scoped runtime-host client; `netstandard2.1` and `net10.0`; fake-transport tests only, no live-gateway evidence |
-| Unity | `languages/unity/com.stackyoga.yogabase-runtime-host` | `com.stackyoga.yogabase-runtime-host` `0.2.2-preview.1` | UPM package carrying the runtime-host module, its `link.xml`, and the Editor publish flow (`Yogabase ▸ Publish Server`); the Editor scripts compile against a real Unity 6000.5.7f1 reference set at C# 9, but no Editor has run the window and no IL2CPP build has verified the runtime module |
+| Dart | `languages/dart` | `stackyoga_yogabase_client_preview` `0.3.0-dev.1` | Experimental generated application/Delivery source plus authored facades; the source regenerated on 2026-09-09 has not been analysed or run since |
+| .NET Lambda context | `src/dotnet/Yogabase.Lambda` | `Yogabase.Lambda` `0.1.0-preview.1` | Authored runtime-context wrapper for a Lambda bundle: project database, Storage, Users, Realtime (including publishing to one user), the caller, Actor, Workflow, and reminder calls, direct Valkey access, and gateway-mediated MQTT, Kafka, and AMQP publication; `netstandard2.1` and `net10.0` (the database handle only on `net10.0`); no typed data API or Entity Framework support yet (decided 2026-09-17); fake-provider tests only, no live installation evidence |
+| .NET runtime host | `src/dotnet/Yogabase.Yogabase.RuntimeHost` | `Yogabase.Yogabase.RuntimeHost` `0.1.0-preview.1` | Authored self-scoped runtime-host client; `netstandard2.1` and `net10.0`; waits out `503 RUNTIME_HOST_INSTANCE_PENDING` on its first heartbeat and Ready call within `StartupPendingBudget` (default 60 seconds) using the refusal's `RetryAfterSeconds`, and reports background heartbeat failures through `Connect(onHeartbeatFailure)` (added without a version change); fake-transport tests only in this repository — an earlier copy ran live only as the Unity package's 0.1.0 runtime module |
+| Unity | `languages/unity/com.stackyoga.yogabase-runtime-host` | `com.stackyoga.yogabase-runtime-host` `0.2.2-preview.1` | UPM package carrying the runtime-host module (with the startup wait-out above), its `link.xml`, and the Editor publish flow (`Yogabase ▸ Publish Server`); its Runtime folder and Editor scripts compile at C# 9 against Unity 6000.5.7f1 reference sets, but no IL2CPP build carries this version, no live relay session has run it, and no Editor has run the publish window. The 0.1.0 runtime module did run live in an IL2CPP dedicated server (see Platform qualification) |
+| .NET sample | `samples/dotnet/Yogabase.ServerPathProbe` | not a package | Editor-free diagnostic walk of the server-side game path (server start, one UDP datagram, a Lambda invoke, an optional realtime subscription) with a player access token read only from environment variables; argument, sign-in-context, and preview tests only, never run against a live installation |
 
 The immutable application snapshot is `contracts/yogabase-client-v1.openapi.json` (SHA-256 `e1fe951a95e2da44efffbd4b4dc2985aa8ca09118d89a5360a1eebddb04d8582`); it carries the player-facing `/v1/servers/*` game-server surface, which is therefore generated for every language. The build-ingest snapshot is `contracts/yogabase-builds-v1.openapi.json` (SHA-256 `8b2aa93166f0f0990c78c1983ee9bb54b7d6dbb10748da504b572c0d9a63efd6`); it is a developer-tool surface reached with a project-scoped `ybt_` developer token, implemented by the .NET `YogabaseBuildsClient` and the Unity Editor package and deliberately not generated for the other languages. The workload snapshot is `contracts/yogabase-delivery-v1.openapi.json` (SHA-256 `1eca152807ed2c6ab834b6ad7fea5fedb514ce359bd8f02f028635b03b8b6cc4`). The runtime-host snapshot is `contracts/yogabase-runtime-host-v1.openapi.json` (SHA-256 `82697bd4a5f9445ac4a5c3932434e06daa3862a1f870759b09500b996b0056bb`); it is checked in as the server-side reference for the lifecycle states and error codes and is deliberately never code-generated, because a workload calls the self-scoped relay routes rather than the instance-addressed paths that document declares. Their adjacent checksums, Kiota locks, and `MANIFEST.json` bind this repository to the exact contracts and generator.
 
-Every document under `contracts/` is a byte-identical copy of the product repository's `docs/api/` file of the same name, verified by `ContractDigestTests`. The former `contracts/planned/` documents were written here while the product implemented the build and game-server surfaces; the product has published both, so they were deleted rather than reconciled.
+Every document under `contracts/` is a byte-identical copy of the product repository's `docs/api/` file of the same name as of its last mirror (re-checked on 2026-09-17). `ContractDigestTests` pins each file to its `.sha256` sidecar and to the digests published in `MANIFEST.json` and both READMEs; it cannot see the product repository, so it does not itself prove byte identity. The former `contracts/planned/` documents were written here while the product implemented the build and game-server surfaces; the product has published both, so they were deleted rather than reconciled.
 
 ## Local verification
 
@@ -152,26 +174,30 @@ dotnet restore Yogabase.SDKs.slnx --locked-mode
 dotnet build Yogabase.SDKs.slnx -c Release --no-restore
 dotnet test Yogabase.SDKs.slnx -c Release --no-restore --no-build
 dotnet pack src/dotnet/Yogabase.Yogabase.Client/Yogabase.Yogabase.Client.csproj -c Release --no-restore
+dotnet pack src/dotnet/Yogabase.Yogabase.RuntimeHost/Yogabase.Yogabase.RuntimeHost.csproj -c Release --no-restore
+dotnet pack src/dotnet/Yogabase.Lambda/Yogabase.Lambda.csproj -c Release --no-restore
 
 cd languages/typescript && npm ci && npm test
-cd languages/python && python -m unittest discover -s tests
-cd languages/java && mvn test   # or, without Maven: javac --release 17 -cp <kiota 1.9.3 jars> src/**/*.java, then java io.stackyoga.yogabase.Yogabase*Test
-cd languages/dart && dart analyze
+cd languages/python && python3 -m venv .venv && .venv/bin/python -m pip install -e . && .venv/bin/python -m unittest discover -s tests   # Python 3.10 or later; installs httpx and microsoft-kiota-bundle
+cd languages/java && javac --release 17 -cp '<kiota 1.9.3 and jakarta.annotation-api 2.1.1 jars>' -d out $(find src -name '*.java') && java -cp 'out:<same jars>' io.stackyoga.yogabase.YogabaseDeliveryClientTest && java -cp 'out:<same jars>' io.stackyoga.yogabase.YogabaseStorageLogicalKeyTest   # the checks are main-method programs; mvn test would run neither
+cd languages/dart && dart pub get --enforce-lockfile && dart analyze && dart run test/yogabase_delivery_source_test.dart
 
 scripts/compile-unity-editor.sh
 ```
 
-`scripts/compile-unity-editor.sh` compile-checks the Unity package's Editor scripts in a real Unity
-Editor compile environment: it reuses a response file Unity's own Bee build already wrote for an
-Editor assembly, keeps its Editor-installation references, defines and language version, and swaps
-in this package's sources. Set `UNITY_RSP` to point at one. With no response file it exits 2 and
-says the scripts were not checked, rather than reporting a pass it did not perform.
+`scripts/compile-unity-editor.sh` compile-checks the Unity package's Editor scripts (not its Runtime
+folder) in a real Unity Editor compile environment: it reuses a response file Unity's own Bee build
+already wrote for an Editor assembly, keeps its Editor-installation references, defines and language
+version, and swaps in this package's sources. Set `UNITY_RSP` to point at one; without it the script
+looks in one default local Unity projects folder. If it finds no response file, or no Roslyn
+compiler under the .NET SDK, it exits 2 and says the scripts were not checked, rather than reporting
+a pass it did not perform.
 
 Run `scripts/regenerate-clients.sh` to verify all four contracts, restore pinned Kiota 1.34.1, regenerate all four application clients, and regenerate the Java and Dart delivery protocol clients. The runtime-host and builds contracts are checksum-verified but never generated, and the authored runtime-host, builds, and Lambda modules are not regenerated source. Authored delivery facades are preserved. Each generated-language folder retains its own package manifest, dependency lock where available, Kiota lock, source, documentation, and conformance helper. Downloaded tools, caches, dependency trees, and build intermediates are excluded. Historical imported artifacts remain unchanged under `artifacts/imported`; current sibling-repository builds belong under `artifacts/local`.
 
 ### Connecting a client to a self-hosted installation
 
-The .NET client's public entry point is `Yogabase.Yogabase.YogabaseClient`. It has no public constructor; a consumer creates it through the static `YogabaseClient.CreateAsync(Uri gatewayEndpoint, string publishableKey, YogabaseClientOptions? options = null, CancellationToken cancellationToken = default)` factory. `gatewayEndpoint` is the installation's application-gateway origin and `publishableKey` is the project's publishable key.
+The .NET client's public entry point is `Yogabase.Yogabase.YogabaseClient`. It has no public constructor; a consumer creates it through the static `YogabaseClient.CreateAsync(Uri gatewayEndpoint, string publishableKey, YogabaseClientOptions? options = null, CancellationToken cancellationToken = default)` factory. `gatewayEndpoint` is the installation's application-gateway origin — exactly the origin the installation's client configuration names, because `CreateAsync` refuses any other origin with `client_config_origin_mismatch` — and `publishableKey` is the project's publishable key. Plain `http://` is accepted only for a loopback origin with `AllowInsecureLoopback`.
 
 ```csharp
 using Yogabase.Yogabase;
@@ -185,10 +211,10 @@ await using var yogabase = await YogabaseClient.CreateAsync(
 
 A publishable key is not a secret. It identifies the project to the gateway and is safe to ship in client code, and it authenticates nothing: the bootstrap document it fetches carries endpoints, identifiers, and capability facts only. Yogabase issues no privileged counterpart key that a client could hold instead. Every authenticated call carries a per-user access token obtained from the project's OIDC authority, so a client never ships a credential that speaks for the project as a whole.
 
-A console seat is claimed at `https://<installation-host>/console-seat/claim`, using the hostname the installation's owner supplies.
+On an installation that uses named console seats, a seat is claimed on the installation's Console at `https://<console-host>/console-seat/claim`. The Console host is supplied by the installation's owner and is generally not the application-gateway host above, and a console seat never authenticates SDK calls.
 
 ## Platform qualification
 
-Generated REST source is not the same as a production-qualified platform integration. `netstandard2.1` compatibility alone does not qualify Unity or AOT. The Dart package passes Dart 3.13.2 analysis and authored-source tests, but Android, Flutter, Kotlin/JVM runtime integration, Unity IL2CPP, native secure storage, interactive-cookie handling, non-.NET SignalR integration, and live-gateway conformance each still need explicit platform evidence before they can be claimed as supported.
+Generated REST source is not the same as a production-qualified platform integration. `netstandard2.1` compatibility alone does not qualify Unity or AOT. The Dart source last passed Dart 3.13.2 analysis and its authored-source checks before its 2026-09-09 regeneration, and neither the regenerated Dart nor the Python source has been analysed or tested since. Android, Flutter, Kotlin/JVM runtime integration, Unity IL2CPP of the application client, native secure storage, interactive-cookie handling, non-.NET SignalR integration, and live-gateway conformance each still need explicit platform evidence before they can be claimed as supported.
 
-The runtime-host module and its Unity package are authored against the checked-in contract and covered only by fake-transport unit tests. No Unity Editor import, no IL2CPP build, and no live relay session has exercised them, and the per-family runtime-host conformance battery (restart, replay, duplicate, stale-epoch, double-allocation, reservation-expiry, disconnect, Pod-replacement, drain/shutdown-race, credential-confusion, and secret-negative cases) has not been run. Treat both as unqualified previews.
+The runtime-host module and its Unity package are authored against the checked-in contract and covered in this repository by fake-transport unit tests. The Unity package's 0.1.0 runtime module has run live: compiled by Unity 6000.5.7f1 into an IL2CPP Linux arm64 dedicated server and hosted on a self-hosted Yogabase installation, its heartbeat and Ready calls were accepted through the Pod-local relay, first on 2026-09-07, when the instance reached Ready, and again on 2026-09-16 and 2026-09-17. That run also showed that assignment polls carrying the query-string `resumeToken` never advanced past the first page, because the product's relay dropped the query string until a 2026-09-17 product change; no allocation has yet been delivered to a build through the relay. The current versions — the .NET package and Unity package 0.2.2, including the startup wait-out — have not run in an IL2CPP build or against a live relay, and the per-family runtime-host conformance battery (restart, replay, duplicate, stale-epoch, double-allocation, reservation-expiry, disconnect, Pod-replacement, drain/shutdown-race, credential-confusion, and secret-negative cases) has not been run. Treat both as unqualified previews.

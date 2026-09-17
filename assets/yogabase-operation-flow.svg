@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="560" viewBox="0 0 1600 560" role="img" aria-labelledby="title description">
   <title id="title">Yogabase durable operation flow</title>
-  <desc id="description">A requested change moves through preview, validation, submission and approval, signed dispatch, deterministic reconciliation, and signed observation with audit history.</desc>
+  <desc id="description">A requested change moves through preview, validation, submission under the installation's approval policy, signed dispatch, deterministic reconciliation, and signed observation with audit history.</desc>
   <defs>
     <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#f8fafc"/>
@@ -25,7 +25,7 @@
 
   <rect width="1600" height="560" fill="url(#background)"/>
   <text x="64" y="72" class="title">How a Yogabase operation moves</text>
-  <text x="64" y="106" class="subtitle">Every meaningful change is previewed, concurrency-checked, idempotent, auditable, and approval-gated when risky.</text>
+  <text x="64" y="106" class="subtitle">Every meaningful change is previewed, concurrency-checked, idempotent, auditable, and approved under the installation's approval policy.</text>
 
   <path d="M180 296 H1416" class="line"/>
 
@@ -52,7 +52,7 @@
     <circle cx="604" cy="238" r="18" fill="#138b8d"/><text x="599" y="244" class="number">3</text>
     <text x="600" y="288" class="stage">Submit</text>
     <text x="600" y="318" class="detail">Idempotency key and</text>
-    <text x="600" y="343" class="detail">approval when needed</text>
+    <text x="600" y="343" class="detail">approval policy</text>
 
     <circle cx="860" cy="238" r="18" fill="#138b8d"/><text x="855" y="244" class="number">4</text>
     <text x="856" y="288" class="stage">Dispatch</text>
