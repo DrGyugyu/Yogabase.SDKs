@@ -15,15 +15,20 @@ their factories; the Kiota bundle currently marks those transitive modules as ru
 
 This source preview is local, unpublished, and not production-qualified.
 
-## The Data API is withdrawn; game servers are generated, builds are not
+## No Data API client yet; game servers are generated, builds are not
 
-The client-facing Data API module is withdrawn (owner decision, 2026-09-08). An application reaches
-its project's data through a Lambda — which runs server-side with a full-access database context —
-and through Auth, Storage and Realtime. `/v1/data/*`, its `Data*` models and the `data-rest`
-capability id are gone from the mirrored contract and from this generated client; nothing replaces
-them on the client side.
+There is no client-facing data surface in this package today. The Data API module was withdrawn on
+2026-09-08. On 2026-09-17 the owner decided to restore it — clients querying and writing project
+tables through the gateway under row-level security as the signed-in user — and to give Lambdas a
+typed data API and Entity Framework Core, which stays server-side (no client SDK will carry EF code
+or a model). None of this is implemented yet: the mirrored contract still declares no `/v1/data`
+route, its `Data*` models or the `data-rest` capability id, and this generated client has no Data
+surface; regenerating from `scripts/regenerate-clients.sh` will only add one once the product
+publishes the route and the contract here is re-mirrored. Today an application reaches its project's
+data through a Lambda — which runs server-side with a full-access database context — and through
+Auth, Storage and Realtime.
 
-Two surfaces replaced it:
+Two other surfaces were added when the Data API was withdrawn:
 
 - **Game servers** — `POST /v1/servers/start`, `GET /v1/servers`, `GET /v1/servers/{serverId}`
   and `POST /v1/servers/{serverId}/stop` on the application gateway, authenticated with the

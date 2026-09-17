@@ -193,10 +193,10 @@ Unity's own "Tests Assembly Folder" template still generates in the Unity 6000 L
 field is a legacy alias Unity keeps for backward compatibility, not the current default.
 
 The test file is a **minimal smoke test** (options defaults resolve correctly; the client
-constructs and disposes without throwing) — it does not port the full .NET behavioral suite
-(60/60 passing there as of this writing). The .NET project's own tests remain the source of
-behavioral coverage for this client; treat this package's tests as "does it compile and wire up
-correctly inside a Unity assembly," nothing more.
+constructs and disposes without throwing) — it does not port the full .NET behavioral suite (33 of 33
+test cases in `YogabaseRuntimeHostClientTests.cs` passed on 2026-09-17). The .NET project's own tests
+remain the source of behavioral coverage for this client; treat this package's tests as "does it
+compile and wire up correctly inside a Unity assembly," nothing more.
 
 ## Verification status and limits
 

@@ -29,14 +29,20 @@ var game = server.FindPort("game");           // game.Endpoint is "node-ip:hostP
 
 ## Reading and writing data
 
-**There is no Data API client, and there is no client-side data surface at all.** The client-facing
-Data API module is withdrawn: an application reaches its project's data through a Lambda, which runs
+**There is no Data API client in this package today.** The client-facing Data API was withdrawn on
+2026-09-08; today an application reaches its project's data through a Lambda, which runs
 server-side with a full-access database context, and through Auth, Storage, and Realtime. Call a
 Lambda with `yogabase.Functions`, and write the Lambda itself against the `Yogabase.Lambda` package
 in this repository.
 
-A bootstrap document from an installation that predates the removal may still carry a `data-rest`
-capability row. The client accepts that document and ignores the row;
+On 2026-09-17 the owner decided to restore the client Data API — clients would again query and write
+project tables directly through the gateway under row-level security as the signed-in user,
+alongside Lambdas, Auth, Storage and Realtime — but that decision is not implemented yet: the
+mirrored contract (`contracts/yogabase-client-v1.openapi.json`) declares no `/v1/data` route, and
+this package has no Data client.
+
+A bootstrap document from an installation that predates the 2026-09-08 removal may still carry a
+`data-rest` capability row. The client accepts that document and ignores the row;
 `Configuration.IsAvailable(YogabaseCapability.WithdrawnDataRest)` answers `false` either way.
 
 ## Game servers

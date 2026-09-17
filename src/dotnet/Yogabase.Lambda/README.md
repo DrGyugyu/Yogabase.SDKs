@@ -4,9 +4,11 @@ The context a Yogabase Lambda runs with: the project database, mediated object s
 application-user directory, realtime publication, actors, workflows, reminders, direct Valkey,
 authenticated messaging, who called, and which invocation this is.
 
-**This is where a Yogabase application reads and writes data.** The client-facing Data API module is
-withdrawn. A client reaches data only through a Lambda, Auth, Storage and Realtime, so the database
-handle below is the data path — not a bounded typed query surface layered over one.
+**This is where a Yogabase application reads and writes data today.** The client-facing Data API was
+withdrawn on 2026-09-08, and on 2026-09-17 the owner decided to restore it alongside a Lambda-side
+typed data API and Entity Framework Core — neither is implemented in this package yet. Today a
+client reaches data only through a Lambda, Auth, Storage and Realtime, so the database handle below
+is the data path: `DbDataSource`, not a bounded typed query surface or a `DbContext` layered over it.
 
 The package targets .NET Standard 2.1 and .NET 10. It references
 `Microsoft.Extensions.Logging.Abstractions` and `StackExchange.Redis`, which the sandbox host
@@ -327,5 +329,9 @@ secrets: this package never logs them, and neither should the Lambda.
   than read as empty, while unmodelled user fields are kept rather than dropped.
 - No live installation has exercised this package. Its coverage is fake-provider and fake-transport
   unit tests only.
+- `Database` is the only data path this package exposes today. A typed data API (select with
+  filters/ordering/paging, insert, update, upsert, delete, and calling database functions), Entity
+  Framework Core support, and an explicitly caller-scoped connection that applies row-level security
+  as the invoking user were decided on 2026-09-17 but are not implemented in this package.
 
 Third-party notice: `THIRD-PARTY-NOTICES.md` and `licenses/Apache-2.0-Nakama.txt`.
