@@ -138,6 +138,15 @@ public static class YogabaseRoutes
     public const string BuildFieldName = "name";
     /// <inheritdoc cref="BuildFieldBundle"/>
     public const string BuildFieldVersion = "version";
+    /// <summary>
+    /// A Lambda archive's execution declaration: exactly <c>Stateless</c> or <c>Stateful</c>, and the
+    /// comma-separated realtime binding ids it receives from and publishes to (empty declares none).
+    /// </summary>
+    public const string BuildFieldExecutionKind = "executionKind";
+    /// <inheritdoc cref="BuildFieldExecutionKind"/>
+    public const string BuildFieldRealtimeIngressBindings = "realtimeIngressBindings";
+    /// <inheritdoc cref="BuildFieldExecutionKind"/>
+    public const string BuildFieldRealtimeEgressBindings = "realtimeEgressBindings";
 
     // ---------------------------------------------------------------------------------------
     // Delivery host — workload DeliveryBearer token.

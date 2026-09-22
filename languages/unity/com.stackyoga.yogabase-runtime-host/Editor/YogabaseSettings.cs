@@ -39,6 +39,26 @@ namespace Yogabase.Editor
     }
 
     /// <summary>Transport protocol of a declared port.</summary>
+    /// <summary>What the publish window uploads.</summary>
+    public enum YogabasePublishKind
+    {
+        /// <summary>A Unity Linux dedicated server the window builds, zips, and uploads.</summary>
+        Server = 0,
+
+        /// <summary>A Lambda bundle zip built outside Unity, uploaded with its execution declaration.</summary>
+        Lambda = 1,
+    }
+
+    /// <summary>How a Lambda keeps state, spelled exactly as the Builds contract's <c>executionKind</c>.</summary>
+    public enum YogabaseLambdaExecutionKind
+    {
+        /// <summary>Keeps no state between calls.</summary>
+        Stateless = 0,
+
+        /// <summary>Keeps durable state per actor.</summary>
+        Stateful = 1,
+    }
+
     public enum YogabasePortProtocol
     {
         /// <summary>UDP. The usual choice for a realtime game server.</summary>
@@ -78,8 +98,14 @@ namespace Yogabase.Editor
         [Tooltip("Environment id to publish into.")]
         public string environmentId = string.Empty;
 
+        [Header("What to publish")]
+        [Tooltip("Server builds, zips, and uploads a Unity Linux dedicated server. Lambda uploads a Lambda "
+            + "bundle zip built outside Unity, with the execution declaration below.")]
+        public YogabasePublishKind publishKind = YogabasePublishKind.Server;
+
         [Header("Build")]
-        [Tooltip("Hosted-service name. Builds are versioned per name per project.")]
+        [Tooltip("Hosted-service name, or a Lambda's function id. Builds are versioned per name per "
+            + "project. For a Lambda it may be left empty to use the bundle's own function id.")]
         public string serviceName = string.Empty;
 
         [Tooltip("File name of the Linux server executable Unity produces, and the path inside the "
@@ -102,6 +128,28 @@ namespace Yogabase.Editor
 
         [Tooltip("Build output directory, relative to the project folder. Its whole contents are zipped.")]
         public string buildOutputDirectory = "Builds/LinuxServer";
+
+        [Header("Lambda archive")]
+        [Tooltip("The Lambda bundle zip to upload, relative to the project folder. Used only when "
+            + "publishing a Lambda; the window uploads it as it is.")]
+        public string lambdaArchivePath = string.Empty;
+
+        [Tooltip("Stateless keeps no state between calls; Stateful keeps durable state per actor. "
+            + "Yogabase never works this out from the build.")]
+        public YogabaseLambdaExecutionKind lambdaExecutionKind = YogabaseLambdaExecutionKind.Stateless;
+
+        [Tooltip("Realtime binding ids this Lambda receives events from. Leave empty to declare none.")]
+        public List<string> realtimeIngressBindings = new List<string>();
+
+        [Tooltip("Realtime binding ids this Lambda publishes events to. It can publish only to these. "
+            + "Leave empty to declare none.")]
+        public List<string> realtimeEgressBindings = new List<string>();
+
+        /// <summary>The <c>executionKind</c> field value: exactly <c>Stateless</c> or <c>Stateful</c>.</summary>
+        public string LambdaExecutionKindToken
+        {
+            get { return lambdaExecutionKind == YogabaseLambdaExecutionKind.Stateful ? "Stateful" : "Stateless"; }
+        }
 
         /// <summary>The architecture token the product contract uses.</summary>
         public string TargetArchitectureToken
@@ -193,6 +241,37 @@ namespace Yogabase.Editor
             {
                 problems.Add("Environment id is not a GUID.");
             }
+            if (publishKind == YogabasePublishKind.Lambda)
+            {
+                ValidateLambda(problems);
+            }
+            else
+            {
+                ValidateServer(problems);
+            }
+
+            var token = GetDeveloperToken();
+            if (string.IsNullOrEmpty(token))
+            {
+                problems.Add(
+                    "No developer token on this machine. Paste the project-scoped token from the "
+                    + "console's Settings page; it is stored in EditorPrefs, never in this asset.");
+            }
+            else if (!token.StartsWith(YogabaseEditorRoutes.DeveloperTokenPrefix, StringComparison.Ordinal)
+                || token.Length > YogabaseEditorRoutes.MaximumDeveloperTokenLength)
+            {
+                problems.Add(
+                    "The stored token is not a Yogabase developer token: one starts with '"
+                    + YogabaseEditorRoutes.DeveloperTokenPrefix + "' and is at most "
+                    + YogabaseEditorRoutes.MaximumDeveloperTokenLength + " characters. A console "
+                    + "session cookie, a player token, or a Delivery bearer is refused by the build routes.");
+            }
+
+            return problems;
+        }
+
+        private void ValidateServer(List<string> problems)
+        {
             if (string.IsNullOrWhiteSpace(serviceName))
             {
                 problems.Add("Service name is empty.");
@@ -243,24 +322,75 @@ namespace Yogabase.Editor
             {
                 problems.Add("Build output directory is empty.");
             }
-            var token = GetDeveloperToken();
-            if (string.IsNullOrEmpty(token))
+        }
+
+        private void ValidateLambda(List<string> problems)
+        {
+            if (!string.IsNullOrWhiteSpace(serviceName) && !IsFunctionId(serviceName.Trim()))
             {
                 problems.Add(
-                    "No developer token on this machine. Paste the project-scoped token from the "
-                    + "console's Settings page; it is stored in EditorPrefs, never in this asset.");
+                    "A Lambda's function id uses lowercase letters, digits, '.', '_' and '-', starting with a "
+                    + "letter. Leave the name empty to use the bundle's own.");
             }
-            else if (!token.StartsWith(YogabaseEditorRoutes.DeveloperTokenPrefix, StringComparison.Ordinal)
-                || token.Length > YogabaseEditorRoutes.MaximumDeveloperTokenLength)
+            if (string.IsNullOrWhiteSpace(lambdaArchivePath))
             {
-                problems.Add(
-                    "The stored token is not a Yogabase developer token: one starts with '"
-                    + YogabaseEditorRoutes.DeveloperTokenPrefix + "' and is at most "
-                    + YogabaseEditorRoutes.MaximumDeveloperTokenLength + " characters. A console "
-                    + "session cookie, a player token, or a Delivery bearer is refused by the build routes.");
+                problems.Add("Lambda archive path is empty.");
+            }
+            else if (!lambdaArchivePath.Trim().EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            {
+                problems.Add("The Lambda archive is a .zip bundle.");
             }
 
-            return problems;
+            ValidateBindings(realtimeIngressBindings, YogabaseEditorRoutes.FieldRealtimeIngressBindings, problems);
+            ValidateBindings(realtimeEgressBindings, YogabaseEditorRoutes.FieldRealtimeEgressBindings, problems);
+        }
+
+        // The admission Job's own rules, so a declaration a member would refuse never leaves the Editor.
+        private static void ValidateBindings(List<string> bindings, string field, List<string> problems)
+        {
+            if (bindings == null)
+            {
+                return;
+            }
+            if (bindings.Count > YogabaseEditorRoutes.MaximumBindingsPerDirection)
+            {
+                problems.Add("At most " + YogabaseEditorRoutes.MaximumBindingsPerDirection
+                    + " realtime binding ids may be listed in " + field + ".");
+            }
+
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            for (var index = 0; index < bindings.Count; index++)
+            {
+                var binding = bindings[index];
+                if (!YogabaseEditorRoutes.IsRealtimeBindingId(binding))
+                {
+                    problems.Add(field + "[" + index + "] is not a realtime binding id: a lowercase letter, then "
+                        + "lowercase letters, digits, '.', '_' or '-', at most "
+                        + YogabaseEditorRoutes.MaximumBindingIdLength + " characters.");
+                }
+                else if (!seen.Add(binding))
+                {
+                    problems.Add(field + "[" + index + "] repeats a binding listed before it.");
+                }
+            }
+        }
+
+        private static bool IsFunctionId(string value)
+        {
+            if (value.Length == 0 || value[0] < 'a' || value[0] > 'z')
+            {
+                return false;
+            }
+            foreach (var character in value)
+            {
+                var allowed = (character >= 'a' && character <= 'z') || (character >= '0' && character <= '9')
+                    || character == '.' || character == '_' || character == '-';
+                if (!allowed)
+                {
+                    return false;
+                }
+            }
+            return true;
         }
 
         /// <summary>

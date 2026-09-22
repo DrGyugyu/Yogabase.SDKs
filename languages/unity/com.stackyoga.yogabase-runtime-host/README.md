@@ -88,6 +88,28 @@ The window then:
 - polls the Build check every three seconds with backoff and renders its findings (severity, id,
   package, version, fixed-in version, bundle entry) and its refusals (code, path, message).
 
+### Publishing a Lambda archive
+
+Set **What to publish** to *Lambda* to upload a Lambda bundle zip built outside Unity (for example
+with `dotnet`) instead of a server. The window then builds nothing, zips nothing and checks no ELF:
+it uploads the archive at *Lambda archive path* (relative to the project folder) with the
+execution declaration the Control Plane requires of a Lambda, because Yogabase never works it out
+from the bytes:
+
+- `executionKind` — exactly `Stateless` (no state between calls) or `Stateful` (durable state per
+  actor);
+- `realtimeIngressBindings` and `realtimeEgressBindings` — the realtime binding ids the Lambda
+  receives events from and publishes events to, comma-separated and sent even when empty, because
+  an empty field declares none while an absent one is refused (`BUILD_LAMBDA_DECLARATION_REQUIRED`).
+  A Lambda can publish only to the egress bindings it declares.
+
+The settings asset checks the declaration with the admission rules before anything is sent: each
+binding id starts with a lowercase letter and uses lowercase letters, digits, `.`, `_` and `-`, at
+most 96 characters; at most 16 per direction; none repeated. The *Service name* is the Lambda's
+function id and may be left empty to use the bundle's own. A server upload sends none of these
+fields, exactly as before. This path is compile-checked like the rest of the Editor code (C# 9,
+Unity 6000.5.7f1 reference set, warnings as errors) and has not been run in an Editor.
+
 ### Why the Editor code does not reference the .NET client package
 
 `Yogabase.Yogabase.Client` targets `netstandard2.1` and would import as a managed plugin, but its

@@ -85,6 +85,49 @@ namespace Yogabase.Editor
         /// <inheritdoc cref="FieldBundle"/>
         public const string FieldVersion = "version";
 
+        /// <summary>
+        /// A Lambda archive's execution declaration: exactly <c>Stateless</c> or <c>Stateful</c>, and the
+        /// comma-separated realtime binding ids it receives from and publishes to. An empty binding
+        /// field declares none; an absent one is not a declaration, and the Control Plane refuses a
+        /// Lambda upload without all three (<c>BUILD_LAMBDA_DECLARATION_REQUIRED</c>).
+        /// </summary>
+        public const string FieldExecutionKind = "executionKind";
+
+        /// <inheritdoc cref="FieldExecutionKind"/>
+        public const string FieldRealtimeIngressBindings = "realtimeIngressBindings";
+
+        /// <inheritdoc cref="FieldExecutionKind"/>
+        public const string FieldRealtimeEgressBindings = "realtimeEgressBindings";
+
+        /// <summary>The admission contract's bound on binding ids in one direction.</summary>
+        public const int MaximumBindingsPerDirection = 16;
+
+        /// <summary>The admission contract's bound on one binding id's length.</summary>
+        public const int MaximumBindingIdLength = 96;
+
+        /// <summary>
+        /// A realtime binding id as the admission Job accepts it: a lowercase letter, then lowercase
+        /// letters, digits, <c>.</c>, <c>_</c> or <c>-</c>, at most 96 characters.
+        /// </summary>
+        public static bool IsRealtimeBindingId(string value)
+        {
+            if (string.IsNullOrEmpty(value) || value.Length > MaximumBindingIdLength
+                || value[0] < 'a' || value[0] > 'z')
+            {
+                return false;
+            }
+            foreach (var character in value)
+            {
+                var allowed = (character >= 'a' && character <= 'z') || (character >= '0' && character <= '9')
+                    || character == '.' || character == '_' || character == '-';
+                if (!allowed)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         /// <summary>The states a Build check stops at.</summary>
         public const string StateChecking = "checking";
 

@@ -338,6 +338,138 @@ public sealed class BuildsAndServersTests
         Assert.Equal(0, calls);
     }
 
+    [Fact]
+    public async Task ALambdaUploadSendsItsExecutionDeclarationBeforeTheBundle()
+    {
+        IReadOnlyList<MultipartField> parts = Array.Empty<MultipartField>();
+        var handler = new ScriptedHandler(async (request, cancellationToken) =>
+        {
+            parts = await ReadMultipartAsync(request.Content!, cancellationToken);
+            return Json(HttpStatusCode.Accepted, Checking());
+        });
+        using var builds = Builds(handler);
+        using var bundle = new MemoryStream(Encoding.ASCII.GetBytes("lambda-bundle"));
+
+        await builds.UploadAsync(
+            ProjectId,
+            EnvironmentId,
+            bundle,
+            new YogabaseBuildUploadRequest
+            {
+                Name = "hello-world",
+                Version = "6",
+                Lambda = new YogabaseLambdaDeclaration
+                {
+                    ExecutionKind = YogabaseLambdaExecutionKind.Stateful,
+                    RealtimeIngressBindings = ["match.input"],
+                    RealtimeEgressBindings = ["match.events", "inventory.updated"],
+                },
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            ["name", "version", "executionKind", "realtimeIngressBindings", "realtimeEgressBindings", "bundle"],
+            parts.Select(part => part.Name));
+        Assert.Equal("Stateful", parts[2].Body);
+        Assert.Equal("match.input", parts[3].Body);
+        Assert.Equal("match.events,inventory.updated", parts[4].Body);
+    }
+
+    [Fact]
+    public async Task ALambdaWithNoBindingsSendsBothBindingFieldsEmpty()
+    {
+        IReadOnlyList<MultipartField> parts = Array.Empty<MultipartField>();
+        var handler = new ScriptedHandler(async (request, cancellationToken) =>
+        {
+            parts = await ReadMultipartAsync(request.Content!, cancellationToken);
+            return Json(HttpStatusCode.Accepted, Checking());
+        });
+        using var builds = Builds(handler);
+        using var bundle = new MemoryStream(Encoding.ASCII.GetBytes("lambda-bundle"));
+
+        await builds.UploadAsync(
+            ProjectId,
+            EnvironmentId,
+            bundle,
+            new YogabaseBuildUploadRequest { Lambda = new YogabaseLambdaDeclaration() },
+            TestContext.Current.CancellationToken);
+
+        // An empty field declares none; an absent field is not a declaration, and the Control Plane
+        // refuses a Lambda upload without it (BUILD_LAMBDA_DECLARATION_REQUIRED).
+        Assert.Equal(
+            ["executionKind", "realtimeIngressBindings", "realtimeEgressBindings", "bundle"],
+            parts.Select(part => part.Name));
+        Assert.Equal("Stateless", parts[0].Body);
+        Assert.Equal(string.Empty, parts[1].Body);
+        Assert.Equal(string.Empty, parts[2].Body);
+    }
+
+    public static TheoryData<string[], string[]> InvalidLambdaBindings() => new()
+    {
+        { ["Match"], [] },
+        { ["1match"], [] },
+        { ["match events"], [] },
+        { [""], [] },
+        { [new string('a', 97)], [] },
+        { [], ["dup", "dup"] },
+        { [], Enumerable.Range(0, 17).Select(index => "b" + index).ToArray() },
+    };
+
+    [Theory]
+    [MemberData(nameof(InvalidLambdaBindings))]
+    public async Task ALambdaDeclarationOutsideTheAdmissionRulesIsRefusedBeforeTransport(string[] ingress, string[] egress)
+    {
+        var calls = 0;
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            calls++;
+            return Task.FromResult(Json(HttpStatusCode.Accepted, Checking()));
+        });
+        using var builds = Builds(handler);
+        using var bundle = new MemoryStream(Encoding.ASCII.GetBytes("bundle"));
+
+        await Assert.ThrowsAsync<ArgumentException>(() => builds.UploadAsync(
+            ProjectId,
+            EnvironmentId,
+            bundle,
+            new YogabaseBuildUploadRequest
+            {
+                Lambda = new YogabaseLambdaDeclaration { RealtimeIngressBindings = ingress, RealtimeEgressBindings = egress },
+            },
+            TestContext.Current.CancellationToken));
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
+    public async Task ALambdaDeclarationRefusesAnUndefinedKindAndServerOnlyHints()
+    {
+        var calls = 0;
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            calls++;
+            return Task.FromResult(Json(HttpStatusCode.Accepted, Checking()));
+        });
+        using var builds = Builds(handler);
+        using var bundle = new MemoryStream(Encoding.ASCII.GetBytes("bundle"));
+
+        await Assert.ThrowsAsync<ArgumentException>(() => builds.UploadAsync(ProjectId, EnvironmentId, bundle,
+            new YogabaseBuildUploadRequest { Lambda = new YogabaseLambdaDeclaration { ExecutionKind = (YogabaseLambdaExecutionKind)7 } },
+            TestContext.Current.CancellationToken));
+        // A Lambda has no executable or ports; stating them beside the declaration is the mistake of
+        // uploading a server build as a Lambda, or the other way round.
+        await Assert.ThrowsAsync<ArgumentException>(() => builds.UploadAsync(ProjectId, EnvironmentId, bundle,
+            new YogabaseBuildUploadRequest { Executable = "Server.x86_64", Lambda = new YogabaseLambdaDeclaration() },
+            TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentException>(() => builds.UploadAsync(ProjectId, EnvironmentId, bundle,
+            new YogabaseBuildUploadRequest
+            {
+                Ports = [new YogabaseBuildPort { Name = "game", Port = 7777 }],
+                Lambda = new YogabaseLambdaDeclaration(),
+            },
+            TestContext.Current.CancellationToken));
+        Assert.Equal(0, calls);
+    }
+
     [Theory]
     [InlineData("game", 0, "udp")]
     [InlineData("game", 70000, "udp")]
@@ -786,9 +918,10 @@ public sealed class BuildsAndServersTests
                 continue;
             }
 
+            // An empty field value leaves no blank line once the section is trimmed.
             var separator = trimmed.IndexOf("\r\n\r\n", StringComparison.Ordinal);
-            var headers = trimmed[..separator];
-            var value = trimmed[(separator + 4)..];
+            var headers = separator < 0 ? trimmed : trimmed[..separator];
+            var value = separator < 0 ? string.Empty : trimmed[(separator + 4)..];
             fields.Add(new MultipartField(
                 HeaderParameter(headers, "name="),
                 HeaderParameter(headers, "filename="),

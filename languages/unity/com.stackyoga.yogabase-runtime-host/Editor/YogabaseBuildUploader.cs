@@ -246,15 +246,9 @@ namespace Yogabase.Editor
             {
                 // Metadata first, bundle last: a server that reads the form as a stream can then
                 // refuse a malformed port or executable before it has buffered the whole archive.
-                form.Add(new StringContent(settings.executableName), YogabaseEditorRoutes.FieldExecutable);
-                form.Add(new StringContent(settings.serviceName), YogabaseEditorRoutes.FieldName);
-                if (!string.IsNullOrWhiteSpace(settings.version))
+                foreach (var field in FormFields(settings))
                 {
-                    form.Add(new StringContent(settings.version.Trim()), YogabaseEditorRoutes.FieldVersion);
-                }
-                foreach (var declared in settings.ports)
-                {
-                    form.Add(new StringContent(declared.ToFieldValue()), YogabaseEditorRoutes.FieldPorts);
+                    form.Add(new StringContent(field.Value), field.Key);
                 }
 
                 var bundleContent = new StreamContent(bundle);
@@ -269,6 +263,67 @@ namespace Yogabase.Editor
                     return await SendAsync(client, request, cancellationToken).ConfigureAwait(false);
                 }
             }
+        }
+
+        /// <summary>
+        /// The metadata fields of one upload, in the order they are sent. A server build carries its
+        /// executable, name, optional version and ports; a Lambda archive carries its optional
+        /// function id and version and its execution declaration — the execution kind and both
+        /// binding lists, each sent even when empty, because an absent field is not a declaration.
+        /// </summary>
+        public static List<KeyValuePair<string, string>> FormFields(YogabaseSettings settings)
+        {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            var fields = new List<KeyValuePair<string, string>>();
+            if (settings.publishKind == YogabasePublishKind.Lambda)
+            {
+                if (!string.IsNullOrWhiteSpace(settings.serviceName))
+                {
+                    fields.Add(new KeyValuePair<string, string>(YogabaseEditorRoutes.FieldName, settings.serviceName.Trim()));
+                }
+                if (!string.IsNullOrWhiteSpace(settings.version))
+                {
+                    fields.Add(new KeyValuePair<string, string>(YogabaseEditorRoutes.FieldVersion, settings.version.Trim()));
+                }
+                fields.Add(new KeyValuePair<string, string>(
+                    YogabaseEditorRoutes.FieldExecutionKind, settings.LambdaExecutionKindToken));
+                fields.Add(new KeyValuePair<string, string>(
+                    YogabaseEditorRoutes.FieldRealtimeIngressBindings, JoinBindings(settings.realtimeIngressBindings)));
+                fields.Add(new KeyValuePair<string, string>(
+                    YogabaseEditorRoutes.FieldRealtimeEgressBindings, JoinBindings(settings.realtimeEgressBindings)));
+                return fields;
+            }
+
+            fields.Add(new KeyValuePair<string, string>(YogabaseEditorRoutes.FieldExecutable, settings.executableName));
+            fields.Add(new KeyValuePair<string, string>(YogabaseEditorRoutes.FieldName, settings.serviceName));
+            if (!string.IsNullOrWhiteSpace(settings.version))
+            {
+                fields.Add(new KeyValuePair<string, string>(YogabaseEditorRoutes.FieldVersion, settings.version.Trim()));
+            }
+            foreach (var declared in settings.ports)
+            {
+                fields.Add(new KeyValuePair<string, string>(YogabaseEditorRoutes.FieldPorts, declared.ToFieldValue()));
+            }
+            return fields;
+        }
+
+        private static string JoinBindings(List<string> bindings)
+        {
+            if (bindings == null || bindings.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            var trimmed = new List<string>(bindings.Count);
+            foreach (var binding in bindings)
+            {
+                trimmed.Add(binding == null ? string.Empty : binding.Trim());
+            }
+            return string.Join(",", trimmed);
         }
 
         /// <summary>Reads one build and its current check result.</summary>

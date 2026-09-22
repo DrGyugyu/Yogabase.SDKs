@@ -119,6 +119,31 @@ and never disposes it. The multipart form carries the `bundle` part plus the opt
 `manifest` part, which this client never sends because Yogabase derives the manifest, the inventory
 and the scan from the bundle itself.
 
+A **Lambda** archive also states how it runs, because Yogabase never works that out from the
+bytes: set `Lambda` on the request and the client sends `executionKind` (exactly `Stateless` or
+`Stateful`) and the comma-separated `realtimeIngressBindings` and `realtimeEgressBindings` — sent
+even when empty, because an empty field declares none while an absent one is refused with
+`BUILD_LAMBDA_DECLARATION_REQUIRED`. A Lambda can publish only to the egress bindings it declares.
+The binding ids are checked with the admission rules before anything is sent (a lowercase letter,
+then lowercase letters, digits, `.`, `_` or `-`, at most 96 characters; at most 16 per direction;
+none repeated), and a Lambda request that also names an `Executable` or `Ports` is refused, because
+those describe a self-contained service. Leave `Lambda` unset for a server build: the Control Plane
+refuses the declaration there (`BUILD_LAMBDA_DECLARATION_UNEXPECTED`).
+
+```csharp
+var lambda = await builds.UploadAsync(projectId, environmentId, File.OpenRead("hello-world.zip"),
+    new YogabaseBuildUploadRequest
+    {
+        Name = "hello-world",   // the function id; omit to use the bundle's own
+        Version = "7",
+        Lambda = new YogabaseLambdaDeclaration
+        {
+            ExecutionKind = YogabaseLambdaExecutionKind.Stateless,
+            RealtimeEgressBindings = new[] { "match.events" },
+        },
+    });
+```
+
 "Build check" is Yogabase's own pass over the bundle: it derives the layout manifest and a CycloneDX
 inventory, and matches the catalogued components against a digest-pinned OSV snapshot. A pass means
 no Critical/High finding among the catalogued components in that snapshot on its recorded date. It

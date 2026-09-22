@@ -102,6 +102,57 @@ public sealed class YogabaseBuildUploadRequest
 
     /// <summary>File name attached to the bundle part.</summary>
     public string BundleFileName { get; set; } = "build.zip";
+
+    /// <summary>
+    /// How a Lambda archive runs. Set it for a Lambda and leave it <see langword="null"/> for a
+    /// self-contained service: the Control Plane refuses a Lambda uploaded without it
+    /// (<c>BUILD_LAMBDA_DECLARATION_REQUIRED</c>) and a service uploaded with it
+    /// (<c>BUILD_LAMBDA_DECLARATION_UNEXPECTED</c>). Yogabase never derives it from the bytes. A Lambda
+    /// has no <see cref="Executable"/> or <see cref="Ports"/>; <see cref="Name"/> is its function id.
+    /// </summary>
+    public YogabaseLambdaDeclaration? Lambda { get; set; }
+}
+
+/// <summary>How a Lambda keeps state, spelled exactly as the Builds contract's <c>executionKind</c>.</summary>
+public enum YogabaseLambdaExecutionKind
+{
+    /// <summary>Keeps no state between calls.</summary>
+    Stateless = 0,
+
+    /// <summary>Keeps durable state per actor.</summary>
+    Stateful = 1,
+}
+
+/// <summary>
+/// The execution declaration a Lambda archive carries through Builds: its execution kind and the
+/// realtime binding ids it receives events from and publishes events to. A declared egress binding
+/// is publish authority: the Lambda can publish only to the bindings listed here.
+/// </summary>
+public sealed class YogabaseLambdaDeclaration
+{
+    /// <summary>The admission contract's bound on binding ids in one direction.</summary>
+    public const int MaximumBindingsPerDirection = 16;
+
+    /// <summary>The admission contract's bound on one binding id's length.</summary>
+    public const int MaximumBindingIdLength = 96;
+
+    public YogabaseLambdaExecutionKind ExecutionKind { get; set; } = YogabaseLambdaExecutionKind.Stateless;
+
+    /// <summary>Binding ids this Lambda receives events from; empty declares none.</summary>
+    public IReadOnlyList<string> RealtimeIngressBindings { get; set; } = Array.Empty<string>();
+
+    /// <summary>Binding ids this Lambda publishes events to; empty declares none.</summary>
+    public IReadOnlyList<string> RealtimeEgressBindings { get; set; } = Array.Empty<string>();
+
+    /// <summary>
+    /// A realtime binding id as the admission Job accepts it: a lowercase letter, then lowercase
+    /// letters, digits, <c>.</c>, <c>_</c> or <c>-</c>, at most 96 characters.
+    /// </summary>
+    public static bool IsBindingId(string? value) =>
+        !string.IsNullOrEmpty(value)
+        && value!.Length <= MaximumBindingIdLength
+        && value[0] is >= 'a' and <= 'z'
+        && value.All(static character => character is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '.' or '_' or '-');
 }
 
 /// <summary>One vulnerability the member's scan matched, in the six parts a person can act on.</summary>
@@ -584,7 +635,63 @@ public sealed class YogabaseBuildsClient : IDisposable
             fields.Add(new KeyValuePair<string, string>(YogabaseRoutes.BuildFieldPorts, port.ToFieldValue()));
         }
 
+        if (request.Lambda is { } lambda)
+        {
+            if (request.Executable is not null || ports.Count > 0)
+            {
+                throw new ArgumentException(
+                    "A Lambda archive declares no executable or ports; those describe a self-contained service.",
+                    nameof(request));
+            }
+
+            var kind = lambda.ExecutionKind switch
+            {
+                YogabaseLambdaExecutionKind.Stateless => "Stateless",
+                YogabaseLambdaExecutionKind.Stateful => "Stateful",
+                _ => throw new ArgumentException("The Lambda execution kind is Stateless or Stateful.", nameof(request)),
+            };
+            fields.Add(new KeyValuePair<string, string>(YogabaseRoutes.BuildFieldExecutionKind, kind));
+            // Always sent, empty when there are none: an absent field is not a declaration.
+            fields.Add(new KeyValuePair<string, string>(
+                YogabaseRoutes.BuildFieldRealtimeIngressBindings,
+                LambdaBindings(lambda.RealtimeIngressBindings, YogabaseRoutes.BuildFieldRealtimeIngressBindings)));
+            fields.Add(new KeyValuePair<string, string>(
+                YogabaseRoutes.BuildFieldRealtimeEgressBindings,
+                LambdaBindings(lambda.RealtimeEgressBindings, YogabaseRoutes.BuildFieldRealtimeEgressBindings)));
+        }
+
         return fields;
+    }
+
+    /// <summary>
+    /// One direction's binding ids as the comma-separated field value, checked with the admission
+    /// Job's own rules — count, each id, repeats — so a declaration the member would refuse never
+    /// leaves the tool.
+    /// </summary>
+    private static string LambdaBindings(IReadOnlyList<string>? bindings, string field)
+    {
+        bindings ??= Array.Empty<string>();
+        if (bindings.Count > YogabaseLambdaDeclaration.MaximumBindingsPerDirection)
+        {
+            throw new ArgumentException($"At most 16 realtime binding ids may be listed in {field}.", field);
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        for (var index = 0; index < bindings.Count; index++)
+        {
+            if (!YogabaseLambdaDeclaration.IsBindingId(bindings[index]))
+            {
+                throw new ArgumentException(
+                    $"{field}[{index}] is not a realtime binding id: a lowercase letter, then lowercase letters, digits, '.', '_' or '-', at most 96 characters.",
+                    field);
+            }
+            if (!seen.Add(bindings[index]))
+            {
+                throw new ArgumentException($"{field}[{index}] repeats a binding listed before it.", field);
+            }
+        }
+
+        return string.Join(",", bindings);
     }
 
     private async Task<HttpResponseMessage> SendAsync(

@@ -101,13 +101,28 @@ namespace Yogabase.Editor
                 return;
             }
 
+            var publishingLambda = settings.publishKind == YogabasePublishKind.Lambda;
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("This publish", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField("Service", settings.serviceName);
-            EditorGUILayout.LabelField("Architecture", settings.TargetArchitectureToken);
-            EditorGUILayout.LabelField("Executable", settings.executableName);
-            EditorGUILayout.LabelField("Ports", string.Join(", ", YogabaseBuildUploader.DescribePorts(settings)));
-            EditorGUILayout.LabelField("Output", settings.buildOutputDirectory);
+            if (publishingLambda)
+            {
+                EditorGUILayout.LabelField("Kind", "Lambda archive");
+                EditorGUILayout.LabelField("Function id", string.IsNullOrWhiteSpace(settings.serviceName)
+                    ? "(the bundle's own)"
+                    : settings.serviceName);
+                EditorGUILayout.LabelField("Archive", settings.lambdaArchivePath);
+                EditorGUILayout.LabelField("Execution kind", settings.LambdaExecutionKindToken);
+                EditorGUILayout.LabelField("Receives from", DescribeBindings(settings.realtimeIngressBindings));
+                EditorGUILayout.LabelField("Publishes to", DescribeBindings(settings.realtimeEgressBindings));
+            }
+            else
+            {
+                EditorGUILayout.LabelField("Service", settings.serviceName);
+                EditorGUILayout.LabelField("Architecture", settings.TargetArchitectureToken);
+                EditorGUILayout.LabelField("Executable", settings.executableName);
+                EditorGUILayout.LabelField("Ports", string.Join(", ", YogabaseBuildUploader.DescribePorts(settings)));
+                EditorGUILayout.LabelField("Output", settings.buildOutputDirectory);
+            }
 
             var problems = settings.Validate();
             if (problems.Count > 0)
@@ -115,11 +130,14 @@ namespace Yogabase.Editor
                 EditorGUILayout.HelpBox("• " + string.Join("\n• ", problems), MessageType.Warning);
             }
 
-            EditorGUILayout.Space();
-            using (new EditorGUI.DisabledScope(busy))
+            if (!publishingLambda)
             {
-                skipBuild = EditorGUILayout.ToggleLeft(
-                    "Upload the existing build output without rebuilding", skipBuild);
+                EditorGUILayout.Space();
+                using (new EditorGUI.DisabledScope(busy))
+                {
+                    skipBuild = EditorGUILayout.ToggleLeft(
+                        "Upload the existing build output without rebuilding", skipBuild);
+                }
             }
 
             EditorGUILayout.Space();
@@ -127,7 +145,10 @@ namespace Yogabase.Editor
             {
                 using (new EditorGUI.DisabledScope(busy || problems.Count > 0))
                 {
-                    if (GUILayout.Button(skipBuild ? "Zip and publish" : "Build and publish", GUILayout.Height(28f)))
+                    var label = publishingLambda
+                        ? "Publish Lambda archive"
+                        : skipBuild ? "Zip and publish" : "Build and publish";
+                    if (GUILayout.Button(label, GUILayout.Height(28f)))
                     {
                         StartPublish();
                     }
@@ -241,13 +262,26 @@ namespace Yogabase.Editor
             busy = true;
             cancellation = new CancellationTokenSource();
             var token = cancellation.Token;
-            var buildOutput = Path.GetFullPath(Path.Combine(
-                Path.GetDirectoryName(Application.dataPath) ?? ".", settings.buildOutputDirectory));
+            var projectFolder = Path.GetDirectoryName(Application.dataPath) ?? ".";
+            var buildOutput = Path.GetFullPath(Path.Combine(projectFolder, settings.buildOutputDirectory));
             var zipPath = Path.Combine(Path.GetTempPath(), "yogabase-" + settings.serviceName + ".zip");
 
             try
             {
-                if (!skipBuild)
+                if (settings.publishKind == YogabasePublishKind.Lambda)
+                {
+                    // A Lambda bundle is built outside Unity; it is uploaded exactly as it is, with the
+                    // execution declaration the settings state. Nothing is built, zipped, or ELF-checked.
+                    zipPath = Path.GetFullPath(Path.Combine(projectFolder, settings.lambdaArchivePath.Trim()));
+                    if (!File.Exists(zipPath))
+                    {
+                        throw new FileNotFoundException("The Lambda archive is not where the settings say.", zipPath);
+                    }
+                    Report("Publishing the Lambda archive " + zipPath + " as " + settings.LambdaExecutionKindToken
+                        + ", receiving from " + DescribeBindings(settings.realtimeIngressBindings)
+                        + " and publishing to " + DescribeBindings(settings.realtimeEgressBindings) + ".");
+                }
+                else if (!skipBuild)
                 {
                     Report("Building the Linux dedicated server (" + settings.TargetArchitectureToken + ")…");
                     BuildDedicatedServer(buildOutput);
@@ -257,11 +291,15 @@ namespace Yogabase.Editor
                     Report("Skipping the build; using the existing output at " + buildOutput + ".");
                 }
 
-                VerifyEntrypoint(buildOutput);
+                if (settings.publishKind != YogabasePublishKind.Lambda)
+                {
+                    VerifyEntrypoint(buildOutput);
 
-                Report("Zipping the build output…");
-                EditorUtility.DisplayProgressBar("Yogabase", "Zipping the build output…", 0.5f);
-                YogabaseBuildUploader.CreateBundleZip(buildOutput, settings.executableName, zipPath);
+                    Report("Zipping the build output…");
+                    EditorUtility.DisplayProgressBar("Yogabase", "Zipping the build output…", 0.5f);
+                    YogabaseBuildUploader.CreateBundleZip(buildOutput, settings.executableName, zipPath);
+                }
+
                 var megabytes = new FileInfo(zipPath).Length / (1024d * 1024d);
                 Report("Bundle is " + megabytes.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)
                     + " MB at " + zipPath + ".");
@@ -444,6 +482,11 @@ namespace Yogabase.Editor
             }
 
             Report("Entrypoint is " + YogabaseBuildUploader.DescribeElfMachine(machine) + ".");
+        }
+
+        private static string DescribeBindings(List<string> bindings)
+        {
+            return bindings == null || bindings.Count == 0 ? "(none)" : string.Join(", ", bindings);
         }
 
         private void SetResult(YogabaseBuild build)

@@ -2,6 +2,15 @@
 
 All notable changes to this package are documented in this file.
 
+## [Unreleased]
+
+- `Yogabase ▸ Publish Server` can publish a Lambda archive: with *What to publish* set to Lambda it
+  uploads a prebuilt Lambda bundle zip with the execution declaration the Control Plane requires
+  since 2026-09-17 — `executionKind` (`Stateless` or `Stateful`) and the comma-separated
+  `realtimeIngressBindings` and `realtimeEgressBindings`, sent even when empty. The settings asset
+  checks binding ids with the admission rules first. Server uploads send exactly what they did.
+  Compile-checked at C# 9 against the Unity 6000.5.7f1 Editor reference set; not run in an Editor.
+
 ## [0.2.2-preview.1]
 
 - The runtime-host client waits out `503 RUNTIME_HOST_INSTANCE_PENDING` on `HeartbeatOnceAsync` and
