@@ -94,4 +94,8 @@ bundle bytes and this client does not add custom-build, Kubernetes, Agones, Play
 compatibility operations. The event stream is parsed with the platform Web Streams API and yields
 `{ id, event, data }`; `id` is an opaque resume token that callers may explicitly pass back as
 `lastEventId`. Heartbeat comment frames are ignored and resume tokens are never persisted or parsed
-by the client.
+by the client. As the SSE grammar says, exactly one space after a field's colon is removed and any
+further leading whitespace stays in the value, so an id round-trips unchanged; until 2026-09-22 this
+client trimmed every leading space, as the Python client did before 2026-09-17.
+
+`npm ci && npm test` passed 13 tests on 2026-09-22 (Node 25.9.0, npm 11.12.1).

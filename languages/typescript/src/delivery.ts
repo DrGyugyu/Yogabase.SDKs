@@ -649,9 +649,15 @@ function parseSseEvent(block: string): DeliveryOperationStreamEvent | undefined 
     const data: string[] = [];
     for (const line of block.split(/\r?\n/)) {
         if (line.startsWith(":")) continue;
-        if (line.startsWith("id:")) id = line.slice(3).trimStart();
-        else if (line.startsWith("event:")) event = line.slice(6).trimStart();
-        else if (line.startsWith("data:")) data.push(line.slice(5).trimStart());
+        if (line.startsWith("id:")) id = sseFieldValue(line.slice(3));
+        else if (line.startsWith("event:")) event = sseFieldValue(line.slice(6));
+        else if (line.startsWith("data:")) data.push(sseFieldValue(line.slice(5)));
     }
     return data.length > 0 ? { id, event, data: JSON.parse(data.join("\n")) as DeliveryOperationEvent } : undefined;
+}
+
+// The SSE grammar removes a single U+0020 after the field colon. Resume ids are opaque, so any
+// further leading whitespace belongs to the value and must round-trip unchanged.
+function sseFieldValue(value: string): string {
+    return value.startsWith(" ") ? value.slice(1) : value;
 }

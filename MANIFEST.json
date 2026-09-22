@@ -98,7 +98,7 @@
       "source": "languages/typescript",
       "packageId": "@stackyoga/yogabase-client-preview",
       "version": "0.3.0-preview.1",
-      "qualification": "npm-clean-install-typescript-build-and-12-tests-passed-2026-09-09-dry-run-pack-not-rerun"
+      "qualification": "npm-clean-install-typescript-build-and-13-tests-passed-2026-09-22-dry-run-pack-not-rerun"
     },
     {
       "language": "Python",

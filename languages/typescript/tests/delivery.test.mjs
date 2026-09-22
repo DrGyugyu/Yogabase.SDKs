@@ -94,6 +94,25 @@ test("SSE operation events surface opaque IDs and ignore heartbeat comments", as
     assert.equal(fake.calls[0].init.headers.get("Last-Event-ID"), "0");
 });
 
+test("SSE field values lose exactly one leading space", async () => {
+    // The resume id is opaque and must round-trip unchanged: the SSE grammar, the .NET client, the
+    // Python client and the Dart parser all remove exactly one U+0020 after the colon, and nothing else.
+    const body =
+        "id:  spaced-resume\n" +
+        "event:\tdelivery-operation\n" +
+        "data: {\"operationId\":\"operation-1\",\"state\":\"Running\",\"detail\":\"\",\"occurredAt\":\"2026-09-01T00:00:00Z\"}\n\n" +
+        "id:unspaced-resume\n" +
+        "event:delivery-operation\n" +
+        "data:{\"operationId\":\"operation-1\",\"state\":\"Succeeded\",\"detail\":\"\",\"occurredAt\":\"2026-09-01T00:00:01Z\"}\n\n";
+    const fake = fakeFetch([new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } })]);
+    const client = new YogabaseDeliveryClient({ deliveryHost: "https://delivery.example.test", accessToken: "token", fetch: fake.fetcher });
+    const events = [];
+    for await (const event of client.streamOperationEvents("p")) events.push(event);
+    assert.deepEqual(events.map(event => event.id), [" spaced-resume", "unspaced-resume"]);
+    assert.deepEqual(events.map(event => event.event), ["\tdelivery-operation", "delivery-operation"]);
+    assert.deepEqual(events.map(event => event.data.state), ["Running", "Succeeded"]);
+});
+
 test("getTemplate deserializes a response without hostedServicePolicyDigest as absent", async () => {
     const fake = fakeFetch([jsonResponse({
         id: "t",
