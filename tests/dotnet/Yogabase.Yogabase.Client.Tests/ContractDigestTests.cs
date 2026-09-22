@@ -153,6 +153,9 @@ public sealed class ContractDigestTests
         Assert.Contains("\"realtimeIngressBindings\"", buildsText, StringComparison.Ordinal);
         Assert.Contains("\"realtimeEgressBindings\"", buildsText, StringComparison.Ordinal);
         Assert.Contains("BUILD_LAMBDA_DECLARATION_REQUIRED", buildsText, StringComparison.Ordinal);
+        // The registering-bundle field the Builds client and the Unity publisher send.
+        Assert.Contains("\"registeredLambdaIds\"", buildsText, StringComparison.Ordinal);
+        Assert.Contains("BUILD_LAMBDA_REGISTRATION_REQUIRED", buildsText, StringComparison.Ordinal);
 
         using var client = System.Text.Json.JsonDocument.Parse(await File.ReadAllTextAsync(
             Path.Combine(repoRoot, "contracts", "yogabase-client-v1.openapi.json"),

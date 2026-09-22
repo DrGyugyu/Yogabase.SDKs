@@ -2,8 +2,11 @@
 
 Preview .NET clients for the versioned Yogabase application-gateway, game-server, build, and
 workload Delivery wire contracts. The package
-targets .NET Standard 2.1 and .NET 10; Unity remains an unqualified candidate platform pending
-IL2CPP/AOT and dependency-closure testing. It supports non-secret publishable-key bootstrap,
+targets .NET Standard 2.1 and .NET 10 on the 10.0 package line. Unity takes a separate build of the
+same sources, `src/unity/Yogabase.Yogabase.Client.Unity` (netstandard2.1, the SignalR 8.0.15 and
+System.Text.Json 8.0.5 line), because Unity 6000.5 binds its own 8.0 BCL extensions and a plugin
+built against 10.x is CS1705 there; `UnityBuildTests` pins that the Unity build references nothing
+at 9.x or above. The Unity build is unqualified until the demo's IL2CPP player has run it. It supports non-secret publishable-key bootstrap,
 OIDC authorization-code/PKCE, mediated object
 storage, stateless Function invocation, Actor and Workflow Lambdas, SignalR realtime, and
 game-server allocation.
@@ -144,6 +147,15 @@ none repeated), and a Lambda request that also names an `Executable` or `Ports` 
 those describe a self-contained service. Leave `Lambda` unset for a server build: the Control Plane
 refuses the declaration there (`BUILD_LAMBDA_DECLARATION_UNEXPECTED`).
 
+A bundle whose entry is `RegisterLambdas` registers several Lambda ids, which admission never runs
+the code to discover, so it states them: set `RegisteredLambdaIds` and the client sends the
+comma-separated `registeredLambdaIds` after the declaration. The client checks the product's rules
+first — 1 to 64 ids, each a lowercase letter then lowercase letters, digits, `.`, `_` or `-` up to 128
+characters, none repeated, none equal to the build's own `Name`, and every realtime ingress binding one
+of them. Leave it empty for a single-function (`InvokeAsync`) bundle: the field is then not sent,
+because the Control Plane refuses it there (`BUILD_LAMBDA_REGISTRATION_UNEXPECTED`), as it refuses a
+registering bundle without it (`BUILD_LAMBDA_REGISTRATION_REQUIRED`).
+
 ```csharp
 var lambda = await builds.UploadAsync(projectId, environmentId, File.OpenRead("hello-world.zip"),
     new YogabaseBuildUploadRequest
@@ -154,6 +166,19 @@ var lambda = await builds.UploadAsync(projectId, environmentId, File.OpenRead("h
         {
             ExecutionKind = YogabaseLambdaExecutionKind.Stateless,
             RealtimeEgressBindings = new[] { "match.events" },
+        },
+    });
+
+// A RegisterLambdas bundle that registers three functions under one build.
+var registering = await builds.UploadAsync(projectId, environmentId, File.OpenRead("game.lambdas-3.zip"),
+    new YogabaseBuildUploadRequest
+    {
+        Name = "game.lambdas",
+        Version = "3",
+        Lambda = new YogabaseLambdaDeclaration
+        {
+            RealtimeEgressBindings = new[] { "demo.notify" },
+            RegisteredLambdaIds = new[] { "claim_reward", "gacha_pull", "season_rollover" },
         },
     });
 ```

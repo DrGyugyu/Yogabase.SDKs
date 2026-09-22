@@ -269,7 +269,8 @@ namespace Yogabase.Editor
         /// The metadata fields of one upload, in the order they are sent. A server build carries its
         /// executable, name, optional version and ports; a Lambda archive carries its optional
         /// function id and version and its execution declaration — the execution kind and both
-        /// binding lists, each sent even when empty, because an absent field is not a declaration.
+        /// binding lists, each sent even when empty, because an absent field is not a declaration —
+        /// and, for a RegisterLambdas bundle only, the Lambda ids it registers.
         /// </summary>
         public static List<KeyValuePair<string, string>> FormFields(YogabaseSettings settings)
         {
@@ -295,6 +296,13 @@ namespace Yogabase.Editor
                     YogabaseEditorRoutes.FieldRealtimeIngressBindings, JoinBindings(settings.realtimeIngressBindings)));
                 fields.Add(new KeyValuePair<string, string>(
                     YogabaseEditorRoutes.FieldRealtimeEgressBindings, JoinBindings(settings.realtimeEgressBindings)));
+                // Only a registering (RegisterLambdas) bundle states ids; the Control Plane refuses the
+                // field, even empty, beside a single-function bundle.
+                if (settings.registeredLambdaIds != null && settings.registeredLambdaIds.Count > 0)
+                {
+                    fields.Add(new KeyValuePair<string, string>(
+                        YogabaseEditorRoutes.FieldRegisteredLambdaIds, JoinBindings(settings.registeredLambdaIds)));
+                }
                 return fields;
             }
 

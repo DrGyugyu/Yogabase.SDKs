@@ -144,6 +144,23 @@ public sealed class YogabaseLambdaDeclaration
     /// <summary>Binding ids this Lambda publishes events to; empty declares none.</summary>
     public IReadOnlyList<string> RealtimeEgressBindings { get; set; } = Array.Empty<string>();
 
+    /// <summary>The product's bound on the Lambda ids one registering archive states.</summary>
+    public const int MaximumRegisteredLambdaIds = 64;
+
+    /// <summary>The product's bound on one registered Lambda id's length.</summary>
+    public const int MaximumRegisteredLambdaIdLength = 128;
+
+    /// <summary>
+    /// The Lambda ids an archive whose entry is <c>RegisterLambdas</c> registers, sent as
+    /// <c>registeredLambdaIds</c>. Yogabase never works them out from the bytes: admission never runs
+    /// the bundle's code, so a registering archive states them, and the sandbox later refuses one that
+    /// registers anything else. Leave it empty for a single-function (<c>InvokeAsync</c>) archive —
+    /// the field is then not sent at all. Each id registers the one kind the execution kind allows
+    /// (Stateless registers functions, Stateful actor handlers); none may equal the build's own
+    /// name, and every realtime ingress binding must be one of them.
+    /// </summary>
+    public IReadOnlyList<string> RegisteredLambdaIds { get; set; } = Array.Empty<string>();
+
     /// <summary>
     /// A realtime binding id as the admission Job accepts it: a lowercase letter, then lowercase
     /// letters, digits, <c>.</c>, <c>_</c> or <c>-</c>, at most 96 characters.
@@ -151,6 +168,16 @@ public sealed class YogabaseLambdaDeclaration
     public static bool IsBindingId(string? value) =>
         !string.IsNullOrEmpty(value)
         && value!.Length <= MaximumBindingIdLength
+        && value[0] is >= 'a' and <= 'z'
+        && value.All(static character => character is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '.' or '_' or '-');
+
+    /// <summary>
+    /// A registered Lambda id as the product accepts it: a lowercase letter, then lowercase letters,
+    /// digits, <c>.</c>, <c>_</c> or <c>-</c>, at most 128 characters, never case-folded.
+    /// </summary>
+    public static bool IsRegisteredLambdaId(string? value) =>
+        !string.IsNullOrEmpty(value)
+        && value!.Length <= MaximumRegisteredLambdaIdLength
         && value[0] is >= 'a' and <= 'z'
         && value.All(static character => character is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '.' or '_' or '-');
 }
@@ -658,9 +685,70 @@ public sealed class YogabaseBuildsClient : IDisposable
             fields.Add(new KeyValuePair<string, string>(
                 YogabaseRoutes.BuildFieldRealtimeEgressBindings,
                 LambdaBindings(lambda.RealtimeEgressBindings, YogabaseRoutes.BuildFieldRealtimeEgressBindings)));
+            // Only a registering archive states ids; the product refuses the field, even empty,
+            // beside a single-function archive.
+            if (lambda.RegisteredLambdaIds is { Count: > 0 } registered)
+            {
+                fields.Add(new KeyValuePair<string, string>(
+                    YogabaseRoutes.BuildFieldRegisteredLambdaIds,
+                    RegisteredLambdaIds(registered, request.Name, lambda.RealtimeIngressBindings)));
+            }
         }
 
         return fields;
+    }
+
+    /// <summary>
+    /// The registered ids as the comma-separated field value, checked with the product's own rules —
+    /// count, each id, repeats, the reserved build name, and every ingress binding being one of them —
+    /// so a registration the Control Plane would refuse never leaves the tool.
+    /// </summary>
+    private static string RegisteredLambdaIds(
+        IReadOnlyList<string> registeredLambdaIds,
+        string? buildName,
+        IReadOnlyList<string>? ingress)
+    {
+        // The parameter carries the field's own spelling, so each refusal names the field.
+        const string Field = nameof(registeredLambdaIds);
+        var ids = registeredLambdaIds;
+        if (ids.Count > YogabaseLambdaDeclaration.MaximumRegisteredLambdaIds)
+        {
+            throw new ArgumentException($"At most 64 Lambda ids may be listed in {Field}.", nameof(registeredLambdaIds));
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        for (var index = 0; index < ids.Count; index++)
+        {
+            if (!YogabaseLambdaDeclaration.IsRegisteredLambdaId(ids[index]))
+            {
+                throw new ArgumentException(
+                    $"{Field}[{index}] is not a Lambda id: a lowercase letter, then lowercase letters, digits, '.', '_' or '-', at most 128 characters.",
+                    nameof(registeredLambdaIds));
+            }
+            if (!seen.Add(ids[index]))
+            {
+                throw new ArgumentException($"{Field}[{index}] repeats an id listed before it.", nameof(registeredLambdaIds));
+            }
+            if (buildName is not null && string.Equals(ids[index], buildName, StringComparison.Ordinal))
+            {
+                throw new ArgumentException(
+                    $"{Field}[{index}] is the build's own name, which stays reserved for the build itself.",
+                    nameof(registeredLambdaIds));
+            }
+        }
+
+        var bindings = ingress ?? Array.Empty<string>();
+        for (var index = 0; index < bindings.Count; index++)
+        {
+            if (!seen.Contains(bindings[index]))
+            {
+                throw new ArgumentException(
+                    $"{YogabaseRoutes.BuildFieldRealtimeIngressBindings}[{index}] is not one of the ids in {Field}: a registering build receives realtime events only on a registered id.",
+                    nameof(registeredLambdaIds));
+            }
+        }
+
+        return string.Join(",", ids);
     }
 
     /// <summary>

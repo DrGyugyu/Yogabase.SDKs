@@ -145,6 +145,11 @@ namespace Yogabase.Editor
             + "Leave empty to declare none.")]
         public List<string> realtimeEgressBindings = new List<string>();
 
+        [Tooltip("For a bundle whose entry is RegisterLambdas: every Lambda id it registers. Yogabase never "
+            + "works these out from the build, and the sandbox refuses a bundle that registers anything "
+            + "else. Leave empty for a single-function (InvokeAsync) bundle.")]
+        public List<string> registeredLambdaIds = new List<string>();
+
         /// <summary>The <c>executionKind</c> field value: exactly <c>Stateless</c> or <c>Stateful</c>.</summary>
         public string LambdaExecutionKindToken
         {
@@ -343,6 +348,61 @@ namespace Yogabase.Editor
 
             ValidateBindings(realtimeIngressBindings, YogabaseEditorRoutes.FieldRealtimeIngressBindings, problems);
             ValidateBindings(realtimeEgressBindings, YogabaseEditorRoutes.FieldRealtimeEgressBindings, problems);
+            ValidateRegisteredLambdaIds(problems);
+        }
+
+        // The Control Plane's own registration rules, so a registration it would refuse never leaves
+        // the Editor: count, each id, repeats, the reserved build name, and every ingress binding
+        // being a registered id.
+        private void ValidateRegisteredLambdaIds(List<string> problems)
+        {
+            if (registeredLambdaIds == null || registeredLambdaIds.Count == 0)
+            {
+                return;
+            }
+            const string Field = YogabaseEditorRoutes.FieldRegisteredLambdaIds;
+            if (registeredLambdaIds.Count > YogabaseEditorRoutes.MaximumRegisteredLambdaIds)
+            {
+                problems.Add("At most " + YogabaseEditorRoutes.MaximumRegisteredLambdaIds
+                    + " Lambda ids may be listed in " + Field + ".");
+            }
+
+            var buildName = string.IsNullOrWhiteSpace(serviceName) ? null : serviceName.Trim();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            for (var index = 0; index < registeredLambdaIds.Count; index++)
+            {
+                var id = registeredLambdaIds[index] == null ? null : registeredLambdaIds[index].Trim();
+                if (!YogabaseEditorRoutes.IsRegisteredLambdaId(id))
+                {
+                    problems.Add(Field + "[" + index + "] is not a Lambda id: a lowercase letter, then lowercase "
+                        + "letters, digits, '.', '_' or '-', at most "
+                        + YogabaseEditorRoutes.MaximumRegisteredLambdaIdLength + " characters.");
+                }
+                else if (!seen.Add(id))
+                {
+                    problems.Add(Field + "[" + index + "] repeats an id listed before it.");
+                }
+                else if (buildName != null && string.Equals(id, buildName, StringComparison.Ordinal))
+                {
+                    problems.Add(Field + "[" + index + "] is the build's own name, which stays reserved for "
+                        + "the build itself.");
+                }
+            }
+
+            if (realtimeIngressBindings == null)
+            {
+                return;
+            }
+            for (var index = 0; index < realtimeIngressBindings.Count; index++)
+            {
+                var binding = realtimeIngressBindings[index] == null ? null : realtimeIngressBindings[index].Trim();
+                if (binding != null && !seen.Contains(binding))
+                {
+                    problems.Add(YogabaseEditorRoutes.FieldRealtimeIngressBindings + "[" + index + "] is not one "
+                        + "of the registered Lambda ids: a registering build receives realtime events only on a "
+                        + "registered id.");
+                }
+            }
         }
 
         // The admission Job's own rules, so a declaration a member would refuse never leaves the Editor.

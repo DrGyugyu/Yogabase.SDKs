@@ -114,6 +114,9 @@ namespace Yogabase.Editor
                 EditorGUILayout.LabelField("Execution kind", settings.LambdaExecutionKindToken);
                 EditorGUILayout.LabelField("Receives from", DescribeBindings(settings.realtimeIngressBindings));
                 EditorGUILayout.LabelField("Publishes to", DescribeBindings(settings.realtimeEgressBindings));
+                EditorGUILayout.LabelField("Registers", settings.registeredLambdaIds == null || settings.registeredLambdaIds.Count == 0
+                    ? "(single function)"
+                    : string.Join(", ", settings.registeredLambdaIds));
             }
             else
             {
@@ -279,7 +282,10 @@ namespace Yogabase.Editor
                     }
                     Report("Publishing the Lambda archive " + zipPath + " as " + settings.LambdaExecutionKindToken
                         + ", receiving from " + DescribeBindings(settings.realtimeIngressBindings)
-                        + " and publishing to " + DescribeBindings(settings.realtimeEgressBindings) + ".");
+                        + " and publishing to " + DescribeBindings(settings.realtimeEgressBindings)
+                        + (settings.registeredLambdaIds == null || settings.registeredLambdaIds.Count == 0
+                            ? "."
+                            : ", registering " + string.Join(", ", settings.registeredLambdaIds) + "."));
                 }
                 else if (!skipBuild)
                 {

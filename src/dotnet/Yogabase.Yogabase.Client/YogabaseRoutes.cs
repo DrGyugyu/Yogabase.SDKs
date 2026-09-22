@@ -147,6 +147,13 @@ public static class YogabaseRoutes
     public const string BuildFieldRealtimeIngressBindings = "realtimeIngressBindings";
     /// <inheritdoc cref="BuildFieldExecutionKind"/>
     public const string BuildFieldRealtimeEgressBindings = "realtimeEgressBindings";
+    /// <summary>
+    /// The comma-separated Lambda ids a <c>RegisterLambdas</c> archive registers. Sent only for a
+    /// registering archive: the product refuses a registering archive without it
+    /// (<c>BUILD_LAMBDA_REGISTRATION_REQUIRED</c>) and a single-function archive with it
+    /// (<c>BUILD_LAMBDA_REGISTRATION_UNEXPECTED</c>).
+    /// </summary>
+    public const string BuildFieldRegisteredLambdaIds = "registeredLambdaIds";
 
     // ---------------------------------------------------------------------------------------
     // Delivery host — workload DeliveryBearer token.

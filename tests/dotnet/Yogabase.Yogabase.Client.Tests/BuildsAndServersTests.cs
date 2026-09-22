@@ -483,6 +483,131 @@ public sealed class BuildsAndServersTests
         Assert.Equal(string.Empty, parts[2].Body);
     }
 
+    [Fact]
+    public async Task ARegisteringLambdaSendsItsRegisteredIdsAfterTheDeclaration()
+    {
+        IReadOnlyList<MultipartField> parts = Array.Empty<MultipartField>();
+        var handler = new ScriptedHandler(async (request, cancellationToken) =>
+        {
+            parts = await ReadMultipartAsync(request.Content!, cancellationToken);
+            return Json(HttpStatusCode.Accepted, Checking());
+        });
+        using var builds = Builds(handler);
+        using var bundle = new MemoryStream(Encoding.ASCII.GetBytes("lambda-bundle"));
+
+        await builds.UploadAsync(
+            ProjectId,
+            EnvironmentId,
+            bundle,
+            new YogabaseBuildUploadRequest
+            {
+                Name = "adaptivesync.lambdas",
+                Version = "3",
+                Lambda = new YogabaseLambdaDeclaration
+                {
+                    RealtimeIngressBindings = ["claim_reward"],
+                    RealtimeEgressBindings = ["demo.notify"],
+                    RegisteredLambdaIds = ["claim_reward", "gacha_pull", "season.rollover"],
+                },
+            },
+            TestContext.Current.CancellationToken);
+
+        // The product reads registeredLambdaIds beside the execution declaration: a RegisterLambdas
+        // bundle uploaded without a manifest is refused with BUILD_LAMBDA_REGISTRATION_REQUIRED.
+        Assert.Equal(
+            ["name", "version", "executionKind", "realtimeIngressBindings", "realtimeEgressBindings", "registeredLambdaIds", "bundle"],
+            parts.Select(part => part.Name));
+        Assert.Equal("claim_reward,gacha_pull,season.rollover", parts[5].Body);
+    }
+
+    [Fact]
+    public async Task ASingleFunctionLambdaSendsNoRegisteredIdsField()
+    {
+        IReadOnlyList<MultipartField> parts = Array.Empty<MultipartField>();
+        var handler = new ScriptedHandler(async (request, cancellationToken) =>
+        {
+            parts = await ReadMultipartAsync(request.Content!, cancellationToken);
+            return Json(HttpStatusCode.Accepted, Checking());
+        });
+        using var builds = Builds(handler);
+        using var bundle = new MemoryStream(Encoding.ASCII.GetBytes("lambda-bundle"));
+
+        await builds.UploadAsync(
+            ProjectId,
+            EnvironmentId,
+            bundle,
+            new YogabaseBuildUploadRequest { Lambda = new YogabaseLambdaDeclaration { RegisteredLambdaIds = [] } },
+            TestContext.Current.CancellationToken);
+
+        // A single-function (InvokeAsync) archive states no registration: the product refuses the
+        // field beside one with BUILD_LAMBDA_REGISTRATION_UNEXPECTED, even empty.
+        Assert.DoesNotContain(parts, part => part.Name == "registeredLambdaIds");
+    }
+
+    public static TheoryData<string?, string[], string[]> InvalidLambdaRegistrations() => new()
+    {
+        // Not a Lambda id: uppercase, a leading digit, a space, empty, 129 characters.
+        { null, [], ["Claim"] },
+        { null, [], ["1claim"] },
+        { null, [], ["claim reward"] },
+        { null, [], [""] },
+        { null, [], [new string('a', 129)] },
+        // Repeated, ordinally.
+        { null, [], ["claim", "claim"] },
+        // More than 64.
+        { null, [], Enumerable.Range(0, 65).Select(index => "l" + index).ToArray() },
+        // The build's own name stays reserved for the build itself.
+        { "adaptivesync.lambdas", [], ["adaptivesync.lambdas"] },
+        // A registering build receives realtime events only on a registered id.
+        { null, ["other"], ["claim"] },
+    };
+
+    [Theory]
+    [MemberData(nameof(InvalidLambdaRegistrations))]
+    public async Task ARegistrationOutsideTheProductRulesIsRefusedBeforeTransport(string? name, string[] ingress, string[] ids)
+    {
+        var calls = 0;
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            calls++;
+            return Task.FromResult(Json(HttpStatusCode.Accepted, Checking()));
+        });
+        using var builds = Builds(handler);
+        using var bundle = new MemoryStream(Encoding.ASCII.GetBytes("bundle"));
+
+        var refusal = await Assert.ThrowsAsync<ArgumentException>(() => builds.UploadAsync(
+            ProjectId,
+            EnvironmentId,
+            bundle,
+            new YogabaseBuildUploadRequest
+            {
+                Name = name,
+                Lambda = new YogabaseLambdaDeclaration { RealtimeIngressBindings = ingress, RegisteredLambdaIds = ids },
+            },
+            TestContext.Current.CancellationToken));
+        Assert.Contains("registeredLambdaIds", refusal.Message + refusal.ParamName, StringComparison.Ordinal);
+        Assert.Equal(0, calls);
+    }
+
+    [Theory]
+    [InlineData("claim_reward", true)]
+    [InlineData("season.rollover-2", true)]
+    [InlineData("a", true)]
+    [InlineData("Claim", false)]
+    [InlineData("_claim", false)]
+    [InlineData("claim/reward", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void ARegisteredLambdaIdIsTheProductGrammar(string? value, bool expected) =>
+        Assert.Equal(expected, YogabaseLambdaDeclaration.IsRegisteredLambdaId(value));
+
+    [Fact]
+    public void ARegisteredLambdaIdIsAtMost128Characters()
+    {
+        Assert.True(YogabaseLambdaDeclaration.IsRegisteredLambdaId(new string('a', 128)));
+        Assert.False(YogabaseLambdaDeclaration.IsRegisteredLambdaId(new string('a', 129)));
+    }
+
     public static TheoryData<string[], string[]> InvalidLambdaBindings() => new()
     {
         { ["Match"], [] },

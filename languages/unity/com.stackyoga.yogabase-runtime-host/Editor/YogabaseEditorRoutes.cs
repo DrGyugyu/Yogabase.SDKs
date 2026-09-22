@@ -128,6 +128,43 @@ namespace Yogabase.Editor
             return true;
         }
 
+        /// <summary>
+        /// The comma-separated Lambda ids a <c>RegisterLambdas</c> archive registers. Sent only for a
+        /// registering archive: the Control Plane refuses a registering archive without it
+        /// (<c>BUILD_LAMBDA_REGISTRATION_REQUIRED</c>) and a single-function archive with it, even
+        /// empty (<c>BUILD_LAMBDA_REGISTRATION_UNEXPECTED</c>).
+        /// </summary>
+        public const string FieldRegisteredLambdaIds = "registeredLambdaIds";
+
+        /// <summary>The product's bound on the Lambda ids one registering archive states.</summary>
+        public const int MaximumRegisteredLambdaIds = 64;
+
+        /// <summary>The product's bound on one registered Lambda id's length.</summary>
+        public const int MaximumRegisteredLambdaIdLength = 128;
+
+        /// <summary>
+        /// A registered Lambda id as the Control Plane accepts it: a lowercase letter, then lowercase
+        /// letters, digits, <c>.</c>, <c>_</c> or <c>-</c>, at most 128 characters, never case-folded.
+        /// </summary>
+        public static bool IsRegisteredLambdaId(string value)
+        {
+            if (string.IsNullOrEmpty(value) || value.Length > MaximumRegisteredLambdaIdLength
+                || value[0] < 'a' || value[0] > 'z')
+            {
+                return false;
+            }
+            foreach (var character in value)
+            {
+                var allowed = (character >= 'a' && character <= 'z') || (character >= '0' && character <= '9')
+                    || character == '.' || character == '_' || character == '-';
+                if (!allowed)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         /// <summary>The states a Build check stops at.</summary>
         public const string StateChecking = "checking";
 

@@ -101,11 +101,19 @@ from the bytes:
 - `realtimeIngressBindings` and `realtimeEgressBindings` — the realtime binding ids the Lambda
   receives events from and publishes events to, comma-separated and sent even when empty, because
   an empty field declares none while an absent one is refused (`BUILD_LAMBDA_DECLARATION_REQUIRED`).
-  A Lambda can publish only to the egress bindings it declares.
+  A Lambda can publish only to the egress bindings it declares;
+- `registeredLambdaIds` — only for a bundle whose entry is `RegisterLambdas`: every Lambda id it
+  registers, comma-separated. Admission never runs the bundle's code, so the ids are stated, and the
+  sandbox later refuses a bundle that registers anything else. Leave *Registered Lambda Ids* empty
+  for a single-function (`InvokeAsync`) bundle; the field is then not sent, because the Control Plane
+  refuses it there (`BUILD_LAMBDA_REGISTRATION_UNEXPECTED`) as it refuses a registering bundle
+  without it (`BUILD_LAMBDA_REGISTRATION_REQUIRED`).
 
 The settings asset checks the declaration with the admission rules before anything is sent: each
 binding id starts with a lowercase letter and uses lowercase letters, digits, `.`, `_` and `-`, at
-most 96 characters; at most 16 per direction; none repeated. The *Service name* is the Lambda's
+most 96 characters; at most 16 per direction; none repeated. Registered ids follow the same
+grammar at up to 128 characters, at most 64, none repeated, none equal to the *Service name*, and
+every ingress binding must be one of them. The *Service name* is the Lambda's
 function id and may be left empty to use the bundle's own. A server upload sends none of these
 fields, exactly as before. This path is compile-checked like the rest of the Editor code (C# 9,
 Unity 6000.5.7f1 reference set, warnings as errors) and has not been run in an Editor.
