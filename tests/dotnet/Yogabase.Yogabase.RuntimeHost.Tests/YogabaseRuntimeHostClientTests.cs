@@ -215,6 +215,128 @@ public sealed class YogabaseRuntimeHostClientTests
     }
 
     [Fact]
+    public async Task APageCarriesTheHeadStateAndSequenceWhenTheControlPlaneStatesThem()
+    {
+        var handler = new ScriptedHandler((_, _) => Task.FromResult(Json(
+            HttpStatusCode.OK,
+            "{\"events\":[],\"resumeToken\":\"4\",\"headState\":\"Allocated\",\"headSequence\":9}")));
+        await using var client = Client(handler);
+
+        var page = await client.WatchAssignmentsOnceAsync("4", TestContext.Current.CancellationToken);
+
+        Assert.Equal("Allocated", page.HeadState);
+        Assert.Equal(9, page.HeadSequence);
+        Assert.True(page.HasHead);
+        Assert.Empty(page.Events);
+        Assert.Equal("4", page.ResumeToken);
+    }
+
+    [Fact]
+    public async Task APageFromAControlPlaneThatPredatesTheHeadCarriesNone()
+    {
+        var handler = new ScriptedHandler((_, _) => Task.FromResult(Json(HttpStatusCode.OK, AssignmentsBody)));
+        await using var client = Client(handler);
+
+        var page = await client.WatchAssignmentsOnceAsync(null, TestContext.Current.CancellationToken);
+
+        Assert.Null(page.HeadState);
+        Assert.Null(page.HeadSequence);
+        Assert.False(page.HasHead);
+        Assert.Single(page.Events);
+    }
+
+    [Theory]
+    [InlineData("{\"events\":[],\"resumeToken\":\"\",\"headState\":7,\"headSequence\":\"x\"}")]
+    [InlineData("{\"events\":[],\"resumeToken\":\"\",\"headState\":null,\"headSequence\":null}")]
+    [InlineData("{\"events\":[],\"resumeToken\":\"\",\"headState\":\"\",\"headSequence\":-1}")]
+    public async Task AMalformedHeadIsNoHeadRatherThanAFailure(string body)
+    {
+        var handler = new ScriptedHandler((_, _) => Task.FromResult(Json(HttpStatusCode.OK, body)));
+        await using var client = Client(handler);
+
+        var page = await client.WatchAssignmentsOnceAsync(null, TestContext.Current.CancellationToken);
+
+        Assert.False(page.HasHead);
+        Assert.Null(page.HeadState);
+        Assert.Null(page.HeadSequence);
+    }
+
+    [Fact]
+    public async Task CurrentStateIsOneReadWhenThePageStatesTheHead()
+    {
+        var reads = 0;
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            reads++;
+            // The head can be newer than the newest event: a lapsed lease reads Unknown although no
+            // event records the lapse.
+            return Task.FromResult(Json(
+                HttpStatusCode.OK,
+                "{\"events\":[{\"sequence\":1,\"kind\":\"registered\",\"state\":\"Ready\",\"allocationId\":null,\"occurredAt\":\"2026-09-04T00:00:00+00:00\"}],"
+                + "\"resumeToken\":\"1\",\"headState\":\"Unknown\",\"headSequence\":1}"));
+        });
+        await using var client = Client(handler);
+
+        var current = await client.ReadCurrentStateAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, reads);
+        Assert.Equal("Unknown", current.State);
+        Assert.Equal(1, current.Sequence);
+        Assert.True(current.ReadFromHead);
+        Assert.False(current.IsReady);
+    }
+
+    [Fact]
+    public async Task CurrentStateFallsBackToPagingToTheHeadWhenThePageStatesNone()
+    {
+        var queries = new List<string>();
+        var handler = new ScriptedHandler((request, _) =>
+        {
+            queries.Add(request.RequestUri!.Query);
+            // A full page (100 events) is not the head; the short page after it is.
+            var body = queries.Count == 1
+                ? PageOf(Enumerable.Range(1, 100).Select(sequence => (sequence, "Healthy")), "100")
+                : PageOf([(101, "Ready")], "101");
+            return Task.FromResult(Json(HttpStatusCode.OK, body));
+        });
+        await using var client = Client(handler);
+
+        var current = await client.ReadCurrentStateAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal([string.Empty, "?resumeToken=100"], queries);
+        Assert.Equal("Ready", current.State);
+        Assert.Equal(101, current.Sequence);
+        Assert.False(current.ReadFromHead);
+        Assert.True(current.IsReady);
+    }
+
+    [Fact]
+    public async Task CurrentStateOfAStreamWithNoEventsAndNoHeadIsUnknownToTheCaller()
+    {
+        var handler = new ScriptedHandler((_, _) =>
+            Task.FromResult(Json(HttpStatusCode.OK, "{\"events\":[],\"resumeToken\":\"\"}")));
+        await using var client = Client(handler);
+
+        var current = await client.ReadCurrentStateAsync(TestContext.Current.CancellationToken);
+
+        Assert.Null(current.State);
+        Assert.Null(current.Sequence);
+        Assert.False(current.IsReady);
+    }
+
+    [Theory]
+    [InlineData("Ready", true)]
+    [InlineData("Reserved", true)]
+    [InlineData("Allocated", true)]
+    [InlineData("Healthy", false)]
+    [InlineData("Starting", false)]
+    [InlineData("Draining", false)]
+    [InlineData("Unknown", false)]
+    [InlineData("SomethingNew", false)]
+    public void AStateNameTheClientDoesNotKnowIsNotReady(string state, bool ready) =>
+        Assert.Equal(ready, new RuntimeHostCurrentState(state, 1, ReadFromHead: true).IsReady);
+
+    [Fact]
     public async Task ErrorResponseSurfacesAsYogabaseRuntimeHostException()
     {
         var handler = new ScriptedHandler((_, _) => Task.FromResult(Json(HttpStatusCode.Forbidden, ErrorBody)));
@@ -590,6 +712,13 @@ public sealed class YogabaseRuntimeHostClientTests
         || string.Equals(name, "Cookie", StringComparison.OrdinalIgnoreCase)
         || string.Equals(name, "Proxy-Authorization", StringComparison.OrdinalIgnoreCase)
         || name.StartsWith("X-Yogabase-", StringComparison.OrdinalIgnoreCase);
+
+    private static string PageOf(IEnumerable<(int Sequence, string State)> events, string resumeToken) =>
+        "{\"events\":["
+        + string.Join(",", events.Select(item => string.Create(
+            CultureInfo.InvariantCulture,
+            $"{{\"sequence\":{item.Sequence},\"kind\":\"heartbeat\",\"state\":\"{item.State}\",\"allocationId\":null,\"occurredAt\":\"2026-09-04T00:00:00+00:00\"}}")))
+        + "],\"resumeToken\":\"" + resumeToken + "\"}";
 
     private static string AssignmentsBodyWithToken(string resumeToken) =>
         "{\"events\":[{\"sequence\":1,\"kind\":\"allocated\",\"state\":\"Allocated\",\"allocationId\":\"alloc-1\",\"occurredAt\":\"2026-09-04T00:00:00+00:00\"}],\"resumeToken\":\""

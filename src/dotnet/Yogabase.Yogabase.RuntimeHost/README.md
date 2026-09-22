@@ -57,6 +57,18 @@ the platform injects. Exactly five routes exist:
 | `ShutdownAsync` | `POST /runtime-host/v1/self/shutdown` |
 | `WatchAssignmentsOnceAsync` | `GET /runtime-host/v1/self/assignments` |
 
+A page also states the head when the Control Plane does: `HeadState` is the instance's current
+lifecycle state as the Control Plane observes it (a lapsed lease reads `Unknown` although no event
+records the lapse) and `HeadSequence` the newest event's sequence. `ReadCurrentStateAsync` uses it
+to answer the current state in one read, and against a Control Plane that predates the head it
+pages the stream to its end instead, which is what a consumer had to do before. A head in a shape
+outside the contract reads as no head. `RuntimeHostCurrentState.IsReady` is true for `Ready`,
+`Reserved` and `Allocated` only; a state name the client does not know is not ready.
+
+A Unity project takes this client as a built assembly from `src/unity/Yogabase.Yogabase.RuntimeHost.Unity`:
+the same sources, compiled for netstandard2.1 against System.Text.Json 8.0.5, so it binds Unity's own
+8.0 copy.
+
 ## Deliberate omissions
 
 - **No instance id.** Nothing here takes, stores, or sends one. The Control Plane resolves the

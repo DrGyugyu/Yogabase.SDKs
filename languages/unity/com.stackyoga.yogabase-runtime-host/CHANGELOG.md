@@ -2,8 +2,18 @@
 
 All notable changes to this package are documented in this file.
 
-## [Unreleased]
+## [0.2.3-preview.1]
 
+- A Lambda publish states `registeredLambdaIds` for a bundle whose entry is `RegisterLambdas`
+  (*Registered Lambda Ids* in the settings asset), and sends nothing for a single-function bundle.
+  The settings asset checks the Control Plane's registration rules first: 1 to 64 ids of up to 128
+  characters, none repeated, none equal to the service name, every ingress binding one of them.
+- The runtime-host client reads a page's `headState` and `headSequence` when the Control Plane states
+  them, and `ReadCurrentStateAsync` answers the current state in one read, paging to the end of the
+  stream against a Control Plane that predates the head.
+- The runtime folder is also built as an assembly, `src/unity/Yogabase.Yogabase.RuntimeHost.Unity`,
+  against System.Text.Json 8.0.5, for projects that take the SDK as built, digest-locked
+  assemblies.
 - `Yogabase ▸ Publish Server` can publish a Lambda archive: with *What to publish* set to Lambda it
   uploads a prebuilt Lambda bundle zip with the execution declaration the Control Plane requires
   since 2026-09-17 — `executionKind` (`Stateless` or `Stateful`) and the comma-separated

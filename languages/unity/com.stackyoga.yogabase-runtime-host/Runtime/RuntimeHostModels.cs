@@ -57,9 +57,47 @@ public sealed record RuntimeHostAssignmentEvent(
 /// The token to present on the next poll. An empty value means the caller should keep presenting
 /// whichever token it already holds rather than treat this page as resetting the cursor.
 /// </param>
+/// <param name="HeadState">
+/// The instance's current lifecycle state when the page was read, as the Control Plane observes it;
+/// it can be newer than the newest event (a lapsed lease reads <c>Unknown</c> although no event
+/// records the lapse). Null from a Control Plane that predates it, or when the page carried it in a
+/// shape outside the contract.
+/// </param>
+/// <param name="HeadSequence">
+/// The newest event's sequence when the page was read; a resume token equal to it has read every
+/// event. Null under the same conditions as <paramref name="HeadState"/>.
+/// </param>
 public sealed record RuntimeHostAssignmentPage(
     IReadOnlyList<RuntimeHostAssignmentEvent> Events,
-    string ResumeToken);
+    string ResumeToken,
+    string? HeadState = null,
+    long? HeadSequence = null)
+{
+    /// <summary>The largest page the relay returns; a shorter page is the head of the stream.</summary>
+    public const int MaximumEventsPerPage = 100;
+
+    /// <summary>Whether this page states the head, so one read answers the current state.</summary>
+    public bool HasHead => HeadState is not null;
+}
+
+/// <summary>
+/// The instance's current lifecycle state, read in one request from a page's head when the Control
+/// Plane states it, or by paging to the head of the event stream when it does not.
+/// </summary>
+/// <param name="State">
+/// The current state, or null when neither a head nor any event says anything yet.
+/// </param>
+/// <param name="Sequence">The newest event sequence the answer reflects, or null when none.</param>
+/// <param name="ReadFromHead">True when the answer is the page head rather than the last event paged.</param>
+public sealed record RuntimeHostCurrentState(string? State, long? Sequence, bool ReadFromHead)
+{
+    /// <summary>
+    /// True for <c>Ready</c>, <c>Reserved</c> and <c>Allocated</c>: the instance has been marked ready
+    /// and has not begun to drain. Any other state — including a state name this client does not
+    /// know, which the contract says must be treated as not ready — is false.
+    /// </summary>
+    public bool IsReady => State is "Ready" or "Reserved" or "Allocated";
+}
 
 /// <summary>Raised when a self-scoped runtime-host call is refused; the caller decides whether that is expected.</summary>
 public sealed class YogabaseRuntimeHostException : Exception

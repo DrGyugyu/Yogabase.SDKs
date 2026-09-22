@@ -205,8 +205,68 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
                 item["allocationId"]?.GetValue<string>(),
                 item["occurredAt"]!.GetValue<DateTimeOffset>()))
             .ToArray();
-        return new RuntimeHostAssignmentPage(events, node["resumeToken"]?.GetValue<string>() ?? string.Empty);
+        // Both head fields are additive: a Control Plane that predates them omits them, and a value
+        // outside the contract is read as no head rather than failing the page, so the caller keeps
+        // today's paging behaviour instead of trusting a malformed state.
+        var headState = ReadHeadState(node["headState"]);
+        var headSequence = ReadHeadSequence(node["headSequence"]);
+        return new RuntimeHostAssignmentPage(
+            events,
+            node["resumeToken"]?.GetValue<string>() ?? string.Empty,
+            headState,
+            headState is null ? null : headSequence);
     }
+
+    /// <summary>
+    /// Reads the instance's current lifecycle state. When the Control Plane states the head on its
+    /// pages this is one request (one-read readiness); against one that predates it, this pages the
+    /// event stream from the start until it reaches the head (a page shorter than
+    /// <see cref="RuntimeHostAssignmentPage.MaximumEventsPerPage"/>) and answers the last event's
+    /// state, which is what a consumer had to do before the head existed. It never advances a
+    /// caller's own assignment cursor.
+    /// </summary>
+    /// <param name="cancellationToken">A token to cancel the read.</param>
+    /// <returns>The current state, or a null state when nothing has been recorded yet.</returns>
+    public async Task<RuntimeHostCurrentState> ReadCurrentStateAsync(CancellationToken cancellationToken = default)
+    {
+        const int MaximumPages = 10_000;
+        string? resumeToken = null;
+        RuntimeHostAssignmentEvent? last = null;
+        for (var pages = 0; pages < MaximumPages; pages++)
+        {
+            var page = await WatchAssignmentsOnceAsync(resumeToken, cancellationToken).ConfigureAwait(false);
+            if (page.HasHead)
+            {
+                return new RuntimeHostCurrentState(page.HeadState, page.HeadSequence, ReadFromHead: true);
+            }
+
+            if (page.Events.Count > 0)
+            {
+                last = page.Events[page.Events.Count - 1];
+            }
+
+            if (page.Events.Count < RuntimeHostAssignmentPage.MaximumEventsPerPage
+                || string.IsNullOrEmpty(page.ResumeToken)
+                || string.Equals(page.ResumeToken, resumeToken, StringComparison.Ordinal))
+            {
+                break;
+            }
+
+            resumeToken = page.ResumeToken;
+        }
+
+        return new RuntimeHostCurrentState(last?.State, last?.Sequence, ReadFromHead: false);
+    }
+
+    private static string? ReadHeadState(JsonNode? value) =>
+        value is JsonValue scalar && scalar.TryGetValue<string>(out var state) && !string.IsNullOrEmpty(state)
+            ? state
+            : null;
+
+    private static long? ReadHeadSequence(JsonNode? value) =>
+        value is JsonValue scalar && scalar.TryGetValue<long>(out var sequence) && sequence >= 0
+            ? sequence
+            : null;
 
     /// <summary>
     /// Polls <see cref="WatchAssignmentsOnceAsync"/> on the given interval and yields each event in

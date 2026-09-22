@@ -1,6 +1,6 @@
 {
   "name": "com.stackyoga.yogabase-runtime-host",
-  "version": "0.2.2-preview.1",
+  "version": "0.2.3-preview.1",
   "displayName": "Yogabase Runtime Host and Publisher",
   "description": "Preview Unity package with two halves. At runtime it carries the runtime-host client for a Yogabase-hosted self-contained dedicated server workload, which talks to the Pod-local relay over loopback (heartbeat, Ready, resume-token assignment polling, Shutdown) with no third-party dependency: only System.Text.Json and HttpClient, read exclusively through the JSON DOM so IL2CPP managed stripping at Medium/High cannot break it via reflection. In the Editor it adds Yogabase > Publish Server, which builds the Linux dedicated server, zips it, uploads it to the Control Plane with a project-scoped developer token, and shows the Build check result. This is a local, unpublished preview; it is not distributed through any package registry.",
   "unity": "6000.0",
