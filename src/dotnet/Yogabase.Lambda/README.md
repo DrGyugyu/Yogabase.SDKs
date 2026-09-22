@@ -91,7 +91,7 @@ incompatible major of it is refused at admission naming the version. Only `DbDat
 | `Reminders` | `SetAsync(name, functionId, functionVersion, payload, dueAt: …)` or `cron: …`, and `ClearAsync(name)`, through the existing durable scheduler. |
 | `Valkey` / `Cache` | The runtime's real `IConnectionMultiplexer` and its `IDatabase`. Key operations and pub/sub go directly to the bound Valkey service over TLS as this project's ACL identity. |
 | `DistributedCache` | The runtime's `IDistributedCache`, the Valkey module's `cache` capability: entries under `p:<project-id>:cache:`, one hour without an expiry, never more than seven days. See [Streams, queues and change events](#streams-queues-and-change-events). |
-| `Messaging` | `PublishAsync(topic, payload, qos, protocol)` through the gateway. MQTT supports QoS 0/1; Kafka requires QoS 1 and waits for persisted acknowledgement. Both accept payloads up to 32 KiB and require a qualified, bound substrate. Also `ReadStreamAsync`, `DeclareStreamPartitionsAsync`, `ReceiveAsync`, `AckAsync` and `NackAsync`; see [Streams, queues and change events](#streams-queues-and-change-events). |
+| `Messaging` | `PublishAsync(topic, payload, qos, protocol)` through the gateway, and for Kafka `PublishAsync(topic, payload, key)` / `PublishKafkaAsync(topic, payload, key)` with an optional record key. MQTT supports QoS 0/1; Kafka requires QoS 1 and waits for persisted acknowledgement. Both accept payloads up to 32 KiB and require a qualified, bound substrate. Also `ReadStreamAsync`, `DeclareStreamPartitionsAsync`, `ReceiveAsync`, `AckAsync` and `NackAsync`; see [Streams, queues and change events](#streams-queues-and-change-events). |
 | `Caller` | The `ClaimsPrincipal`, its raw `Subject`, and `TryGetSubjectId` / `RequireSubjectId`. |
 | `Logger` | The runtime's `ILogger` for this invocation. |
 | `Invocation` | `InvocationId`, `FunctionId`, `Version`, `EnvironmentId`, and the raw `Facts` dictionary. |
@@ -158,6 +158,22 @@ that exact physical topic. Kafka requires `qos: 1` (the default), and returns on
 acknowledges persistence. The SDK and gateway never automatically retry a publish. A timeout can
 occur after the broker accepted a message, so an explicit retry can duplicate it. This managed
 publish API does not qualify direct native Kafka clients or anonymous consumers.
+
+A Kafka publish can carry a **record key** (owner decision, 2026-09-17): the wrapper sends it as
+`keyBase64` and the broker receives it as the record key, so records with one key keep their order on
+one partition. Omit it (or pass `null`) and the request carries no `keyBase64` member at all — today's
+keyless publish.
+
+```csharp
+await context.Messaging.PublishKafkaAsync("orders.created", input,
+    key: Encoding.UTF8.GetBytes(playerId), cancellationToken);
+```
+
+A key is 1 to 1024 bytes and applies to Kafka only. The wrapper refuses an empty key
+(`LambdaMessaging.KeyInvalid`, 400), a longer one (`KeyTooLarge`, 413) and a key on an MQTT or AMQP
+publish (`KeyUnsupported`, 400) before anything is sent, with the gateway's own status and code; a
+gateway whose Kafka publisher cannot carry a key answers `KeyUnsupported` with 503. A key is never
+dropped to make a publish succeed.
 
 Kafka topics reach a Lambda through a consumer trigger declared on the runtime
 (`spec.substrates.robustmqTriggers`: a logical topic, a group and an admitted function version).

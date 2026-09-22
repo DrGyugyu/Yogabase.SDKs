@@ -167,6 +167,89 @@ public sealed class LambdaSubstratesTests
         Assert.DoesNotContain("projectId", call.Body, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task AKeyedKafkaPublishSendsTheKeyAsBase64BesideThePayload()
+    {
+        using var provider = new Provider(_ => new HttpResponseMessage(HttpStatusCode.Accepted));
+        var messaging = LambdaContext.From(provider).Messaging;
+        await messaging.PublishAsync("orders.created-v1", "hello"u8.ToArray(), key: "player-42"u8.ToArray(),
+            cancellationToken: Token);
+        await messaging.PublishKafkaAsync("orders.created-v1", "hello"u8.ToArray(), "player-7"u8.ToArray(), Token);
+
+        Assert.Equal(2, provider.Calls.Count);
+        Assert.All(provider.Calls, call =>
+            Assert.Equal("/v1/lambda-runtime/topics/orders.created-v1/messages?protocol=kafka", call.Path));
+        using var first = JsonDocument.Parse(provider.Calls[0].Body);
+        Assert.Equal(Convert.ToBase64String("player-42"u8.ToArray()), first.RootElement.GetProperty("keyBase64").GetString());
+        Assert.Equal("aGVsbG8=", first.RootElement.GetProperty("payloadBase64").GetString());
+        Assert.Equal(1, first.RootElement.GetProperty("qos").GetInt32());
+        using var second = JsonDocument.Parse(provider.Calls[1].Body);
+        Assert.Equal(Convert.ToBase64String("player-7"u8.ToArray()), second.RootElement.GetProperty("keyBase64").GetString());
+    }
+
+    [Fact]
+    public async Task AKeylessPublishSendsNoKeyMemberAtAll()
+    {
+        using var provider = new Provider(_ => new HttpResponseMessage(HttpStatusCode.Accepted));
+        var messaging = LambdaContext.From(provider).Messaging;
+        await messaging.PublishAsync("orders", "hello"u8.ToArray(), protocol: "kafka", cancellationToken: Token);
+        await messaging.PublishKafkaAsync("orders", "hello"u8.ToArray(), key: null, Token);
+
+        // The gateway treats any keyBase64 member as a key; omitting it keeps today's keyless publish.
+        Assert.All(provider.Calls, call => Assert.DoesNotContain("keyBase64", call.Body, StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("mqtt")]
+    [InlineData("amqp")]
+    public async Task AKeyOutsideKafkaIsTheGatewaysUnsupportedRefusalBeforeTransport(string protocol)
+    {
+        using var provider = new Provider(_ => new HttpResponseMessage(HttpStatusCode.Accepted));
+        var error = await Assert.ThrowsAsync<LambdaApiException>(() => LambdaContext.From(provider).Messaging.PublishAsync(
+            "orders", "hello"u8.ToArray(), key: "k"u8.ToArray(), protocol: protocol, cancellationToken: Token));
+        Assert.Equal((400, LambdaMessaging.KeyUnsupported), (error.StatusCode, error.Code));
+        Assert.Empty(provider.Calls);
+    }
+
+    [Fact]
+    public async Task AnEmptyOrOversizedKeyIsTheGatewaysOwnRefusalBeforeTransport()
+    {
+        using var provider = new Provider(_ => new HttpResponseMessage(HttpStatusCode.Accepted));
+        var messaging = LambdaContext.From(provider).Messaging;
+        var empty = await Assert.ThrowsAsync<LambdaApiException>(() => messaging.PublishKafkaAsync(
+            "orders", "hello"u8.ToArray(), ReadOnlyMemory<byte>.Empty, Token));
+        Assert.Equal((400, LambdaMessaging.KeyInvalid), (empty.StatusCode, empty.Code));
+        var oversized = await Assert.ThrowsAsync<LambdaApiException>(() => messaging.PublishKafkaAsync(
+            "orders", "hello"u8.ToArray(), new byte[LambdaMessaging.MaximumKeyBytes + 1], Token));
+        Assert.Equal((413, LambdaMessaging.KeyTooLarge), (oversized.StatusCode, oversized.Code));
+        Assert.Empty(provider.Calls);
+
+        await messaging.PublishKafkaAsync("orders", "hello"u8.ToArray(), new byte[LambdaMessaging.MaximumKeyBytes], Token);
+        Assert.Single(provider.Calls);
+    }
+
+    [Theory]
+    [InlineData(400, "messaging_key_invalid")]
+    [InlineData(413, "messaging_key_too_large")]
+    [InlineData(503, "messaging_key_unsupported")]
+    public async Task TheGatewaysKeyRefusalsSurfaceTypedAndAreNeverRetried(int status, string code)
+    {
+        using var provider = new Provider(_ => Json((HttpStatusCode)status, $"{{\"code\":\"{code}\"}}"));
+        var error = await Assert.ThrowsAsync<LambdaApiException>(() => LambdaContext.From(provider).Messaging.PublishKafkaAsync(
+            "orders", "hello"u8.ToArray(), "k"u8.ToArray(), Token));
+        Assert.Equal((status, code), (error.StatusCode, error.Code));
+        Assert.Single(provider.Calls);
+    }
+
+    [Fact]
+    public void TheKeyRefusalConstantsAreTheGatewaysSpelling()
+    {
+        Assert.Equal("messaging_key_invalid", LambdaMessaging.KeyInvalid);
+        Assert.Equal("messaging_key_too_large", LambdaMessaging.KeyTooLarge);
+        Assert.Equal("messaging_key_unsupported", LambdaMessaging.KeyUnsupported);
+        Assert.Equal(1024, LambdaMessaging.MaximumKeyBytes);
+    }
+
     [Theory]
     [InlineData("orders/created")]
     [InlineData("p.foreign.orders")]

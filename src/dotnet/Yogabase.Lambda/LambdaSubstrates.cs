@@ -157,17 +157,71 @@ public sealed class LambdaMessaging
 {
     public const string ProtocolUnqualified = "messaging_protocol_unqualified";
     public const string SubstrateUnavailable = "messaging_substrate_unavailable";
+
+    /// <summary>
+    /// 400: the record key is not base64, or is empty (omit the key to publish without one). An empty
+    /// key is also refused before transport, with this status and code.
+    /// </summary>
+    public const string KeyInvalid = "messaging_key_invalid";
+
+    /// <summary>413: the record key is longer than <see cref="MaximumKeyBytes"/>. Also refused before transport.</summary>
+    public const string KeyTooLarge = "messaging_key_too_large";
+
+    /// <summary>
+    /// 400: a record key on an MQTT or AMQP publish, which cannot carry one (also refused before
+    /// transport); or 503: this installation's Kafka publisher cannot carry a record key. A key is
+    /// never dropped to make a publish succeed.
+    /// </summary>
+    public const string KeyUnsupported = "messaging_key_unsupported";
+
+    /// <summary>The gateway's bound on one Kafka record key, in bytes once decoded.</summary>
+    public const int MaximumKeyBytes = 1024;
+
     private readonly HttpClient client;
     internal LambdaMessaging(HttpClient client) => this.client = client;
 
-    /// <summary>Publishes one message through the runtime API.</summary>
+    /// <summary>Publishes one message through the runtime API, without a record key.</summary>
     /// <param name="topic">An MQTT topic, or for Kafka and AMQP a logical topic or queue name.</param>
     /// <param name="payload">At most 32 KiB.</param>
     /// <param name="qos">0 or 1 for MQTT; Kafka and AMQP require 1.</param>
     /// <param name="protocol"><c>mqtt</c>, <c>kafka</c> or <c>amqp</c>.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
-    public async Task PublishAsync(string topic, ReadOnlyMemory<byte> payload, int qos = 1,
-        string protocol = "mqtt", CancellationToken cancellationToken = default)
+    public Task PublishAsync(string topic, ReadOnlyMemory<byte> payload, int qos = 1,
+        string protocol = "mqtt", CancellationToken cancellationToken = default) =>
+        PublishCoreAsync(topic, payload, key: null, qos, protocol, cancellationToken);
+
+    /// <summary>
+    /// Publishes one message through the runtime API with an optional Kafka record key, which reaches
+    /// the broker as the record key (sent as <c>keyBase64</c>); records with one key keep their order
+    /// on one partition. A <see langword="null"/> key publishes without one, exactly as the keyless
+    /// overload does.
+    /// </summary>
+    /// <param name="topic">A logical Kafka topic; for MQTT or AMQP the key must be null.</param>
+    /// <param name="payload">At most 32 KiB.</param>
+    /// <param name="key">1 to <see cref="MaximumKeyBytes"/> bytes, Kafka only; null for none.</param>
+    /// <param name="qos">Kafka requires 1.</param>
+    /// <param name="protocol"><c>kafka</c> by default, since only Kafka carries a key.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <exception cref="LambdaApiException">
+    /// <see cref="KeyUnsupported"/> (400) for a key outside Kafka, <see cref="KeyInvalid"/> (400) for an
+    /// empty key and <see cref="KeyTooLarge"/> (413) for a long one — each before transport, with the
+    /// gateway's own status and code — and <see cref="KeyUnsupported"/> (503) from a gateway whose
+    /// publisher cannot carry a key.
+    /// </exception>
+    public Task PublishAsync(string topic, ReadOnlyMemory<byte> payload, ReadOnlyMemory<byte>? key, int qos = 1,
+        string protocol = "kafka", CancellationToken cancellationToken = default) =>
+        PublishCoreAsync(topic, payload, key, qos, protocol, cancellationToken);
+
+    /// <summary>
+    /// Publishes to a Kafka topic on the bound RobustMQ cluster, with an optional record key, and
+    /// returns once the broker has persisted it.
+    /// </summary>
+    public Task PublishKafkaAsync(string topic, ReadOnlyMemory<byte> payload, ReadOnlyMemory<byte>? key = null,
+        CancellationToken cancellationToken = default) =>
+        PublishCoreAsync(topic, payload, key, qos: 1, protocol: "kafka", cancellationToken);
+
+    private async Task PublishCoreAsync(string topic, ReadOnlyMemory<byte> payload, ReadOnlyMemory<byte>? key, int qos,
+        string protocol, CancellationToken cancellationToken)
     {
         if (protocol is not ("mqtt" or "kafka" or "amqp")) throw new ArgumentException("Use mqtt, kafka or amqp.", nameof(protocol));
         var acknowledged = protocol is "kafka" or "amqp";
@@ -182,10 +236,25 @@ public sealed class LambdaMessaging
         }
         if (payload.Length > 32 * 1024) throw new ArgumentOutOfRangeException(nameof(payload));
         if (qos is < 0 or > 1 || acknowledged && qos != 1) throw new ArgumentOutOfRangeException(nameof(qos));
+        // The gateway's own key rules, decided here with its status and code so one catch path covers
+        // both: Kafka only, at least one byte, at most 1 KiB. A key is never truncated or dropped.
+        if (key is { } recordKey)
+        {
+            if (protocol != "kafka")
+                throw new LambdaApiException(400, KeyUnsupported, "A record key applies to Kafka publication only.");
+            if (recordKey.Length == 0)
+                throw new LambdaApiException(400, KeyInvalid, "A record key must be at least one byte; omit it to publish without a key.");
+            if (recordKey.Length > MaximumKeyBytes)
+                throw new LambdaApiException(413, KeyTooLarge, "A record key may be at most 1024 bytes.");
+        }
         var route = "topics/" + string.Join("/", topic.Split('/').Select(LambdaSubstrateHttp.Segment))
             + "/messages?protocol=" + protocol;
-        using var request = LambdaSubstrateHttp.JsonRequest(HttpMethod.Post, route,
-            new { payloadBase64 = Convert.ToBase64String(payload.ToArray()), qos });
+        var payloadBase64 = Convert.ToBase64String(payload.ToArray());
+        // No keyBase64 member at all for a keyless publish: the gateway reads any member as a key.
+        using var request = key is { } sent
+            ? LambdaSubstrateHttp.JsonRequest(HttpMethod.Post, route,
+                new { payloadBase64, qos, keyBase64 = Convert.ToBase64String(sent.ToArray()) })
+            : LambdaSubstrateHttp.JsonRequest(HttpMethod.Post, route, new { payloadBase64, qos });
         using var response = await LambdaTransport.SendAsync(client, request, cancellationToken).ConfigureAwait(false);
         if (acknowledged && response.StatusCode != System.Net.HttpStatusCode.Accepted)
             throw new LambdaApiException((int)response.StatusCode, LambdaRefusalCodes.ResponseInvalid,
