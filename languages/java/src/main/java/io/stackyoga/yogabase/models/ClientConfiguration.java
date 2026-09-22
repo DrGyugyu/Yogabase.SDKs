@@ -11,7 +11,7 @@ import java.util.UUID;
 @jakarta.annotation.Generated("com.microsoft.kiota")
 public class ClientConfiguration implements Parsable {
     /**
-     * The capabilities property
+     * The four core rows (auth, storage, functions-rest, realtime-subscribe) in that order, then one row for each requested-only id the client named in X-Yogabase-Accept-Capabilities, in x-yogabase-requested-only order. A client that names nothing receives exactly the four core rows.
      */
     private java.util.List<Capability> capabilities;
     /**
@@ -73,7 +73,7 @@ public class ClientConfiguration implements Parsable {
         return new ClientConfiguration();
     }
     /**
-     * Gets the capabilities property value. The capabilities property
+     * Gets the capabilities property value. The four core rows (auth, storage, functions-rest, realtime-subscribe) in that order, then one row for each requested-only id the client named in X-Yogabase-Accept-Capabilities, in x-yogabase-requested-only order. A client that names nothing receives exactly the four core rows.
      * @return a {@link java.util.List<Capability>}
      */
     @jakarta.annotation.Nullable
@@ -219,7 +219,7 @@ public class ClientConfiguration implements Parsable {
         writer.writeStringValue("schema", this.getSchema());
     }
     /**
-     * Sets the capabilities property value. The capabilities property
+     * Sets the capabilities property value. The four core rows (auth, storage, functions-rest, realtime-subscribe) in that order, then one row for each requested-only id the client named in X-Yogabase-Accept-Capabilities, in x-yogabase-requested-only order. A client that names nothing receives exactly the four core rows.
      * @param value Value to set for the capabilities property.
      */
     public void setCapabilities(@jakarta.annotation.Nullable final java.util.List<Capability> value) {

@@ -59,7 +59,7 @@ export interface Capability extends Parsable {
      */
     available?: boolean | null;
     /**
-     * The id property
+     * realtime-presence appears only when requested; it is available exactly when realtime-subscribe is and the runtime's realtime projection enables presence.
      */
     id?: Capability_id | null;
     /**
@@ -70,7 +70,7 @@ export interface Capability extends Parsable {
 export type Capability_id = (typeof Capability_idObject)[keyof typeof Capability_idObject];
 export interface ClientConfiguration extends Parsable {
     /**
-     * The capabilities property
+     * The four core rows (auth, storage, functions-rest, realtime-subscribe) in that order, then one row for each requested-only id the client named in X-Yogabase-Accept-Capabilities, in x-yogabase-requested-only order. A client that names nothing receives exactly the four core rows.
      */
     capabilities?: Capability[] | null;
     /**
@@ -1448,11 +1448,15 @@ export const ActorInvocationResult_statusObject = {
     Completed: "Completed",
     Failed: "Failed",
 } as const;
+/**
+ * realtime-presence appears only when requested; it is available exactly when realtime-subscribe is and the runtime's realtime projection enables presence.
+ */
 export const Capability_idObject = {
     Auth: "auth",
     Storage: "storage",
     FunctionsRest: "functions-rest",
     RealtimeSubscribe: "realtime-subscribe",
+    RealtimePresence: "realtime-presence",
 } as const;
 export const GameServerPort_protocolObject = {
     Tcp: "tcp",

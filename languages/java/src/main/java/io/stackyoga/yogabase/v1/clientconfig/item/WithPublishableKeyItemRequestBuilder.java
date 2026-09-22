@@ -36,7 +36,7 @@ public class WithPublishableKeyItemRequestBuilder extends BaseRequestBuilder {
         super(requestAdapter, "{+baseurl}/v1/client-config/{publishableKey}", rawUrl);
     }
     /**
-     * Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request.
+     * Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request. The capabilities array always carries the four core rows; a requested-only row is added only for a client that names it in X-Yogabase-Accept-Capabilities.
      * @return a {@link ClientConfiguration}
      * @throws Problem When receiving a 404 status code
      * @throws Problem When receiving a 429 status code
@@ -46,7 +46,7 @@ public class WithPublishableKeyItemRequestBuilder extends BaseRequestBuilder {
         return get(null);
     }
     /**
-     * Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request.
+     * Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request. The capabilities array always carries the four core rows; a requested-only row is added only for a client that names it in X-Yogabase-Accept-Capabilities.
      * @param requestConfiguration Configuration for the request such as headers, query parameters, and middleware options.
      * @return a {@link ClientConfiguration}
      * @throws Problem When receiving a 404 status code
@@ -61,7 +61,7 @@ public class WithPublishableKeyItemRequestBuilder extends BaseRequestBuilder {
         return this.requestAdapter.send(requestInfo, errorMapping, ClientConfiguration::createFromDiscriminatorValue);
     }
     /**
-     * Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request.
+     * Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request. The capabilities array always carries the four core rows; a requested-only row is added only for a client that names it in X-Yogabase-Accept-Capabilities.
      * @return a {@link RequestInformation}
      */
     @jakarta.annotation.Nonnull
@@ -69,7 +69,7 @@ public class WithPublishableKeyItemRequestBuilder extends BaseRequestBuilder {
         return toGetRequestInformation(null);
     }
     /**
-     * Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request.
+     * Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request. The capabilities array always carries the four core rows; a requested-only row is added only for a client that names it in X-Yogabase-Accept-Capabilities.
      * @param requestConfiguration Configuration for the request such as headers, query parameters, and middleware options.
      * @return a {@link RequestInformation}
      */

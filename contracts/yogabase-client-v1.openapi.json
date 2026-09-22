@@ -37,16 +37,26 @@
         "selection": "signed-artifact-egress-binding"
       }
     ],
+    "presence": {
+      "capability": "realtime-presence",
+      "description": "Available only where the bootstrap document's realtime-presence row, requested through X-Yogabase-Accept-Capabilities, says so. TrackPresence(topic) makes the caller's subject present on the topic and also subscribes the connection to it; UntrackPresence(topic) withdraws presence and leaves the subscription; GetPresence(topic) returns {topic, members:[{subject, connections}], truncated}. The presence client method carries {topic, subject, kind}. Events are delivered at least once across replicas; the snapshot is authoritative.",
+      "clientMethods": ["TrackPresence", "UntrackPresence", "GetPresence"],
+      "event": { "clientMethod": "presence", "kinds": ["join", "leave"], "delivery": "at-least-once" },
+      "maximumTrackedTopicsPerConnection": 16,
+      "maximumSnapshotMembers": 1000,
+      "errors": ["presence_unavailable", "presence_topic_invalid", "presence_topic_limit", "presence_store_unavailable"]
+    },
     "status": "available-when-runtime-projection-ready"
   },
   "paths": {
     "/v1/client-config/{publishableKey}": {
       "get": {
         "operationId": "getYogabaseClientConfiguration",
-        "description": "Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request.",
+        "description": "Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request. The capabilities array always carries the four core rows; a requested-only row is added only for a client that names it in X-Yogabase-Accept-Capabilities.",
         "security": [],
         "parameters": [
-          { "$ref": "#/components/parameters/PublishableKey" }
+          { "$ref": "#/components/parameters/PublishableKey" },
+          { "$ref": "#/components/parameters/AcceptCapabilities" }
         ],
         "responses": {
           "200": { "$ref": "#/components/responses/ClientConfiguration" },
@@ -526,6 +536,13 @@
         "required": true,
         "schema": { "type": "string", "pattern": "^sy_pub_[!-~]{9,153}$", "maxLength": 160 }
       },
+      "AcceptCapabilities": {
+        "name": "X-Yogabase-Accept-Capabilities",
+        "in": "header",
+        "required": false,
+        "description": "Comma-separated requested-only capability ids this client can read, today only realtime-presence. Each id the gateway knows adds its row after the four core rows, available or not; core and unknown ids are ignored, and a value longer than 512 characters is ignored as a whole. A client sends an id only once its own validation accepts that row. A gateway that predates a row ignores the header, which a client reads as that capability being unavailable.",
+        "schema": { "type": "string", "maxLength": 512 }
+      },
       "ServerId": {
         "name": "serverId",
         "in": "path",
@@ -600,7 +617,8 @@
       "ClientConfiguration": {
         "description": "Secret-free configuration and capability facts.",
         "headers": {
-          "Cache-Control": { "schema": { "type": "string", "const": "no-store" } }
+          "Cache-Control": { "schema": { "type": "string", "const": "no-store" } },
+          "Vary": { "schema": { "type": "string", "const": "X-Yogabase-Accept-Capabilities" } }
         },
         "content": {
           "application/json": { "schema": { "$ref": "#/components/schemas/ClientConfiguration" } }
@@ -609,7 +627,8 @@
       "ClientConfigurationNotFound": {
         "description": "The same response is used for disabled, malformed, and unknown keys.",
         "headers": {
-          "Cache-Control": { "schema": { "type": "string", "const": "no-store" } }
+          "Cache-Control": { "schema": { "type": "string", "const": "no-store" } },
+          "Vary": { "schema": { "type": "string", "const": "X-Yogabase-Accept-Capabilities" } }
         },
         "content": {
           "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } }
@@ -754,7 +773,9 @@
           "capabilities": {
             "type": "array",
             "minItems": 4,
-            "maxItems": 4,
+            "maxItems": 5,
+            "description": "The four core rows (auth, storage, functions-rest, realtime-subscribe) in that order, then one row for each requested-only id the client named in X-Yogabase-Accept-Capabilities, in x-yogabase-requested-only order. A client that names nothing receives exactly the four core rows.",
+            "x-yogabase-requested-only": ["realtime-presence"],
             "items": { "$ref": "#/components/schemas/Capability" }
           },
           "issuedAt": { "type": "string", "format": "date-time" }
@@ -767,7 +788,8 @@
         "properties": {
           "id": {
             "type": "string",
-            "enum": ["auth", "storage", "functions-rest", "realtime-subscribe"]
+            "description": "realtime-presence appears only when requested; it is available exactly when realtime-subscribe is and the runtime's realtime projection enables presence.",
+            "enum": ["auth", "storage", "functions-rest", "realtime-subscribe", "realtime-presence"]
           },
           "available": { "type": "boolean" },
           "unavailableReason": { "type": ["string", "null"], "maxLength": 256 }

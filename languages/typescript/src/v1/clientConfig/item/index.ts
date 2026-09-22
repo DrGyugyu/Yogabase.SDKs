@@ -11,7 +11,7 @@ import { type BaseRequestBuilder, type Parsable, type ParsableFactory, type Requ
  */
 export interface WithPublishableKeyItemRequestBuilder extends BaseRequestBuilder<WithPublishableKeyItemRequestBuilder> {
     /**
-     * Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request.
+     * Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request. The capabilities array always carries the four core rows; a requested-only row is added only for a client that names it in X-Yogabase-Accept-Capabilities.
      * @param requestConfiguration Configuration for the request such as headers, query parameters, and middleware options.
      * @returns {Promise<ClientConfiguration>}
      * @throws {Problem} error when the service returns a 404 status code
@@ -19,7 +19,7 @@ export interface WithPublishableKeyItemRequestBuilder extends BaseRequestBuilder
      */
      get(requestConfiguration?: RequestConfiguration<object> | undefined) : Promise<ClientConfiguration | undefined>;
     /**
-     * Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request.
+     * Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request. The capabilities array always carries the four core rows; a requested-only row is added only for a client that names it in X-Yogabase-Accept-Capabilities.
      * @param requestConfiguration Configuration for the request such as headers, query parameters, and middleware options.
      * @returns {RequestInformation}
      */

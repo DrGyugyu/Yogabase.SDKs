@@ -131,7 +131,45 @@ public sealed class ContractDigestTests
             .GetProperty("properties").GetProperty("id").GetProperty("enum")
             .EnumerateArray().Select(static value => value.GetString()).ToArray();
         Assert.DoesNotContain("data-rest", capabilityIds);
-        Assert.Equal(["auth", "storage", "functions-rest", "realtime-subscribe"], capabilityIds);
+        // realtime-presence is requested-only: a gateway adds its row after the four core rows only
+        // for a client that names it in X-Yogabase-Accept-Capabilities.
+        Assert.Equal(["auth", "storage", "functions-rest", "realtime-subscribe", "realtime-presence"], capabilityIds);
+    }
+
+    /// <summary>
+    /// The additive surfaces the authored clients now read are in the mirrored documents: the
+    /// Lambda execution declaration on a Builds upload, the requested-only realtime-presence row
+    /// and its Hub metadata in the application contract, and the runtime-host page head.
+    /// </summary>
+    [Fact]
+    public async Task TheMirroredContractsDeclareTheAdditiveSurfacesTheAuthoredClientsRead()
+    {
+        var repoRoot = FindRepoRoot();
+        using var builds = System.Text.Json.JsonDocument.Parse(await File.ReadAllTextAsync(
+            Path.Combine(repoRoot, "contracts", "yogabase-builds-v1.openapi.json"),
+            TestContext.Current.CancellationToken));
+        var buildsText = builds.RootElement.GetRawText();
+        Assert.Contains("\"executionKind\"", buildsText, StringComparison.Ordinal);
+        Assert.Contains("\"realtimeIngressBindings\"", buildsText, StringComparison.Ordinal);
+        Assert.Contains("\"realtimeEgressBindings\"", buildsText, StringComparison.Ordinal);
+        Assert.Contains("BUILD_LAMBDA_DECLARATION_REQUIRED", buildsText, StringComparison.Ordinal);
+
+        using var client = System.Text.Json.JsonDocument.Parse(await File.ReadAllTextAsync(
+            Path.Combine(repoRoot, "contracts", "yogabase-client-v1.openapi.json"),
+            TestContext.Current.CancellationToken));
+        var clientText = client.RootElement.GetRawText();
+        Assert.Contains("\"X-Yogabase-Accept-Capabilities\"", clientText, StringComparison.Ordinal);
+        foreach (var method in new[] { "TrackPresence", "UntrackPresence", "GetPresence" })
+        {
+            Assert.Contains($"\"{method}\"", clientText, StringComparison.Ordinal);
+        }
+
+        using var runtimeHost = System.Text.Json.JsonDocument.Parse(await File.ReadAllTextAsync(
+            Path.Combine(repoRoot, "contracts", "yogabase-runtime-host-v1.openapi.json"),
+            TestContext.Current.CancellationToken));
+        var runtimeHostText = runtimeHost.RootElement.GetRawText();
+        Assert.Contains("\"headState\"", runtimeHostText, StringComparison.Ordinal);
+        Assert.Contains("\"headSequence\"", runtimeHostText, StringComparison.Ordinal);
     }
 
     /// <summary>

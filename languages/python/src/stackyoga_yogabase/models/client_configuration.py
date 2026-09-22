@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class ClientConfiguration(Parsable):
-    # The capabilities property
+    # The four core rows (auth, storage, functions-rest, realtime-subscribe) in that order, then one row for each requested-only id the client named in X-Yogabase-Accept-Capabilities, in x-yogabase-requested-only order. A client that names nothing receives exactly the four core rows.
     capabilities: Optional[list[Capability]] = None
     # The environmentId property
     environment_id: Optional[UUID] = None

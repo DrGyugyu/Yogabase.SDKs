@@ -120,12 +120,13 @@ Yogabase는 승인된 애플리케이션 작업을 위한 클러스터 로컬 �
 
 SDK는 범용 사용자용 Control Plane 관리 API, 인프라 프로비저닝, fleet 명령, Kubernetes CRD, 승인 변경, 원격 셸, `pods/exec`, 일반 알림, 분석, GameSessions 및 공급자 자격 증명을 의도적으로 제외합니다. 유일한 Control Plane 표면은 위에서 설명한 워크로드 인증 Delivery v1 계약, 개발자 도구(.NET `YogabaseBuildsClient` 또는 Unity Editor 게시 도구)가 프로젝트 범위의 `ybt_` 개발자 토큰으로 호출하는 Builds v1 빌드 수집 계약, 그리고 호스팅된 워크로드가 Pod 로컬 relay를 거쳐 loopback으로 접근하는 self-scoped Runtime Host v1 계약입니다. 마지막 계약은 애플리케이션이나 Delivery 자격 증명을 받지 않으며 워크로드에 allocation 호출을 노출하지 않습니다.
 
-2026-09-17에 기록된 다음 소유자 결정들도 이 표면을 바꿀 예정이지만 아직 제공되지 않았으며, 미러링된 계약이나 이 패키지에 반영된 것은 없습니다.
+2026-09-17에 기록된 소유자 결정들이 이 표면을 바꾸었습니다. 제품은 다음 각 항목을 구현했고, 미러링된 계약에 속하는 항목은 그 계약에 반영되어 있습니다. 이 패키지들은 아직 어느 것도 사용하지 않습니다.
 
-- Builds로 업로드하는 Lambda는 실행 종류(execution kind)와 realtime ingress/egress binding id를 명시해야 하며, 이를 빠뜨린 업로드는 수집 단계에서 거부될 예정입니다. 이는 `YogabaseBuildsClient`와 Unity 게시 도구에 영향을 줍니다.
-- Lambda가 해당 함수 버전에서 선언하지 않은 topic으로 realtime 게시를 하면 `403 realtime_binding_not_declared`로 거부될 예정입니다.
-- runtime-host assignments 페이지에 추가형(additive) head 상태와 sequence가 더해질 예정입니다.
-- 게임 서버 allocation은 노드 내부 주소가 아니라 클라이언트가 실제로 접속할 수 있는 주소를 반환할 예정입니다.
+- Builds로 업로드하는 Lambda는 실행 종류(`Stateless` 또는 `Stateful`)와 realtime ingress/egress binding id를 명시해야 하며, 이를 빠뜨린 업로드는 수집 단계에서 `400 BUILD_LAMBDA_DECLARATION_REQUIRED`로 거부됩니다(builds 계약). 이는 `YogabaseBuildsClient`와 Unity 게시 도구에 영향을 줍니다.
+- Lambda가 해당 함수 버전에서 선언하지 않은 topic으로 realtime 게시를 하면 `403 realtime_binding_not_declared`로 거부됩니다(Lambda runtime API이며, 미러링된 계약 중 어느 것도 이를 기술하지 않습니다).
+- runtime-host assignments 페이지는 추가형(additive) `headState`와 `headSequence`를 담습니다(runtime-host 계약).
+- 클라이언트 bootstrap은 `X-Yogabase-Accept-Capabilities`에 `realtime-presence`를 명시한 클라이언트에게만 해당 행을 추가하고, realtime Hub에는 `TrackPresence`, `UntrackPresence`, `GetPresence`가 추가되었습니다(애플리케이션 계약).
+- 게임 서버 allocation의 `host`는 노드 내부 주소가 아니라, Agones와 같은 방식으로 고른 해당 인스턴스 노드의 설치본 광고 주소입니다. 타입이 지정된 `address`와 `addresses` 필드는 결정되었으며, 제품은 이를 받아들이는 SDK가 최소 버전이 된 뒤에만 이 필드를 내보냅니다.
 
 ## 기능 상태
 
@@ -158,9 +159,9 @@ Yogabase는 서명된 관찰과 릴리스에 고정된 증거를 통해 모듈 �
 | Unity | `languages/unity/com.stackyoga.yogabase-runtime-host` | `com.stackyoga.yogabase-runtime-host` `0.2.2-preview.1` | runtime-host 모듈(위의 시작 대기 동작 포함), `link.xml`, Editor 게시 흐름(`Yogabase ▸ Publish Server`)을 담은 UPM 패키지; Runtime 폴더와 Editor 스크립트는 Unity 6000.5.7f1 참조 어셈블리 세트에 대해 C# 9로 컴파일되지만, 이 버전을 Unity Editor로 가져온 기록도, 이 버전을 담은 IL2CPP 빌드도, 이 버전으로 실행한 실제 relay 세션도 없으며, Editor에서 게시 창을 실행한 적도 없음. 0.1.0 runtime 모듈은 IL2CPP 전용 서버에서 실제로 실행됨(플랫폼 적격성 참조) |
 | .NET 샘플 | `samples/dotnet/Yogabase.ServerPathProbe` | 패키지 아님 | 서버 측 게임 경로(서버 시작, UDP datagram 하나, Lambda 호출, 선택적 realtime 구독)를 Editor 없이 점검하는 진단 도구로, 플레이어 access token은 환경 변수에서만 읽음; 인수, 로그인 컨텍스트, 미리보기 테스트만 있으며 실제 설치에 대해 실행한 적 없음 |
 
-변경 불가능한 애플리케이션 스냅샷은 `contracts/yogabase-client-v1.openapi.json`이며 SHA-256은 `e1fe951a95e2da44efffbd4b4dc2985aa8ca09118d89a5360a1eebddb04d8582`입니다. 이 스냅샷은 플레이어 대상 `/v1/servers/*` 게임 서버 표면을 포함하므로 모든 언어에서 생성됩니다. 빌드 수집 스냅샷은 `contracts/yogabase-builds-v1.openapi.json`이며 SHA-256은 `8b2aa93166f0f0990c78c1983ee9bb54b7d6dbb10748da504b572c0d9a63efd6`입니다. 이는 프로젝트 범위의 `ybt_` 개발자 토큰으로 접근하는 개발자 도구 표면으로, .NET `YogabaseBuildsClient`와 Unity Editor 패키지가 구현하며 다른 언어에서는 의도적으로 생성하지 않습니다. 워크로드 스냅샷은 `contracts/yogabase-delivery-v1.openapi.json`이며 SHA-256은 `1eca152807ed2c6ab834b6ad7fea5fedb514ce359bd8f02f028635b03b8b6cc4`입니다. runtime-host 스냅샷은 `contracts/yogabase-runtime-host-v1.openapi.json`이며 SHA-256은 `82697bd4a5f9445ac4a5c3932434e06daa3862a1f870759b09500b996b0056bb`입니다. 이 문서는 수명 주기 상태와 오류 코드를 위한 서버 측 참조로만 체크인되며 의도적으로 코드 생성을 하지 않습니다. 워크로드는 그 문서가 선언한 instance 주소 경로가 아니라 self-scoped relay 경로를 호출하기 때문입니다. 인접한 checksum, Kiota lock 및 `MANIFEST.json`은 이 저장소를 정확한 계약과 generator에 바인딩합니다.
+변경 불가능한 애플리케이션 스냅샷은 `contracts/yogabase-client-v1.openapi.json`이며 SHA-256은 `151fcf1a62835d4cccb5bff11a9a3ee3d4328e827575ff24a5443f321b3b4d91`입니다. 이 스냅샷은 플레이어 대상 `/v1/servers/*` 게임 서버 표면을 포함하므로 모든 언어에서 생성됩니다. 빌드 수집 스냅샷은 `contracts/yogabase-builds-v1.openapi.json`이며 SHA-256은 `d677cce911b0ee74810104d10e7ca10023b8f89336bb6833bc56c573e767588a`입니다. 이는 프로젝트 범위의 `ybt_` 개발자 토큰으로 접근하는 개발자 도구 표면으로, .NET `YogabaseBuildsClient`와 Unity Editor 패키지가 구현하며 다른 언어에서는 의도적으로 생성하지 않습니다. 워크로드 스냅샷은 `contracts/yogabase-delivery-v1.openapi.json`이며 SHA-256은 `1eca152807ed2c6ab834b6ad7fea5fedb514ce359bd8f02f028635b03b8b6cc4`입니다. runtime-host 스냅샷은 `contracts/yogabase-runtime-host-v1.openapi.json`이며 SHA-256은 `c09a0842c3e295685a4112638ea74a6ab23e3b390fe2f6ab0e1a635f1e6797e2`입니다. 이 문서는 수명 주기 상태와 오류 코드를 위한 서버 측 참조로만 체크인되며 의도적으로 코드 생성을 하지 않습니다. 워크로드는 그 문서가 선언한 instance 주소 경로가 아니라 self-scoped relay 경로를 호출하기 때문입니다. 인접한 checksum, Kiota lock 및 `MANIFEST.json`은 이 저장소를 정확한 계약과 generator에 바인딩합니다.
 
-`contracts/` 아래의 모든 문서는 마지막 미러링 시점(2026-09-17 재확인) 기준으로 제품 저장소의 같은 이름 `docs/api/` 파일과 바이트 단위로 동일한 사본입니다. `ContractDigestTests`는 각 파일을 `.sha256` 사이드카, 그리고 `MANIFEST.json`과 두 README에 게시된 digest에 고정합니다. 이 테스트는 제품 저장소를 볼 수 없으므로 그 자체로 바이트 동일성을 증명하지는 않습니다. 이전의 `contracts/planned/` 문서는 제품이 빌드와 게임 서버 표면을 구현하는 동안 여기에서 작성된 것이었고, 제품이 두 표면을 모두 게시했으므로 조정하지 않고 삭제되었습니다.
+`contracts/` 아래의 모든 문서는 마지막 미러링 시점(2026-09-22, 제품 `main`의 `b04dcd42`) 기준으로 제품 저장소의 같은 이름 `docs/api/` 파일과 바이트 단위로 동일한 사본입니다. `ContractDigestTests`는 각 파일을 `.sha256` 사이드카, 그리고 `MANIFEST.json`과 두 README에 게시된 digest에 고정합니다. 이 테스트는 제품 저장소를 볼 수 없으므로 그 자체로 바이트 동일성을 증명하지는 않습니다. 이전의 `contracts/planned/` 문서는 제품이 빌드와 게임 서버 표면을 구현하는 동안 여기에서 작성된 것이었고, 제품이 두 표면을 모두 게시했으므로 조정하지 않고 삭제되었습니다.
 
 ## 로컬 검증
 

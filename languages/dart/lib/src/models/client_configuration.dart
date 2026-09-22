@@ -5,7 +5,7 @@ import './capability.dart';
 
 /// auto generated
 class ClientConfiguration implements Parsable {
-    ///  The capabilities property
+    ///  The four core rows (auth, storage, functions-rest, realtime-subscribe) in that order, then one row for each requested-only id the client named in X-Yogabase-Accept-Capabilities, in x-yogabase-requested-only order. A client that names nothing receives exactly the four core rows.
     Iterable<Capability>? capabilities;
     ///  The environmentId property
     UuidValue? environmentId;

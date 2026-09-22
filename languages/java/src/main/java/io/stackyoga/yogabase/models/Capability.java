@@ -13,7 +13,7 @@ public class Capability implements Parsable {
      */
     private Boolean available;
     /**
-     * The id property
+     * realtime-presence appears only when requested; it is available exactly when realtime-subscribe is and the runtime&apos;s realtime projection enables presence.
      */
     private CapabilityId id;
     /**
@@ -51,7 +51,7 @@ public class Capability implements Parsable {
         return deserializerMap;
     }
     /**
-     * Gets the id property value. The id property
+     * Gets the id property value. realtime-presence appears only when requested; it is available exactly when realtime-subscribe is and the runtime&apos;s realtime projection enables presence.
      * @return a {@link CapabilityId}
      */
     @jakarta.annotation.Nullable
@@ -84,7 +84,7 @@ public class Capability implements Parsable {
         this.available = value;
     }
     /**
-     * Sets the id property value. The id property
+     * Sets the id property value. realtime-presence appears only when requested; it is available exactly when realtime-subscribe is and the runtime&apos;s realtime projection enables presence.
      * @param value Value to set for the id property.
      */
     public void setId(@jakarta.annotation.Nullable final CapabilityId value) {

@@ -32,7 +32,7 @@ class WithPublishableKeyItemRequestBuilder(BaseRequestBuilder):
     
     async def get(self,request_configuration: Optional[RequestConfiguration[QueryParameters]] = None) -> Optional[ClientConfiguration]:
         """
-        Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request.
+        Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request. The capabilities array always carries the four core rows; a requested-only row is added only for a client that names it in X-Yogabase-Accept-Capabilities.
         param request_configuration: Configuration for the request such as headers, query parameters, and middleware options.
         Returns: Optional[ClientConfiguration]
         """
@@ -53,7 +53,7 @@ class WithPublishableKeyItemRequestBuilder(BaseRequestBuilder):
     
     def to_get_request_information(self,request_configuration: Optional[RequestConfiguration[QueryParameters]] = None) -> RequestInformation:
         """
-        Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request.
+        Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request. The capabilities array always carries the four core rows; a requested-only row is added only for a client that names it in X-Yogabase-Accept-Capabilities.
         param request_configuration: Configuration for the request such as headers, query parameters, and middleware options.
         Returns: RequestInformation
         """

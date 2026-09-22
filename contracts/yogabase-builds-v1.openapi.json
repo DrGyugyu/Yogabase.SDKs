@@ -25,7 +25,7 @@
       "post": {
         "operationId": "uploadBuild",
         "summary": "Upload one build archive and start its checks.",
-        "description": "The bundle is the only required part. Every field beside it is a hint, needed only where the archive is genuinely ambiguous: which executable to launch when more than one is present, and which ports it listens on. Absent hints are derived — the executable from the single root ELF or the Unity player, the architecture from that ELF's machine type, the name from the executable, the version from a fixed default, and the ports from one UDP listener on 7777.",
+        "description": "The bundle is the only part every upload needs. For a self-contained service, every field beside it is a hint, needed only where the archive is genuinely ambiguous: which executable to launch when more than one is present, and which ports it listens on. Absent hints are derived — the executable from the single root ELF or the Unity player, the architecture from that ELF's machine type, the name from the executable, the version from a fixed default, and the ports from one UDP listener on 7777. A Lambda archive must also state how it runs, because Yogabase never derives it: executionKind, realtimeIngressBindings and realtimeEgressBindings. Yogabase writes them into the manifest it derives. A Lambda upload without all three is refused with 400 BUILD_LAMBDA_DECLARATION_REQUIRED naming the missing field, before anything is recorded; an unknown kind is BUILD_LAMBDA_EXECUTION_KIND_INVALID, a malformed binding id BUILD_LAMBDA_BINDING_INVALID (the field names its position, e.g. realtimeEgressBindings[1]), a repeated one BUILD_LAMBDA_BINDING_DUPLICATE, and more than 16 in one direction BUILD_LAMBDA_BINDINGS_TOO_MANY. The three fields sent for a self-contained service are refused with BUILD_LAMBDA_DECLARATION_UNEXPECTED. With a signed manifest, the manifest's own executionDeclaration is the declaration: a Lambda manifest without one is refused with BUILD_LAMBDA_DECLARATION_REQUIRED (field manifest.executionDeclaration), one a member would not admit with BUILD_LAMBDA_DECLARATION_INVALID, and the three fields sent beside a manifest with BUILD_LAMBDA_DECLARATION_CONFLICT.",
         "parameters": [
           { "$ref": "#/components/parameters/projectId" },
           { "$ref": "#/components/parameters/environmentId" }
@@ -58,7 +58,20 @@
                     "description": "Repeatable port declarations in the name=7777/udp spelling."
                   },
                   "name": { "type": "string" },
-                  "version": { "type": "string" }
+                  "version": { "type": "string" },
+                  "executionKind": {
+                    "type": "string",
+                    "enum": ["Stateless", "Stateful"],
+                    "description": "Required for a Lambda archive uploaded without a manifest; refused for a self-contained service. Stateless keeps no state between calls; Stateful keeps durable state per actor. Spelled exactly as listed."
+                  },
+                  "realtimeIngressBindings": {
+                    "type": "string",
+                    "description": "Required for a Lambda archive uploaded without a manifest; refused for a self-contained service. Comma-separated realtime binding ids the Lambda receives events from. Send the field empty to declare none; an absent field is not a declaration. Each id starts with a lowercase letter and uses only lowercase letters, digits, '.', '_' and '-', at most 96 characters; at most 16 ids, each once. Repeated parts are combined."
+                  },
+                  "realtimeEgressBindings": {
+                    "type": "string",
+                    "description": "Required for a Lambda archive uploaded without a manifest; refused for a self-contained service. Comma-separated realtime binding ids the Lambda publishes events to; it can publish only to these. The same rules as realtimeIngressBindings, including an empty field to declare none."
+                  }
                 }
               }
             }

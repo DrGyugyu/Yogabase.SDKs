@@ -29,16 +29,16 @@
   "contract": {
     "path": "contracts/yogabase-client-v1.openapi.json",
     "sourcePath": "Yogabase product repository: docs/api/yogabase-client-v1.openapi.json",
-    "sha256": "e1fe951a95e2da44efffbd4b4dc2985aa8ca09118d89a5360a1eebddb04d8582",
+    "sha256": "151fcf1a62835d4cccb5bff11a9a3ee3d4328e827575ff24a5443f321b3b4d91",
     "pathCount": 22,
     "operationCount": 23,
     "schemaCount": 26,
-    "mirroredFrom": "Byte-identical to the product document on branch claude/platform-refactor at 83e6e19 (2026-09-09). It carries the player-facing /v1/servers/* game-server surface and no /v1/data/* route, Data* schema, or data-rest capability id: the client-facing Data API module is withdrawn (owner decision, 2026-09-08)."
+    "mirroredFrom": "Byte-identical to the product document on main at b04dcd42 (2026-09-22), as are the builds, delivery and runtime-host documents below. It carries the player-facing /v1/servers/* game-server surface, the requested-only realtime-presence capability row with its X-Yogabase-Accept-Capabilities request header, and no /v1/data/* route, Data* schema, or data-rest capability id: the client Data API's restoration was decided on 2026-09-17 and is not in the product contract yet."
   },
   "buildsContract": {
     "path": "contracts/yogabase-builds-v1.openapi.json",
     "sourcePath": "Yogabase product repository: docs/api/yogabase-builds-v1.openapi.json",
-    "sha256": "8b2aa93166f0f0990c78c1983ee9bb54b7d6dbb10748da504b572c0d9a63efd6",
+    "sha256": "d677cce911b0ee74810104d10e7ca10023b8f89336bb6833bc56c573e767588a",
     "pathCount": 3,
     "operationCount": 3,
     "schemaCount": 5,
@@ -56,7 +56,7 @@
   "runtimeHostContract": {
     "path": "contracts/yogabase-runtime-host-v1.openapi.json",
     "sourcePath": "Yogabase product repository: docs/api/yogabase-runtime-host-v1.openapi.json",
-    "sha256": "82697bd4a5f9445ac4a5c3932434e06daa3862a1f870759b09500b996b0056bb",
+    "sha256": "c09a0842c3e295685a4112638ea74a6ab23e3b390fe2f6ab0e1a635f1e6797e2",
     "pathCount": 7,
     "operationCount": 7,
     "schemaCount": 10,

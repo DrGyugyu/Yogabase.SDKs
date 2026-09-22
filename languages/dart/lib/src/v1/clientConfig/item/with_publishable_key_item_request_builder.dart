@@ -19,7 +19,7 @@ class WithPublishableKeyItemRequestBuilder extends BaseRequestBuilder<WithPublis
     ///  [rawUrl] The raw URL to use for the request builder.
     ///  [requestAdapter] The request adapter to use to execute the requests.
     WithPublishableKeyItemRequestBuilder.withUrl(String rawUrl, RequestAdapter requestAdapter) : super(requestAdapter, "{+baseurl}/v1/client-config/{publishableKey}", {RequestInformation.rawUrlKey : rawUrl}) ;
-    /// Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request.
+    /// Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request. The capabilities array always carries the four core rows; a requested-only row is added only for a client that names it in X-Yogabase-Accept-Capabilities.
     ///  [requestConfiguration] Configuration for the request such as headers, query parameters, and middleware options.
     Future<ClientConfiguration?> getAsync([void Function(RequestConfiguration<DefaultQueryParameters>)? requestConfiguration]) async {
         var requestInfo = toGetRequestInformation(requestConfiguration);
@@ -29,7 +29,7 @@ class WithPublishableKeyItemRequestBuilder extends BaseRequestBuilder<WithPublis
         };
         return await requestAdapter.send<ClientConfiguration>(requestInfo, ClientConfiguration.createFromDiscriminatorValue, errorMapping);
     }
-    /// Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request.
+    /// Resolves secret-free configuration. A publishable key identifies configuration and never authenticates a request. The capabilities array always carries the four core rows; a requested-only row is added only for a client that names it in X-Yogabase-Accept-Capabilities.
     ///  [requestConfiguration] Configuration for the request such as headers, query parameters, and middleware options.
     RequestInformation toGetRequestInformation([void Function(RequestConfiguration<DefaultQueryParameters>)? requestConfiguration]) {
         var requestInfo = RequestInformation(httpMethod : HttpMethod.get, urlTemplate : urlTemplate, pathParameters :  pathParameters);
