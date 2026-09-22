@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -12,7 +13,7 @@ public sealed class YogabaseClientConfiguration
     // "data-rest" is deliberately absent: the Data API module is withdrawn, so IsAvailable answers
     // false for it even on an installation that still publishes the capability row.
     private static readonly HashSet<string> KnownCapabilities = new(
-        new[] { "auth", "storage", "functions-rest", "realtime-subscribe" },
+        new[] { "auth", "storage", "functions-rest", "realtime-subscribe", YogabaseCapability.RealtimePresence },
         StringComparer.Ordinal);
 
     public string Schema { get; init; } = string.Empty;
@@ -57,6 +58,14 @@ public sealed class YogabaseCapability
     /// Applications reach data through a Lambda instead.
     /// </summary>
     public const string WithdrawnDataRest = "data-rest";
+
+    /// <summary>
+    /// Realtime presence. A requested-only row: the gateway adds it after the four core rows only
+    /// for a client that names it in <c>X-Yogabase-Accept-Capabilities</c>, which
+    /// <see cref="YogabaseClient.CreateAsync"/> does. A gateway that predates presence ignores the
+    /// header and publishes no row, which reads as unavailable.
+    /// </summary>
+    public const string RealtimePresence = "realtime-presence";
 
     public string Id { get; init; } = string.Empty;
     public bool Available { get; init; }
@@ -422,6 +431,15 @@ public sealed class YogabaseRealtimeEvent
     public JsonElement Payload { get; set; }
 
     /// <summary>
+    /// The payload as the JSON text it arrived as, or <see langword="null"/> when the event carried
+    /// none. Beside <see cref="Payload"/> for callers that parse with their own serializer (Unity's
+    /// <c>JsonUtility</c>, Newtonsoft) rather than walking a <see cref="JsonElement"/>. It is read
+    /// from <see cref="Payload"/> on each access and is never part of the wire shape.
+    /// </summary>
+    [JsonIgnore]
+    public string? PayloadJson => Payload.ValueKind == JsonValueKind.Undefined ? null : Payload.GetRawText();
+
+    /// <summary>
     /// The topic this event was published on, or <see langword="null"/> from a server that predates
     /// the field.
     ///
@@ -437,14 +455,90 @@ public sealed class YogabaseRealtimeEvent
     public string? Topic { get; set; }
 }
 
+/// <summary>
+/// The <c>presence</c> client method's payload: <see cref="Subject"/> became present on
+/// (<see cref="Join"/>) or absent from (<see cref="Leave"/>) <see cref="Topic"/>. Delivered at least
+/// once across gateway replicas; <see cref="IYogabaseRealtime.GetPresenceAsync"/> is authoritative.
+/// </summary>
+public sealed class YogabaseRealtimePresenceEvent
+{
+    public const string Join = "join";
+    public const string Leave = "leave";
+
+    public string Topic { get; set; } = string.Empty;
+    public string Subject { get; set; } = string.Empty;
+    public string Kind { get; set; } = string.Empty;
+}
+
+/// <summary>One subject present on a topic, and how many of its connections track it.</summary>
+public sealed class YogabaseRealtimePresenceMember
+{
+    public string Subject { get; set; } = string.Empty;
+    public int Connections { get; set; }
+}
+
+/// <summary>
+/// The answer to <c>GetPresence</c>: the subjects present on one topic, at most
+/// <see cref="YogabaseRealtimePresenceLimits.MaximumSnapshotMembers"/> of them, and whether more existed.
+/// </summary>
+public sealed class YogabaseRealtimePresenceSnapshot
+{
+    public string Topic { get; set; } = string.Empty;
+    public IReadOnlyList<YogabaseRealtimePresenceMember> Members { get; set; } = Array.Empty<YogabaseRealtimePresenceMember>();
+    public bool Truncated { get; set; }
+}
+
+/// <summary>The realtime hub's presence bounds and the codes its presence methods refuse with.</summary>
+public static class YogabaseRealtimePresenceLimits
+{
+    public const int MaximumTrackedTopicsPerConnection = 16;
+    public const int MaximumSnapshotMembers = 1000;
+
+    /// <summary>Presence is not enabled for this runtime.</summary>
+    public const string Unavailable = "presence_unavailable";
+
+    /// <summary>The topic is outside the realtime topic grammar.</summary>
+    public const string TopicInvalid = "presence_topic_invalid";
+
+    /// <summary>The connection already tracks the maximum number of topics.</summary>
+    public const string TopicLimit = "presence_topic_limit";
+
+    /// <summary>The shared presence store did not answer; established connections carry on.</summary>
+    public const string StoreUnavailable = "presence_store_unavailable";
+}
+
 public interface IYogabaseRealtime
 {
     bool IsConnected { get; }
     event Func<YogabaseRealtimeEvent, Task>? MessageReceived;
+
+    /// <summary>A subject joined or left a topic this connection tracks or is subscribed to.</summary>
+    event Func<YogabaseRealtimePresenceEvent, Task>? PresenceChanged;
+
     Task ConnectAsync(CancellationToken cancellationToken = default);
     Task DisconnectAsync(CancellationToken cancellationToken = default);
     Task<IAsyncDisposable> SubscribeAsync(string topic, CancellationToken cancellationToken = default);
     Task<YogabaseRealtimeLambdaInvocationReceipt> InvokeLambdaAsync(
         YogabaseRealtimeLambdaInvocationRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Makes the signed-in subject present on <paramref name="topic"/> and subscribes this
+    /// connection to it. Tracking a tracked topic is a no-op. Needs the
+    /// <see cref="YogabaseCapability.RealtimePresence"/> capability; refused with
+    /// <see cref="YogabaseRealtimePresenceLimits.TopicLimit"/> before it reaches the hub when this
+    /// connection already tracks <see cref="YogabaseRealtimePresenceLimits.MaximumTrackedTopicsPerConnection"/>
+    /// topics. Tracked topics are tracked again whenever the connection is re-established.
+    /// </summary>
+    Task TrackPresenceAsync(string topic, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Withdraws presence on <paramref name="topic"/>. The hub leaves the connection subscribed; that
+    /// implicit subscription is not restored after a reconnect, so use
+    /// <see cref="SubscribeAsync"/> to keep receiving the topic.
+    /// </summary>
+    Task UntrackPresenceAsync(string topic, CancellationToken cancellationToken = default);
+
+    /// <summary>The subjects present on <paramref name="topic"/>, validated against the hub's bounds.</summary>
+    Task<YogabaseRealtimePresenceSnapshot> GetPresenceAsync(string topic, CancellationToken cancellationToken = default);
 }

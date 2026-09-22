@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
 
 namespace Yogabase.Yogabase;
@@ -18,11 +19,15 @@ internal sealed class YogabaseRealtimeClient : IYogabaseRealtime, IAsyncDisposab
     // recreate every listener.
     private readonly HashSet<string> subscriptions = new(StringComparer.Ordinal);
     private readonly HashSet<string> activeSubscriptions = new(StringComparer.Ordinal);
+    // Presence belongs to a connection, so a tracked topic stays desired until it is untracked and
+    // is tracked again whenever the connection is re-established. Guarded by subscriptionGate.
+    private readonly HashSet<string> trackedTopics = new(StringComparer.Ordinal);
     private readonly object eventGate = new();
     private readonly HashSet<string> deliveredEventIds = new(StringComparer.Ordinal);
     private readonly Queue<string> deliveredEventOrder = new();
     private HubConnection? connection;
     private IDisposable? messageRegistration;
+    private IDisposable? presenceRegistration;
 
     private const int MaximumRememberedEventIds = 4096;
 
@@ -37,6 +42,8 @@ internal sealed class YogabaseRealtimeClient : IYogabaseRealtime, IAsyncDisposab
     public bool IsConnected => connection?.State == HubConnectionState.Connected;
 
     public event Func<YogabaseRealtimeEvent, Task>? MessageReceived;
+
+    public event Func<YogabaseRealtimePresenceEvent, Task>? PresenceChanged;
 
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
@@ -69,6 +76,9 @@ internal sealed class YogabaseRealtimeClient : IYogabaseRealtime, IAsyncDisposab
                 messageRegistration = connection.On<YogabaseRealtimeEvent>(
                     "message",
                     HandleMessageAsync);
+                presenceRegistration = connection.On<YogabaseRealtimePresenceEvent>(
+                    "presence",
+                    HandlePresenceAsync);
                 connection.Closed += _ =>
                 {
                     lock (subscriptionGate)
@@ -105,6 +115,7 @@ internal sealed class YogabaseRealtimeClient : IYogabaseRealtime, IAsyncDisposab
             {
                 subscriptions.Clear();
                 activeSubscriptions.Clear();
+                trackedTopics.Clear();
             }
             await connection.StopAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -187,6 +198,116 @@ internal sealed class YogabaseRealtimeClient : IYogabaseRealtime, IAsyncDisposab
         return receipt;
     }
 
+    public async Task TrackPresenceAsync(string topic, CancellationToken cancellationToken = default)
+    {
+        EnsurePresence();
+        ValidateTopic(topic);
+        lock (subscriptionGate)
+        {
+            if (!trackedTopics.Contains(topic)
+                && trackedTopics.Count >= YogabaseRealtimePresenceLimits.MaximumTrackedTopicsPerConnection)
+            {
+                throw PresenceError(YogabaseRealtimePresenceLimits.TopicLimit);
+            }
+        }
+
+        await ConnectAsync(cancellationToken).ConfigureAwait(false);
+        var activeConnection = connection
+            ?? throw new InvalidOperationException("The realtime connection was not created.");
+        try
+        {
+            await activeConnection.InvokeAsync("TrackPresence", topic, cancellationToken).ConfigureAwait(false);
+        }
+        catch (HubException exception)
+        {
+            throw MapPresenceError(exception);
+        }
+        lock (subscriptionGate)
+        {
+            trackedTopics.Add(topic);
+        }
+    }
+
+    public async Task UntrackPresenceAsync(string topic, CancellationToken cancellationToken = default)
+    {
+        EnsurePresence();
+        ValidateTopic(topic);
+        bool wasTracked;
+        lock (subscriptionGate)
+        {
+            wasTracked = trackedTopics.Remove(topic);
+        }
+
+        // Presence ends with its connection, so a disconnected client has nothing left to withdraw.
+        var activeConnection = connection;
+        if (activeConnection?.State != HubConnectionState.Connected)
+        {
+            return;
+        }
+        try
+        {
+            await activeConnection.InvokeAsync("UntrackPresence", topic, cancellationToken).ConfigureAwait(false);
+        }
+        catch (HubException exception)
+        {
+            if (wasTracked)
+            {
+                lock (subscriptionGate)
+                {
+                    trackedTopics.Add(topic);
+                }
+            }
+            throw MapPresenceError(exception);
+        }
+    }
+
+    public async Task<YogabaseRealtimePresenceSnapshot> GetPresenceAsync(
+        string topic,
+        CancellationToken cancellationToken = default)
+    {
+        EnsurePresence();
+        ValidateTopic(topic);
+        await ConnectAsync(cancellationToken).ConfigureAwait(false);
+        var activeConnection = connection
+            ?? throw new InvalidOperationException("The realtime connection was not created.");
+        YogabaseRealtimePresenceSnapshot? snapshot;
+        try
+        {
+            snapshot = await activeConnection.InvokeAsync<YogabaseRealtimePresenceSnapshot>(
+                "GetPresence",
+                topic,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (HubException exception)
+        {
+            throw MapPresenceError(exception);
+        }
+
+        if (snapshot is null
+            || !string.Equals(snapshot.Topic, topic, StringComparison.Ordinal)
+            || snapshot.Members is null
+            || snapshot.Members.Count > YogabaseRealtimePresenceLimits.MaximumSnapshotMembers
+            || snapshot.Members.Any(static member => member is null || !IsSubject(member.Subject) || member.Connections < 1)
+            || snapshot.Members.Select(static member => member.Subject).Distinct(StringComparer.Ordinal).Count()
+                != snapshot.Members.Count)
+        {
+            throw new YogabaseApiException(502, "realtime_presence_invalid", "Yogabase returned an invalid realtime presence snapshot.");
+        }
+
+        return new YogabaseRealtimePresenceSnapshot
+        {
+            Topic = snapshot.Topic,
+            Members = Array.AsReadOnly(snapshot.Members
+                .Select(static member => new YogabaseRealtimePresenceMember
+                {
+                    Subject = member.Subject,
+                    Connections = member.Connections,
+                })
+                .ToArray()),
+            Truncated = snapshot.Truncated,
+        };
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (connection is not null)
@@ -196,6 +317,8 @@ internal sealed class YogabaseRealtimeClient : IYogabaseRealtime, IAsyncDisposab
         }
         messageRegistration?.Dispose();
         messageRegistration = null;
+        presenceRegistration?.Dispose();
+        presenceRegistration = null;
         connectionGate.Dispose();
     }
 
@@ -237,6 +360,85 @@ internal sealed class YogabaseRealtimeClient : IYogabaseRealtime, IAsyncDisposab
         {
             await handler(message).ConfigureAwait(false);
         }
+    }
+
+    private async Task HandlePresenceAsync(YogabaseRealtimePresenceEvent presence)
+    {
+        if (presence is null
+            || !IsTopic(presence.Topic)
+            || !IsSubject(presence.Subject)
+            || presence.Kind is not (YogabaseRealtimePresenceEvent.Join or YogabaseRealtimePresenceEvent.Leave))
+        {
+            throw new YogabaseApiException(502, "realtime_presence_invalid", "Yogabase returned an invalid realtime presence event.");
+        }
+
+        var handlers = PresenceChanged;
+        if (handlers is null)
+        {
+            return;
+        }
+        foreach (Func<YogabaseRealtimePresenceEvent, Task> handler in handlers.GetInvocationList())
+        {
+            await handler(presence).ConfigureAwait(false);
+        }
+    }
+
+    private void EnsurePresence()
+    {
+        YogabaseClient.EnsureCapability(configuration, "realtime-subscribe");
+        YogabaseClient.EnsureCapability(configuration, YogabaseCapability.RealtimePresence);
+    }
+
+    // A presence subject is the gateway's canonical application subject: opaque here, but always a
+    // bounded, non-blank value with no surrounding whitespace.
+    private static bool IsSubject(string? subject) =>
+        !string.IsNullOrWhiteSpace(subject)
+        && subject!.Length <= 256
+        && string.Equals(subject, subject.Trim(), StringComparison.Ordinal);
+
+    private static readonly (string Code, int Status)[] PresenceErrorStatuses =
+    [
+        (YogabaseRealtimePresenceLimits.Unavailable, 503),
+        (YogabaseRealtimePresenceLimits.TopicInvalid, 400),
+        (YogabaseRealtimePresenceLimits.TopicLimit, 409),
+        (YogabaseRealtimePresenceLimits.StoreUnavailable, 503),
+    ];
+
+    /// <summary>
+    /// The hub answers presence refusals with a <see cref="HubException"/> whose message is the bounded
+    /// code; the SignalR client prefixes it ("... HubException: presence_topic_limit"). Anything
+    /// else is not a presence refusal and is rethrown unchanged.
+    /// </summary>
+    private static Exception MapPresenceError(HubException exception)
+    {
+        var message = exception.Message ?? string.Empty;
+        foreach (var (code, _) in PresenceErrorStatuses)
+        {
+            if (string.Equals(message, code, StringComparison.Ordinal)
+                || message.EndsWith(": " + code, StringComparison.Ordinal))
+            {
+                return PresenceError(code);
+            }
+        }
+        return exception;
+    }
+
+    private static YogabaseApiException PresenceError(string code)
+    {
+        foreach (var (known, status) in PresenceErrorStatuses)
+        {
+            if (string.Equals(known, code, StringComparison.Ordinal))
+            {
+                return new YogabaseApiException(status, code, code switch
+                {
+                    YogabaseRealtimePresenceLimits.Unavailable => "Realtime presence is not enabled for this runtime.",
+                    YogabaseRealtimePresenceLimits.TopicInvalid => "The presence topic is outside the realtime topic grammar.",
+                    YogabaseRealtimePresenceLimits.TopicLimit => "This connection already tracks the maximum number of presence topics.",
+                    _ => "The realtime presence store is unavailable.",
+                });
+            }
+        }
+        throw new ArgumentOutOfRangeException(nameof(code), code, "Unknown presence code.");
     }
 
     private static void ValidateTopic(string topic)
@@ -342,6 +544,29 @@ internal sealed class YogabaseRealtimeClient : IYogabaseRealtime, IAsyncDisposab
                 // An owner can dispose while a reconnect subscription is in flight. Undo the
                 // server-side subscription rather than leaving a topic active with no local owner.
                 await activeConnection.SendAsync("Unsubscribe", topic, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        // A new connection is absent everywhere until it tracks again. Tracking also subscribes it.
+        string[] tracked;
+        lock (subscriptionGate)
+        {
+            tracked = trackedTopics.ToArray();
+        }
+        foreach (var topic in tracked)
+        {
+            try
+            {
+                await activeConnection.InvokeAsync("TrackPresence", topic, cancellationToken).ConfigureAwait(false);
+            }
+            catch (HubException)
+            {
+                // The hub refused it on this connection (presence switched off, store unavailable):
+                // it is no longer tracked, and the next TrackPresenceAsync reports why.
+                lock (subscriptionGate)
+                {
+                    trackedTopics.Remove(topic);
+                }
             }
         }
     }

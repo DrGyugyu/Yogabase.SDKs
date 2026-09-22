@@ -11,6 +11,9 @@ namespace Yogabase.Yogabase;
 public sealed class YogabaseClient : IDisposable, IAsyncDisposable
 {
     public const string ClientConfigSchema = "yogabase-client-config.v1";
+
+    /// <summary>The bootstrap request header naming requested-only capability rows this client reads.</summary>
+    public const string AcceptCapabilitiesHeader = "X-Yogabase-Accept-Capabilities";
     private const int MaximumClientConfigBytes = 256 * 1024;
 
     private readonly YogabaseHttpTransport transport;
@@ -88,6 +91,10 @@ public sealed class YogabaseClient : IDisposable, IAsyncDisposable
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(gatewayEndpoint, path));
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            // realtime-presence is a requested-only row: the gateway adds it only for a client that
+            // names it, and this client validates it (ValidateConfiguration). A gateway that predates
+            // the row ignores the header, which reads as presence being unavailable.
+            request.Headers.TryAddWithoutValidation(AcceptCapabilitiesHeader, YogabaseCapability.RealtimePresence);
             response = await client.SendAsync(
                 request,
                 HttpCompletionOption.ResponseHeadersRead,
@@ -290,16 +297,16 @@ public sealed class YogabaseClient : IDisposable, IAsyncDisposable
                 || !string.IsNullOrEmpty(redirect.Query)
                 || !string.IsNullOrEmpty(redirect.Fragment))
             || configuration.Capabilities is null
-            // The Data API module is withdrawn, so an installation now publishes four capabilities
-            // and one that predates the removal still publishes five. Accept both rather than
-            // refusing to start against either side of that rollout.
+            // The Data API module is withdrawn, so an installation now publishes four core capabilities
+            // plus the requested realtime-presence row, and one that predates the removal still
+            // publishes five without it. Accept each rather than refusing either side of a rollout.
             || configuration.Capabilities.Count is < 4 or > 5
             || configuration.Capabilities.Any(static item => item is null)
             || configuration.Capabilities.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count()
                 != configuration.Capabilities.Count
             || configuration.Capabilities.Any(item =>
                 item.Id is not ("auth" or "storage" or "functions-rest" or "realtime-subscribe"
-                    or YogabaseCapability.WithdrawnDataRest)
+                    or YogabaseCapability.RealtimePresence or YogabaseCapability.WithdrawnDataRest)
                 || item.UnavailableReason?.Length > 256)
             || string.IsNullOrWhiteSpace(configuration.RealtimePath)
             || !configuration.RealtimePath.StartsWith("/", StringComparison.Ordinal)

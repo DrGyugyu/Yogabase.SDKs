@@ -113,20 +113,20 @@ Yogabase는 승인된 애플리케이션 작업을 위한 클러스터 로컬 �
 - 스토리지는 매개되며 digest 및 idempotency에 바인딩되고, 공급자 자격 증명이나 서명된 URL을 반환하지 않습니다.
 - Stateless Functions는 제한된 공개 계약으로 정확히 등록된 버전을 호출합니다.
 - Actor Lambdas는 버전이 지정된 프로젝트 로컬 인스턴스 하나를 대상으로 하며, Workflow Lambdas는 변경 불가능한 정의 버전 하나를 시작하고 v1 cancel 작업만 노출합니다.
-- Realtime은 별도로 반환된 SignalR origin을 사용하여 topic subscribe/unsubscribe, 서명된 Lambda binding 호출, Lambda가 topic에 게시하거나 로그인한 사용자 한 명에게 보내는 이벤트, at-least-once 완료 이벤트를 제공합니다. 작성된 .NET 클라이언트는 완료 이벤트를 `eventId`로 중복 제거합니다. JSON이 기본 Hub 프로토콜로 유지됩니다.
+- Realtime은 별도로 반환된 SignalR origin을 사용하여 topic subscribe/unsubscribe, 서명된 Lambda binding 호출, Lambda가 topic에 게시하거나 로그인한 사용자 한 명에게 보내는 이벤트, at-least-once 완료 이벤트를 제공합니다. 작성된 .NET 클라이언트는 완료 이벤트를 `eventId`로 중복 제거합니다. JSON이 기본 Hub 프로토콜로 유지됩니다. 작성된 .NET 클라이언트는 각 이벤트의 payload를 타입이 지정된 `JsonElement` 옆에 원시 JSON 텍스트(`PayloadJson`)로도 제공하며, bootstrap의 요청 전용 `realtime-presence` 행이 사용 가능하면 presence도 제공합니다. 즉, 로그인한 subject를 topic에서 추적하거나 추적을 해제하고, topic에 있는 subject 목록을 읽고, join/leave 이벤트를 받습니다.
 - 게임 서버: 로그인한 플레이어는 `/v1/servers/*`를 통해 호스팅 서비스의 Ready 인스턴스 하나를 할당받고, 자신의 환경에 속한 인스턴스를 목록 조회 및 단건 조회하며, 자신의 할당을 해제할 수 있습니다(`stop`은 인스턴스를 삭제하지 않습니다). 할당은 member가 관찰한 노드 주소와 포트를 반환합니다.
 
 클라이언트는 공급자 중립적이고 shard를 인식하지 않습니다. 클라우드 선택기, 클라우드 자격 증명, Kubernetes ID, TServer 주소, tablet/shard 식별자, shard key, 물리적 배치 맵 또는 토폴로지 생성을 받지 않습니다. YugabyteDB가 내부 라우팅과 배치를 소유합니다. Yogabase는 또 다른 데이터 경로 라우터를 도입하지 않고 제한된 상태 및 용량 사실을 관찰합니다.
 
 SDK는 범용 사용자용 Control Plane 관리 API, 인프라 프로비저닝, fleet 명령, Kubernetes CRD, 승인 변경, 원격 셸, `pods/exec`, 일반 알림, 분석, GameSessions 및 공급자 자격 증명을 의도적으로 제외합니다. 유일한 Control Plane 표면은 위에서 설명한 워크로드 인증 Delivery v1 계약, 개발자 도구(.NET `YogabaseBuildsClient` 또는 Unity Editor 게시 도구)가 프로젝트 범위의 `ybt_` 개발자 토큰으로 호출하는 Builds v1 빌드 수집 계약, 그리고 호스팅된 워크로드가 Pod 로컬 relay를 거쳐 loopback으로 접근하는 self-scoped Runtime Host v1 계약입니다. 마지막 계약은 애플리케이션이나 Delivery 자격 증명을 받지 않으며 워크로드에 allocation 호출을 노출하지 않습니다.
 
-2026-09-17에 기록된 소유자 결정들이 이 표면을 바꾸었습니다. 제품은 다음 각 항목을 구현했고, 미러링된 계약에 속하는 항목은 그 계약에 반영되어 있습니다. 이 패키지들은 아직 어느 것도 사용하지 않습니다.
+2026-09-17에 기록된 소유자 결정들이 이 표면을 바꾸었습니다. 제품은 다음 각 항목을 구현했고, 미러링된 계약에 속하는 항목은 그 계약에 반영되어 있습니다. 각 항목에 이 패키지들이 그것을 어떻게 다루는지 적었습니다.
 
-- Builds로 업로드하는 Lambda는 실행 종류(`Stateless` 또는 `Stateful`)와 realtime ingress/egress binding id를 명시해야 하며, 이를 빠뜨린 업로드는 수집 단계에서 `400 BUILD_LAMBDA_DECLARATION_REQUIRED`로 거부됩니다(builds 계약). 이는 `YogabaseBuildsClient`와 Unity 게시 도구에 영향을 줍니다.
-- Lambda가 해당 함수 버전에서 선언하지 않은 topic으로 realtime 게시를 하면 `403 realtime_binding_not_declared`로 거부됩니다(Lambda runtime API이며, 미러링된 계약 중 어느 것도 이를 기술하지 않습니다).
-- runtime-host assignments 페이지는 추가형(additive) `headState`와 `headSequence`를 담습니다(runtime-host 계약).
-- 클라이언트 bootstrap은 `X-Yogabase-Accept-Capabilities`에 `realtime-presence`를 명시한 클라이언트에게만 해당 행을 추가하고, realtime Hub에는 `TrackPresence`, `UntrackPresence`, `GetPresence`가 추가되었습니다(애플리케이션 계약).
-- 게임 서버 allocation의 `host`는 노드 내부 주소가 아니라, Agones와 같은 방식으로 고른 해당 인스턴스 노드의 설치본 광고 주소입니다. 타입이 지정된 `address`와 `addresses` 필드는 결정되었으며, 제품은 이를 받아들이는 SDK가 최소 버전이 된 뒤에만 이 필드를 내보냅니다.
+- Builds로 업로드하는 Lambda는 실행 종류(`Stateless` 또는 `Stateful`)와 realtime ingress/egress binding id를 명시해야 하며, 이를 빠뜨린 업로드는 수집 단계에서 `400 BUILD_LAMBDA_DECLARATION_REQUIRED`로 거부됩니다(builds 계약). 이는 `YogabaseBuildsClient`와 Unity 게시 도구에 영향을 주며, 두 도구는 아직 이 선언을 보내지 않습니다.
+- Lambda가 해당 함수 버전에서 선언하지 않은 topic으로 realtime 게시를 하면 `403 realtime_binding_not_declared`로 거부됩니다(Lambda runtime API이며, 미러링된 계약 중 어느 것도 이를 기술하지 않습니다). `Yogabase.Lambda`는 이를 상태 403과 해당 코드를 가진 `LambdaApiException`으로 드러냅니다.
+- runtime-host assignments 페이지는 추가형(additive) `headState`와 `headSequence`를 담습니다(runtime-host 계약). 이 저장소의 runtime-host 클라이언트는 아직 이를 읽지 않습니다.
+- 클라이언트 bootstrap은 `X-Yogabase-Accept-Capabilities`에 `realtime-presence`를 명시한 클라이언트에게만 해당 행을 추가하고, realtime Hub에는 `TrackPresence`, `UntrackPresence`, `GetPresence`가 추가되었습니다(애플리케이션 계약). .NET 클라이언트는 이 행을 요청하고 세 호출과 `presence` 이벤트를 모두 구현합니다. 다른 언어에는 realtime 클라이언트가 없습니다.
+- 게임 서버 allocation의 `host`는 노드 내부 주소가 아니라, Agones와 같은 방식으로 고른 해당 인스턴스 노드의 설치본 광고 주소입니다. 타입이 지정된 `address`와 `addresses` 필드는 결정되었으며, 제품은 이를 받아들이는 SDK가 최소 버전이 된 뒤에만 이 필드를 내보냅니다. 이 저장소의 어떤 패키지도 아직 이를 읽지 않습니다.
 
 ## 기능 상태
 

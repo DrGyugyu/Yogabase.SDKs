@@ -11,6 +11,11 @@
     <PackageReference Include="xunit.v3" />
   </ItemGroup>
   <ItemGroup>
+    <!-- A real SignalR hub on loopback for the realtime presence tests. The shared framework ships
+         with the .NET SDK, so this adds no package to the lock. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../../src/dotnet/Yogabase.Yogabase.Client/Yogabase.Yogabase.Client.csproj" />
   </ItemGroup>
 </Project>

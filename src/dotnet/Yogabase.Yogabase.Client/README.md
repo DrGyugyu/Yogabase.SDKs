@@ -130,6 +130,44 @@ from the REST gateway. Storage uploads send `X-Yogabase-Content-Sha256`; Actor a
 payloads are digest-checked before transport. Realtime Lambda completions are at-least-once and the
 client suppresses duplicate event IDs within a bounded in-memory window.
 
+## Realtime payloads and presence
+
+A `YogabaseRealtimeEvent` carries its payload twice over: `Payload` is the `JsonElement`, and
+`PayloadJson` is the same payload as the JSON text it arrived as (or `null` when there was none),
+for callers that parse with their own serializer — Unity's `JsonUtility` or Newtonsoft — instead of
+walking a `JsonElement`. `PayloadJson` is computed from `Payload` and is never part of the wire shape.
+
+Presence follows the product hub. `CreateAsync` asks for the requested-only `realtime-presence`
+bootstrap row by sending `X-Yogabase-Accept-Capabilities: realtime-presence`; an installation whose
+gateway predates presence ignores the header, publishes no row, and the presence calls then throw
+`NotSupportedException` without connecting, as they do when the row says unavailable.
+
+```csharp
+yogabase.Realtime.PresenceChanged += presence =>
+{
+    Console.WriteLine($"{presence.Subject} {presence.Kind} {presence.Topic}"); // kind: join | leave
+    return Task.CompletedTask;
+};
+await yogabase.Realtime.TrackPresenceAsync("lobby");          // present, and subscribed to the topic
+var snapshot = await yogabase.Realtime.GetPresenceAsync("lobby"); // {Topic, Members[{Subject, Connections}], Truncated}
+await yogabase.Realtime.UntrackPresenceAsync("lobby");
+```
+
+`TrackPresenceAsync` also subscribes the connection to the topic; tracking a tracked topic is a
+no-op; a connection tracks at most 16 topics, and the seventeenth is refused here with
+`presence_topic_limit` before it reaches the hub. Tracked topics are tracked again whenever the
+connection is re-established, because presence belongs to a connection. `UntrackPresenceAsync`
+leaves the hub's subscription in place, but that implicit subscription is not restored after a
+reconnect — use `SubscribeAsync` to keep receiving the topic. Presence events are delivered at least
+once across gateway replicas and carry no id to de-duplicate on; the snapshot is authoritative. It
+holds at most 1,000 members and says `Truncated` when more existed; a snapshot outside those bounds,
+or for another topic, is refused as `realtime_presence_invalid`. The hub's refusals surface as
+`YogabaseApiException`: `presence_unavailable` (503), `presence_topic_invalid` (400),
+`presence_topic_limit` (409) and `presence_store_unavailable` (503).
+
+These are pinned by `RealtimePresenceTests` against a real SignalR hub on loopback that speaks the
+product hub's presence surface; no live installation has run them.
+
 ## Workload delivery
 
 `YogabaseDeliveryClient` is deliberately independent from `YogabaseClient`. Give it the TLS-only
