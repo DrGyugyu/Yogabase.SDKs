@@ -88,7 +88,8 @@ incompatible major of it is refused at admission naming the version. Only `DbDat
 | `Workflows` | `StartAsync(workflowId, definitionVersion, input, idempotencyKey)`, `GetAsync(instanceId)` and `CancelAsync(instanceId, idempotencyKey)`. |
 | `Reminders` | `SetAsync(name, functionId, functionVersion, payload, dueAt: …)` or `cron: …`, and `ClearAsync(name)`, through the existing durable scheduler. |
 | `Valkey` / `Cache` | The runtime's real `IConnectionMultiplexer` and its `IDatabase`. Key operations and pub/sub go directly to the bound Valkey service over TLS as this project's ACL identity. |
-| `Messaging` | `PublishAsync(topic, payload, qos, protocol)` through the gateway. MQTT supports QoS 0/1; Kafka requires QoS 1 and waits for persisted acknowledgement. Both accept payloads up to 32 KiB and require a qualified, bound substrate. |
+| `DistributedCache` | The runtime's `IDistributedCache`, the Valkey module's `cache` capability: entries under `p:<project-id>:cache:`, one hour without an expiry, never more than seven days. See [Streams, queues and change events](#streams-queues-and-change-events). |
+| `Messaging` | `PublishAsync(topic, payload, qos, protocol)` through the gateway. MQTT supports QoS 0/1; Kafka requires QoS 1 and waits for persisted acknowledgement. Both accept payloads up to 32 KiB and require a qualified, bound substrate. Also `ReadStreamAsync`, `DeclareStreamPartitionsAsync`, `ReceiveAsync`, `AckAsync` and `NackAsync`; see [Streams, queues and change events](#streams-queues-and-change-events). |
 | `Caller` | The `ClaimsPrincipal`, its raw `Subject`, and `TryGetSubjectId` / `RequireSubjectId`. |
 | `Logger` | The runtime's `ILogger` for this invocation. |
 | `Invocation` | `InvocationId`, `FunctionId`, `Version`, `EnvironmentId`, and the raw `Facts` dictionary. |
@@ -188,6 +189,61 @@ public static async ValueTask<ReadOnlyMemory<byte>> InvokeAsync(
     return ReadOnlyMemory<byte>.Empty;
 }
 ```
+
+### Streams, queues and change events
+
+These follow the gateway's runtime API routes, and each checks the route's own bounds before
+anything leaves the Lambda. Each route refuses with `LambdaMessaging.ProtocolUnqualified` until the
+installation accepts its evidence (`robustmq-event-replay` for reads, `robustmq-consumer-groups` for
+partition declarations, `robustmq-lambda-amqp-receive` for queues), and with
+`LambdaMessaging.SubstrateUnavailable` where no broker is bound.
+
+- **Stream reads** (`POST streams/{topic}/read`). `ReadStreamAsync(topic,
+  LambdaStreamReadRequest.StartingAt(offset, partition))` or `StartingAt(timestamp)` reads a project
+  stream from an explicit position without joining or moving any consumer group. `Limit` is 1–100
+  records (default 16), `MaxBytes` 1 byte–1 MiB (default 256 KiB), `WaitSeconds` 0–5. The answer lists
+  records in partition then offset order — each with `Key` (absent for a keyless record), `Value`,
+  `Headers` and `Timestamp` — the `Next` offset of every partition read, and `EndOfTopic`. At least one
+  record comes back whenever one exists, even past `MaxBytes`, so following `Next` always progresses.
+- **Partitions** (`POST streams/{topic}/partitions`). `DeclareStreamPartitionsAsync(topic, n)` makes
+  sure the stream has at least `n` (1–32) partitions, so consumer triggers sharing one group can
+  divide it; partitions are never removed, and the answer is the stream afterwards.
+- **Durable queues** (`POST queues/{queue}/receive`, `…/deliveries/{id}/ack`, `…/nack`).
+  `ReceiveAsync(queue, maxMessages, leaseSeconds, waitSeconds)` leases 1–10 messages for 5–300
+  seconds, waiting up to 20 for the first. Settle each with `AckAsync(queue, deliveryId)` (removes it)
+  or `NackAsync(queue, deliveryId, requeue)` before the lease expires; an unsettled message is
+  redelivered with `Redelivered` set. Both answer `false` when the delivery is no longer leased
+  (`queue_delivery_unknown`): nothing changed, and the message may already be with another receiver.
+- **Change events.** `LambdaCdcEvent.Parse(bytes)` reads one `yogabase.cdc.v1` event — the value of a
+  CDC record, from a consumer trigger's `input.Span` or a stream read's `record.Value` — into a typed
+  event: `StreamId`, `Table` (`schema.table`), `Operation` (`Insert`, `Update`, `Delete`, `Truncate`),
+  `Lsn`, `CommitLsn`, `CommitTimestamp`, `TransactionId`, `Sequence`, `Key`, `OldKey` (an update that
+  changed the key), `NewValues`, `UnchangedColumns`, and the `Oversized` / `KeyOmitted` flags the
+  publisher sets when the event did not fit a message (re-read the row by `Key`). Values are the
+  database's text output and SQL NULL is `null`. It checks the whole v1 shape per operation, throws
+  `FormatException` naming the first problem (`TryParse` answers `false`), ignores properties it does
+  not know, and refuses any other schema. `LambdaCdcRecordKey.Parse(record.Key)` reads the record key,
+  `schema.table:` followed by 32 lowercase hexadecimal characters of a hash of the row's key.
+
+```csharp
+var page = await context.Messaging.ReadStreamAsync("orders-cdc",
+    LambdaStreamReadRequest.StartingAt(offset: 0, partition: 0), cancellationToken);
+foreach (var record in page.Records)
+{
+    var change = LambdaCdcEvent.Parse(record.Value);
+    if (change.Operation == LambdaCdcOperation.Update && change.NewValues is { } values)
+    {
+        // values["status"] is the new text value, or null for SQL NULL
+    }
+}
+```
+
+`DistributedCache` is registered whenever the runtime binds Valkey. Until the installation accepts
+its `valkey-lambda-cache` evidence every call on it throws `InvalidOperationException` naming that
+fact; an unbound runtime is refused on access with `valkey-lambda-cache`.
+
+These wrappers are pinned by fake-transport tests (`LambdaStreamsQueuesCdcTests`) against the
+product's request and answer shapes; no live broker or installation has run them.
 
 ### Storage semantics
 

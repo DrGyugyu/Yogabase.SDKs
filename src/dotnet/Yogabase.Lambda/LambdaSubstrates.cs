@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Caching.Distributed;
 using StackExchange.Redis;
 
 namespace Yogabase.Lambda;
@@ -28,6 +29,19 @@ public sealed partial class LambdaContext
         ?? throw new InvalidOperationException("valkey-lambda-access: no project Valkey binding is available to this Lambda.");
 
     public IDatabase Cache => Valkey.GetDatabase();
+
+    /// <summary>
+    /// The runtime's <see cref="IDistributedCache"/>: the Valkey module's <c>cache</c> capability over
+    /// this project's own ACL identity. Entries live under <c>p:&lt;project-id&gt;:cache:</c>, an entry
+    /// written without an expiry lives one hour, and none outlives seven days. The runtime owns it.
+    /// </summary>
+    /// <remarks>
+    /// Registered whenever the runtime binds Valkey. Until the installation accepts its
+    /// <c>valkey-lambda-cache</c> evidence, every call on it throws <see cref="InvalidOperationException"/>
+    /// naming that fact; store failures are <c>valkey_lambda_cache_unavailable</c>.
+    /// </remarks>
+    public IDistributedCache DistributedCache => services.GetService(typeof(IDistributedCache)) as IDistributedCache
+        ?? throw new InvalidOperationException("valkey-lambda-cache: no project Valkey cache is available to this Lambda.");
 }
 
 /// <summary>Invokes the exact admitted version of an Actor Lambda through the runtime API.</summary>
@@ -159,15 +173,7 @@ public sealed class LambdaMessaging
         var acknowledged = protocol is "kafka" or "amqp";
         if (acknowledged)
         {
-            // Kafka topics and AMQP queues share one grammar, spelled exactly as the gateway checks it,
-            // so a name the gateway would refuse never leaves the Lambda.
-            if (string.IsNullOrEmpty(topic) || topic.Length > 200 || topic is "." or ".."
-                || topic.StartsWith("p.", StringComparison.Ordinal)
-                || !topic.All(c => c is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9' or '.' or '_' or '-'))
-                throw new ArgumentException(
-                    "A logical " + (protocol == "kafka" ? "Kafka topic" : "AMQP queue")
-                    + " of 1 to 200 ASCII letters, digits, dots, underscores or hyphens without the reserved p. prefix is required.",
-                    nameof(topic));
+            RequireLogicalName(topic, protocol == "kafka" ? "Kafka topic" : "AMQP queue", nameof(topic));
         }
         else if (string.IsNullOrWhiteSpace(topic) || topic.Length > 512 || Encoding.UTF8.GetByteCount(topic) > 1024
                  || topic.Any(c => char.IsControl(c) || c is '+' or '#'))
@@ -195,6 +201,121 @@ public sealed class LambdaMessaging
     /// </summary>
     public Task PublishAmqpAsync(string queue, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken = default) =>
         PublishAsync(queue, payload, qos: 1, protocol: "amqp", cancellationToken: cancellationToken);
+
+    /// <summary>
+    /// Reads a project stream (a Kafka topic) from an explicit position without joining or moving any
+    /// consumer group. At least one record comes back whenever one exists, even past
+    /// <see cref="LambdaStreamReadRequest.MaxBytes"/>, so a reader following <see cref="LambdaStreamReadResult.Next"/>
+    /// always makes progress. Refused with <see cref="ProtocolUnqualified"/> until the installation
+    /// accepts its event-replay evidence, and with <see cref="SubstrateUnavailable"/> where no broker is bound.
+    /// </summary>
+    public async Task<LambdaStreamReadResult> ReadStreamAsync(string topic, LambdaStreamReadRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        RequireLogicalName(topic, "stream topic", nameof(topic));
+        if (request is null) throw new ArgumentNullException(nameof(request));
+        request.Validate();
+        var result = await LambdaSubstrateHttp.PostAsync<LambdaStreamReadResult>(client,
+            "streams/" + LambdaSubstrateHttp.Segment(topic) + "/read", request, cancellationToken).ConfigureAwait(false);
+        if (result.Records is null || result.Next is null
+            || result.Records.Any(static record => record is null || !record.IsWellFormed())
+            || result.Next.Any(static next => next is null || next.Partition is < 0 or > LambdaStreamReadRequest.MaximumPartitionIndex || next.Offset < 0))
+            throw new LambdaApiException(502, LambdaRefusalCodes.ResponseInvalid, "The stream read answer is outside the runtime contract.");
+        return result;
+    }
+
+    /// <summary>
+    /// Ensures a project stream has at least <paramref name="partitions"/> partitions (1 to 32), so
+    /// consumer triggers sharing one group can divide it. Partitions are never removed; the answer is
+    /// the stream as it is afterwards.
+    /// </summary>
+    public async Task<LambdaStreamDescription> DeclareStreamPartitionsAsync(string topic, int partitions,
+        CancellationToken cancellationToken = default)
+    {
+        RequireLogicalName(topic, "stream topic", nameof(topic));
+        if (partitions is < 1 or > LambdaStreamDescription.MaximumDeclaredPartitions)
+            throw new ArgumentOutOfRangeException(nameof(partitions), "A stream declares 1 to 32 partitions.");
+        var description = await LambdaSubstrateHttp.PostAsync<LambdaStreamDescription>(client,
+            "streams/" + LambdaSubstrateHttp.Segment(topic) + "/partitions", new { partitions }, cancellationToken).ConfigureAwait(false);
+        if (!string.Equals(description.Topic, topic, StringComparison.Ordinal) || description.Partitions < partitions)
+            throw new LambdaApiException(502, LambdaRefusalCodes.ResponseInvalid, "The stream declaration answer is outside the runtime contract.");
+        return description;
+    }
+
+    /// <summary>
+    /// Leases up to <paramref name="maxMessages"/> (1 to 10) messages from a project durable queue for
+    /// <paramref name="leaseSeconds"/> (5 to 300), waiting up to <paramref name="waitSeconds"/> (0 to 20)
+    /// for the first. Settle each with <see cref="AckAsync"/> or <see cref="NackAsync"/> before its
+    /// lease expires; an unsettled message is redelivered.
+    /// </summary>
+    public async Task<IReadOnlyList<LambdaQueueDelivery>> ReceiveAsync(string queue, int maxMessages = 1,
+        int leaseSeconds = 30, int waitSeconds = 0, CancellationToken cancellationToken = default)
+    {
+        RequireLogicalName(queue, "AMQP queue", nameof(queue));
+        if (maxMessages is < 1 or > LambdaQueueDelivery.MaximumMessagesPerReceive)
+            throw new ArgumentOutOfRangeException(nameof(maxMessages), "A receive leases 1 to 10 messages.");
+        if (leaseSeconds is < LambdaQueueDelivery.MinimumLeaseSeconds or > LambdaQueueDelivery.MaximumLeaseSeconds)
+            throw new ArgumentOutOfRangeException(nameof(leaseSeconds), "A lease lasts 5 to 300 seconds.");
+        if (waitSeconds is < 0 or > LambdaQueueDelivery.MaximumReceiveWaitSeconds)
+            throw new ArgumentOutOfRangeException(nameof(waitSeconds), "A receive waits 0 to 20 seconds.");
+        var answer = await LambdaSubstrateHttp.PostAsync<LambdaQueueReceiveAnswer>(client,
+            "queues/" + LambdaSubstrateHttp.Segment(queue) + "/receive",
+            new { maxMessages, leaseSeconds, waitSeconds }, cancellationToken).ConfigureAwait(false);
+        if (answer.Deliveries is null || answer.Deliveries.Count > maxMessages
+            || answer.Deliveries.Any(static delivery => delivery is null || !delivery.IsWellFormed()))
+            throw new LambdaApiException(502, LambdaRefusalCodes.ResponseInvalid, "The queue receive answer is outside the runtime contract.");
+        return answer.Deliveries;
+    }
+
+    /// <summary>
+    /// Acknowledges a leased delivery, removing its message. <see langword="false"/> when the
+    /// delivery is no longer leased — unknown, already settled, or its lease expired and the message
+    /// was redelivered — in which case nothing changed.
+    /// </summary>
+    public Task<bool> AckAsync(string queue, string deliveryId, CancellationToken cancellationToken = default) =>
+        SettleAsync(queue, deliveryId, "ack", null, cancellationToken);
+
+    /// <summary>
+    /// Negatively acknowledges a leased delivery: its message is redelivered when
+    /// <paramref name="requeue"/> is true and discarded otherwise. <see langword="false"/> when the
+    /// delivery is no longer leased.
+    /// </summary>
+    public Task<bool> NackAsync(string queue, string deliveryId, bool requeue = true, CancellationToken cancellationToken = default) =>
+        SettleAsync(queue, deliveryId, "nack", new { requeue }, cancellationToken);
+
+    private async Task<bool> SettleAsync(string queue, string deliveryId, string verb, object? body, CancellationToken cancellationToken)
+    {
+        RequireLogicalName(queue, "AMQP queue", nameof(queue));
+        if (!LambdaQueueDelivery.IsDeliveryId(deliveryId))
+            throw new ArgumentException("A delivery id is 32 lowercase hexadecimal characters.", nameof(deliveryId));
+        var route = "queues/" + LambdaSubstrateHttp.Segment(queue) + "/deliveries/" + deliveryId + "/" + verb;
+        using var request = body is null
+            ? new HttpRequestMessage(HttpMethod.Post, route)
+            : LambdaSubstrateHttp.JsonRequest(HttpMethod.Post, route, body);
+        try
+        {
+            using var response = await LambdaTransport.SendAsync(client, request, cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        catch (LambdaApiException refusal) when (refusal.StatusCode == 404
+            && string.Equals(refusal.Code, LambdaQueueDelivery.UnknownDelivery, StringComparison.Ordinal))
+        {
+            return false;
+        }
+    }
+
+    // Kafka topics, streams and AMQP queues share one grammar, spelled exactly as the gateway checks
+    // it, so a name the gateway would refuse never leaves the Lambda.
+    private static void RequireLogicalName(string name, string noun, string parameterName)
+    {
+        if (string.IsNullOrEmpty(name) || name.Length > 200 || name is "." or ".."
+            || name.StartsWith("p.", StringComparison.Ordinal)
+            || !name.All(c => c is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9' or '.' or '_' or '-'))
+            throw new ArgumentException(
+                "A logical " + noun
+                + " of 1 to 200 ASCII letters, digits, dots, underscores or hyphens without the reserved p. prefix is required.",
+                parameterName);
+    }
 }
 
 internal static class LambdaSubstrateHttp
@@ -215,10 +336,13 @@ internal static class LambdaSubstrateHttp
         return new HttpRequestMessage(method, route) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
     }
 
-    internal static async Task<JsonElement> PostAsync(HttpClient client, string route, object body, CancellationToken cancellationToken)
+    internal static Task<JsonElement> PostAsync(HttpClient client, string route, object body, CancellationToken cancellationToken) =>
+        PostAsync<JsonElement>(client, route, body, cancellationToken);
+
+    internal static async Task<T> PostAsync<T>(HttpClient client, string route, object body, CancellationToken cancellationToken)
     {
         using var request = JsonRequest(HttpMethod.Post, route, body);
         using var response = await LambdaTransport.SendAsync(client, request, cancellationToken).ConfigureAwait(false);
-        return await LambdaTransport.ReadJsonAsync<JsonElement>(response, cancellationToken).ConfigureAwait(false);
+        return await LambdaTransport.ReadJsonAsync<T>(response, cancellationToken).ConfigureAwait(false);
     }
 }

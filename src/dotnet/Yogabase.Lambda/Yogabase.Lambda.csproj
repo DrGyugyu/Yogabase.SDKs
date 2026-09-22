@@ -28,6 +28,10 @@
          host unifies; IHttpClientFactory is resolved from the provider by name rather than
          referenced, so Microsoft.Extensions.Http never enters a bundle's closure. -->
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <!-- IDistributedCache, the type the runtime registers for the Valkey cache capability. The
+         sandbox host carries the same abstractions from the ASP.NET Core shared framework and
+         shadows Microsoft.Extensions.* for the bundle, so the type is the host's own. -->
+    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" />
     <PackageReference Include="StackExchange.Redis" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
