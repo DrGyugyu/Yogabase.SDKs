@@ -21,21 +21,21 @@ Yogabase는 하나의 Helm 차트와 하나의 조정된 이미지 제품군으�
 
 Control Plane은 Yogabase에서 허용된 관리 의도의 유일한 출처입니다. member는 인바운드 관리 API를 노출하지 않고, 제품 정책을 결정하지 않으며, 동등한 Control Plane이 되지 않습니다. member는 상호 TLS 인증을 사용하는 gRPC로 Control Plane에 **아웃바운드** 연결하고, 서명된 대상 바인딩 의도를 지속하며, Control Plane을 사용할 수 없을 때에도 이미 수락된 로컬 작업을 계속 조정합니다.
 
-## AWS Marketplace 배포 경로(선택 사항)
+## Yogabase가 실행되는 곳
 
-![Amazon EKS 기반 Yogabase AWS Marketplace 배포 경로](assets/marketplace-architecture.ko.svg)
+![Yogabase는 표준을 준수하는 모든 클러스터에 하나의 Kubernetes 제품으로 설치되며, 클라우드 오브젝트 스토어, 워크로드 ID, 클러스터 프로비저닝, AWS Marketplace는 선택적 바인딩입니다](assets/yogabase-installation.ko.svg)
 
-이 다이어그램은 베타용으로 처음 그려진, Amazon EKS 기반의 선택적 AWS Marketplace 배포 경로를 보여 줍니다. 같은 차트는 표준을 준수하는 모든 Kubernetes 클러스터에 설치됩니다. 이 배포 경로에서는 데이터베이스, Secret 및 운영 상태가 고객의 AWS 계정 안에 유지되고, member는 권위 있는 Control Plane에 아웃바운드로만 연결하며, 고객은 선택적 백업 대상을 제어합니다. 이 배포 경로는 아직 릴리스 적격성 검증을 통과하지 않았습니다.
+하나의 Yogabase 릴리스, 즉 하나의 Helm 차트와 하나의 이미지 제품군은 개발자의 k3d 클러스터부터 Amazon EKS까지 표준을 준수하는 모든 Kubernetes 클러스터에 설치됩니다. 설치본은 자신이 실행되는 클러스터로 식별되며, 이 ID는 등록 시 증명됩니다. Control Plane이 설치된 클러스터는 스스로를 첫 번째 member로 등록하고, 다른 클러스터는 같은 차트를 `member` 모드로 설치해 아웃바운드로 연결합니다. 클라우드 오브젝트 스토어, 워크로드 ID, 클러스터 프로비저닝, AWS Marketplace entitlement는 각각 독립적으로 연결되는 선택적 바인딩입니다. 어느 것도 설치 ID가 아니며, 설치에는 이 중 어느 것도 필요하지 않습니다. 다만 설치에는 `yogabase.io/workload=true` 레이블과 taint가 붙은 노드 풀과 차트 values가 필요하며, 여기에는 카탈로그의 StorageClass, `controlPlane.targetId`, Data Protection 키 암호화 키를 담은 Secret, 그리고 OIDC issuer 또는 시트 claim token을 담은 Secret을 통한 Console 로그인이 포함됩니다. 차트는 StorageClass와 노드 zone을 찾아내지 않으므로 카탈로그는 values에서 둘 다 지정하며, 클러스터가 등록된 뒤에는 member의 Agent가 클러스터의 StorageClass와 노드 zone을 Control Plane에 보고합니다. AWS Marketplace 등록 상품은 같은 차트와 이미지의 선택적 배포 경로 중 하나이고, 해당 바인딩이 구성되지 않는 한 entitlement 게이트와 계량은 휴면 상태로 남습니다. 이 배포 경로는 아직 릴리스 적격성 검증을 통과하지 않았습니다.
 
 ## Console 경험
 
-![Yogabase Blazor Console 개념 이미지](assets/yogabase-console-concept-v2.png)
+![데모 프로젝트의 Yogabase Console Get started 페이지](assets/yogabase-console-get-started.png)
 
-_초기 Console 개념도이며 실제 환경이나 상태 화면이 아닙니다. 현재 Console보다 먼저 만들어져 AWS Marketplace/EKS 설치 배지와 운영 중심 탐색을 보여 주지만, 현재 설치본은 Kubernetes 클러스터로 식별되고 개발자는 Get started 화면에서 시작합니다. 빈 상태를 의도적으로 사용하며 고객 데이터, 지표 또는 활성화된 기능을 나타내지 않습니다._
+_Console의 Get started 페이지를 실제로 캡처한 이미지입니다. 2026-09-22에 제품 자체의 브라우저 테스트 하네스에서 1440 px 너비의 라이트 모드로, 데모 데이터(프로젝트 "Arena", 등록된 로컬 클러스터에 있는 그 기본 환경, 하네스가 정상으로 표시한 데이터베이스)를 사용해 촬영했으며, 고객 설치본이나 실시간 상태가 아닙니다. 제품 저장소는 일반 테스트 스위트에서는 실행되지 않는 명시적 캡처 테스트(`ReadmeCaptureBrowserTests`)로 이 이미지를 다시 만들 수 있으며, 연속 두 번 실행한 결과 파일이 동일했습니다. 개발자는 로그인한 뒤 이 화면에서 시작합니다. 설정 상태, 환경의 인프라 설계, 그리고 Data, Compose, Deploy 단계가 이어집니다. 왼쪽 메뉴는 Console을 Core, Extended, Enterprise, Operate로 묶으며, Enterprise와 Operate는 처음에 접혀 있습니다._
 
 ## 아키텍처 작동 방식
 
-![Yogabase Control Plane 및 member 아키텍처](assets/yogabase-architecture.svg)
+![Yogabase Control Plane 및 member 아키텍처](assets/yogabase-architecture.ko.svg)
 
 승인은 설치본의 승인 정책을 따르며(기본값은 제출 시 승인), Provisioner는 선택적 프로비저닝 바인딩이 활성화된 경우에만 존재합니다.
 
@@ -62,7 +62,7 @@ Core는 선택된 Kubernetes 클러스터에서 논리적 YugabyteDB 데이터�
 
 ### 작업 중 일어나는 일
 
-![Yogabase 내구성 작업 흐름](assets/yogabase-operation-flow.svg)
+![Yogabase 내구성 작업 흐름](assets/yogabase-operation-flow.ko.svg)
 
 ### 보안 경계
 
@@ -76,20 +76,27 @@ Yogabase를 통한 Direct 운영이 권위 있습니다. GitOps 지원은 고객
 
 ## 커스텀 빌드 전달과 Kubernetes
 
-![Yogabase Control Plane을 통한 커스텀 빌드 전달](assets/custom-build-delivery-flow.svg)
+![Yogabase Control Plane을 통한 커스텀 빌드 전달](assets/custom-build-delivery-flow.ko.svg)
 
-커스텀 빌드 워크플로는 Kubernetes 또는 클라우드 자격 증명을 받지 않고 권위 있는
-Control Plane을 통해 Kubernetes에 도달합니다. 별도로 구성하는 Delivery 클라이언트는
-수명이 짧은 워크로드 OIDC 토큰으로 TLS 전용 `/api/v1/delivery` 호스트를 호출합니다.
-승인된 템플릿 조회, 환경 및 변경 불가능한 아티팩트 admission의 preview/submit, release,
-promotion, rollback, 환경 decommission, 멈춘 작업의 abandon을 수행하고, 제한된 polling
-또는 SSE로 내구성 있는 작업을 추적할 수 있습니다.
+커스텀 빌드는 Kubernetes 또는 클라우드 자격 증명을 받지 않고 권위 있는 Control Plane을 통해
+Kubernetes에 도달합니다. 개발자는 Console 업로드 페이지에서, 또는 프로젝트 범위의 `ybt_` 개발자
+토큰으로 `yogabase build upload`, .NET `YogabaseBuildsClient`, Unity Editor의 Publish Server 창을
+통해 아카이브 하나를 업로드하며, manifest, SBOM, 스캔을 직접 준비하지 않아도 됩니다. Control
+Plane의 Builds 수집은 아카이브를 준비하고, 아카이브와 선언된 경우 이름, 버전, 포트로 서비스
+레이아웃과 분리된 manifest를 도출합니다. member의 격리된 `artifact-admission` Job은 CycloneDX
+인벤토리를 도출하고, digest로 고정된 OSV 스냅샷을 기준으로 OSV-Scanner matcher의 C# 포트로 스캔한
+뒤, manifest, 인벤토리, 스캔 결과를 설치본의 admission 키로 서명합니다. 거부된 빌드는 실패한 필드,
+또는 CVE, 패키지, 버전, 수정 버전을 밝힙니다. admission을 통과한 빌드는 설치본의 승인 정책 아래
+runtime 명령으로 릴리스되고, 서명된 의도가 아웃바운드 상호 TLS fleet 채널을 통해 member의 종속 로컬
+actuator로 전달되며, 이 actuator만 Kubernetes 워크로드를 조정합니다.
 
-아티팩트 제출에는 자격 증명이 없는 공급자 네이티브 locator와 bundle, manifest, SBOM,
-scan evidence의 정확한 digest만 포함됩니다. Control Plane은 의도를 기록하고, 격리된
-admission Job이 아티팩트를 검증합니다. 이후 서명된 의도가 아웃바운드 상호 TLS fleet
-채널을 통해 member의 종속 로컬 actuator로 전달되며, 이 actuator만 Kubernetes 워크로드를
-조정합니다.
+별도로 구성하는 Delivery 클라이언트는 CI 경로입니다. 수명이 짧은 워크로드 OIDC 토큰으로 TLS 전용
+`/api/v1/delivery` 호스트를 호출하며, 차트는 이 호스트를 기본적으로 꺼 둡니다
+(`controlPlane.delivery.enabled: false`). 승인된 템플릿 조회, 환경 및 변경 불가능한 아티팩트
+admission의 preview/submit, release, promotion, rollback, 환경 decommission, 멈춘 작업의 abandon을
+수행하고, 제한된 polling 또는 SSE로 내구성 있는 작업을 추적할 수 있습니다. 아티팩트 제출에는 자격
+증명이 없는 공급자 네이티브 locator와 bundle, manifest, SBOM, scan evidence의 정확한 digest만
+포함됩니다.
 
 이제 서버는 실행 중인 빌드가 health/readiness를 보고하고 reservation/allocation을 받으며
 shutdown 시 drain할 수 있는 버전이 지정된 runtime-host 계약을 제공합니다
@@ -145,7 +152,7 @@ Yogabase는 서명된 관찰과 릴리스에 고정된 증거를 통해 모듈 �
 
 ## 패키지
 
-.NET 이외의 패키지 식별자는 연속성을 위해 기존 프리뷰 이름을 유지합니다. 이는 레지스트리 게시나 지원 약속을 의미하지 않습니다. 버전 `0.3`에서 워크로드 인증 Control Plane Delivery v1 표면과 교차 플랫폼 수명 주기 개선이 추가되었습니다. 그 이후 애플리케이션 계약은 버전 변경 없이 바뀌었습니다. 클라이언트 측 Data API가 제거되었고(2026-09-08), `/v1/servers/*` 게임 서버 표면이 추가되었으며, .NET 패키지에 Servers 및 Builds 클라이언트가 추가되었지만 모두 여전히 `0.3.0-preview.1` 버전입니다.
+.NET 이외의 패키지 식별자는 연속성을 위해 기존 프리뷰 이름을 유지합니다. 이는 레지스트리 게시나 지원 약속을 의미하지 않습니다. 버전 `0.3`에서 워크로드 인증 Control Plane Delivery v1 표면과 교차 플랫폼 수명 주기 개선이 추가되었습니다. 그 이후 애플리케이션 계약은 버전 변경 없이 바뀌었습니다. 클라이언트 측 Data API가 제거되었고(2026-09-08, 2026-09-17에 결정된 복원은 아직 계약에 반영되지 않았습니다), `/v1/servers/*` 게임 서버 표면이 추가되었으며, .NET 패키지에 Servers 및 Builds 클라이언트가 추가되었지만 모두 여전히 `0.3.0-preview.1` 버전입니다.
 
 | 플랫폼 | 위치 | 현재 패키지 ID | 적격성 |
 |---|---|---|---|

@@ -1,115 +1,140 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="760" viewBox="0 0 1400 760" role="img" aria-labelledby="title desc">
-  <title id="title">Yogabase custom build delivery and runtime flow</title>
-  <desc id="desc">A customer build workflow uses the Yogabase Delivery SDK to submit an immutable artifact to the Control Plane. The Control Plane admits and releases it through the outbound fleet channel and member actuator into Kubernetes. The running workload uses the cluster-local application gateway, reports its lifecycle through the self-scoped runtime-host contract over its Pod-local relay, and never receives Kubernetes or cloud credentials.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1200" viewBox="0 0 1280 1200" role="img" aria-labelledby="title desc">
+  <title id="title">Custom build delivery: one upload through the Control Plane to Kubernetes</title>
+  <desc id="desc">A developer uploads one archive through the console upload page, or with a project-scoped ybt_ developer token through the yogabase CLI, YogabaseBuildsClient or the Unity Editor's Publish Server window. The Control Plane's Builds ingest stages it and derives the service layout and a detached manifest from the archive and any declared name, version and ports. Signed intent sends it to the member's isolated artifact-admission Job, which derives the CycloneDX inventory, scans it with the C# OSV matcher against the pinned snapshot, and signs manifest, inventory and scan with the installation admission key. The Control Plane re-verifies the signed result and reports the build check. A release is a runtime command under the installation approval policy; the local actuator writes one Deployment per release, service-materializer verifies the admitted object and service-host runs the entrypoint without Kubernetes or cloud credentials. Instances report lifecycle through the Runtime Host v1 contract over their Pod-local relay, and players allocate an instance through /v1/servers and dial its host and port. The Delivery API for CI is a separate, off-by-default path.</desc>
   <defs>
-    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#f8fbfa"/>
-      <stop offset="1" stop-color="#eef7f3"/>
-    </linearGradient>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0f2d25" flood-opacity="0.11"/>
-    </filter>
-    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L10,5 L0,10 z" fill="#287c66"/>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#466785"/>
     </marker>
-    <marker id="arrowMuted" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L10,5 L0,10 z" fill="#70847d"/>
+    <marker id="arrowTeal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#138b8d"/>
     </marker>
     <style>
-      .title { font: 700 28px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #173c32; }
-      .subtitle { font: 400 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #527068; }
-      .lane { font: 700 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 1.2px; fill: #287c66; }
-      .box-title { font: 700 17px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #173c32; }
-      .box-text { font: 400 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #4c655e; }
-      .small { font: 500 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #5b716b; }
-      .note-title { font: 700 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #694b17; }
-      .note-text { font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #755c2f; }
-      .box { fill: #ffffff; stroke: #bcd5cd; stroke-width: 1.5; rx: 14; filter: url(#shadow); }
-      .box-accent { fill: #edf8f4; stroke: #76b9a7; stroke-width: 1.5; rx: 14; filter: url(#shadow); }
-      .box-runtime { fill: #f4f7f6; stroke: #b8c8c3; stroke-width: 1.5; rx: 14; filter: url(#shadow); }
-      .arrow { fill: none; stroke: #287c66; stroke-width: 2.5; marker-end: url(#arrow); }
-      .arrow-muted { fill: none; stroke: #70847d; stroke-width: 2; marker-end: url(#arrowMuted); }
-      .dashed { stroke-dasharray: 7 6; }
+      text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', Helvetica, Arial, sans-serif; }
+      .title { font-size: 30px; font-weight: 700; fill: #102a43; }
+      .subtitle { font-size: 17px; fill: #4e6478; }
+      .group { font-size: 20px; font-weight: 700; fill: #17324d; }
+      .groupNote { font-size: 14.5px; fill: #4e6478; }
+      .node { font-size: 17.5px; font-weight: 700; fill: #102a43; }
+      .sdkNode { font-size: 17.5px; font-weight: 700; fill: #4b2e83; }
+      .text { font-size: 15px; fill: #4e6478; }
+      .code { font-size: 14.5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; fill: #4b2e83; }
+      .edge { font-size: 13.5px; font-weight: 700; fill: #466785; }
+      .edgeTeal { font-size: 13.5px; font-weight: 700; fill: #0f6f71; }
+      .foot { font-size: 15px; fill: #4e6478; }
+      .footStrong { font-size: 15px; font-weight: 700; fill: #17324d; }
     </style>
   </defs>
 
-  <rect width="1400" height="760" fill="url(#background)"/>
-  <text x="54" y="54" class="title">Custom build → Control Plane → Kubernetes</text>
-  <text x="54" y="80" class="subtitle">Agones' client loop is adapted under Apache-2.0; PlayFlow, Firebase, and Supabase inform SDK ergonomics only; Yogabase contracts remain authoritative.</text>
+  <rect x="0" y="0" width="1280" height="1200" fill="#ffffff"/>
+  <rect x="0.5" y="0.5" width="1279" height="1199" fill="none" stroke="#d9e2ec"/>
 
-  <text x="54" y="122" class="lane">BUILD AND DELIVERY</text>
+  <text x="40" y="58" class="title">Custom build → Control Plane → Kubernetes</text>
+  <text x="40" y="88" class="subtitle">One upload: Yogabase derives the manifest and inventory, scans and signs the build, and releases it through the member.</text>
 
-  <rect x="54" y="142" width="280" height="132" class="box"/>
-  <circle cx="84" cy="172" r="13" fill="#dff2ec"/>
-  <path d="M78 172h12M84 166v12" stroke="#287c66" stroke-width="2" stroke-linecap="round"/>
-  <text x="108" y="178" class="box-title">Customer build / CI</text>
-  <text x="78" y="210" class="box-text">Immutable bundle and manifest</text>
-  <text x="78" y="232" class="box-text">Digest, SBOM, and scan evidence</text>
-  <text x="78" y="254" class="box-text">No cloud or cluster credential</text>
+  <!-- Columns -->
+  <rect x="40" y="108" width="280" height="986" rx="20" fill="#f8f5fd" stroke="#d9ccef" stroke-width="1.5"/>
+  <text x="60" y="140" class="group">You and the SDKs</text>
+  <text x="60" y="162" class="groupNote">developer tools and players</text>
 
-  <rect x="400" y="142" width="300" height="132" class="box-accent"/>
-  <circle cx="430" cy="172" r="13" fill="#cceade"/>
-  <path d="M423 172h14M433 167l5 5-5 5" stroke="#287c66" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="454" y="178" class="box-title">Yogabase Delivery SDK</text>
-  <text x="424" y="210" class="box-text">Short-lived OIDC bearer token</text>
-  <text x="424" y="232" class="box-text">Preview + ETag + idempotency</text>
-  <text x="424" y="254" class="box-text">Bounded polling / event stream</text>
+  <rect x="380" y="108" width="380" height="986" rx="20" fill="#eef5fb" stroke="#c7dcec" stroke-width="1.5"/>
+  <text x="400" y="140" class="group">Control Plane</text>
+  <text x="400" y="162" class="groupNote">the sole authority for accepted intent</text>
 
-  <rect x="766" y="142" width="320" height="132" class="box-accent"/>
-  <circle cx="796" cy="172" r="13" fill="#cceade"/>
-  <path d="M790 175h12M792 170h8M794 165h4" stroke="#287c66" stroke-width="2" fill="none" stroke-linecap="round"/>
-  <text x="820" y="178" class="box-title">Yogabase Control Plane</text>
-  <text x="790" y="210" class="box-text">Durable admission and operation</text>
-  <text x="790" y="232" class="box-text">Release intent under approval policy</text>
-  <text x="790" y="254" class="box-text">Sole source of management policy</text>
+  <rect x="820" y="108" width="420" height="986" rx="20" fill="#eef8f5" stroke="#b7ddd4" stroke-width="1.5"/>
+  <text x="840" y="140" class="group">Member cluster</text>
+  <text x="840" y="162" class="groupNote">Agent, local actuator and Tasks roles</text>
 
-  <path d="M334 208H390" class="arrow"/>
-  <text x="342" y="190" class="small">artifact facts</text>
-  <path d="M700 208H756" class="arrow"/>
-  <text x="712" y="190" class="small">HTTPS</text>
+  <!-- 1 Upload -->
+  <rect x="56" y="184" width="248" height="160" rx="14" fill="#f3effa" stroke="#b7a3de" stroke-width="1.5"/>
+  <text x="76" y="212" class="sdkNode">1  Upload one archive</text>
+  <text x="76" y="238" class="text">console upload page, or with a</text>
+  <text x="76" y="260" class="text"><tspan class="code">ybt_</tspan> developer token:</text>
+  <text x="76" y="282" class="code">yogabase build upload</text>
+  <text x="76" y="304" class="code">YogabaseBuildsClient</text>
+  <text x="76" y="326" class="text">Unity Editor Publish Server</text>
 
-  <rect x="1120" y="142" width="226" height="132" class="box"/>
-  <text x="1144" y="177" class="box-title">Admission</text>
-  <text x="1144" y="205" class="box-text">Isolated verification job</text>
-  <text x="1144" y="227" class="box-text">Digest and evidence check</text>
-  <text x="1144" y="249" class="box-text">Signed immutable result</text>
-  <path d="M1086 208H1110" class="arrow-muted"/>
+  <rect x="396" y="184" width="348" height="160" rx="14" fill="#ffffff" stroke="#91b8d7" stroke-width="1.5"/>
+  <text x="416" y="212" class="node">Builds ingest</text>
+  <text x="416" y="238" class="text">stages the archive</text>
+  <text x="416" y="260" class="text">derives the service layout and a</text>
+  <text x="416" y="282" class="text">detached manifest from the archive</text>
+  <text x="416" y="304" class="text">and any declared name, version, ports</text>
+  <text x="416" y="332" class="text">build state: checking</text>
 
-  <text x="54" y="338" class="lane">AUTHORITATIVE ACTUATION</text>
+  <path d="M304 264 H390" fill="none" stroke="#466785" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <text x="326" y="254" class="edge">POST</text>
 
-  <rect x="500" y="358" width="430" height="82" class="box"/>
-  <text x="524" y="388" class="box-title">Outbound mutually authenticated fleet channel</text>
-  <text x="524" y="412" class="box-text">Signed intent and durable operation state</text>
-  <text x="524" y="432" class="box-text">Member never becomes a peer Control Plane</text>
-  <path d="M926 274C926 322 858 324 858 348" class="arrow"/>
+  <!-- 2 Admission -->
+  <path d="M570 344 V420 H830" fill="none" stroke="#138b8d" stroke-width="2.5" stroke-dasharray="9 6" marker-end="url(#arrowTeal)"/>
+  <text x="584" y="410" class="edgeTeal">signed intent (fleet)</text>
 
-  <rect x="500" y="478" width="430" height="92" class="box-accent"/>
-  <text x="524" y="509" class="box-title">Member agent + subordinate local actuator</text>
-  <text x="524" y="533" class="box-text">Validates signed intent and deterministically reconciles</text>
-  <text x="524" y="554" class="box-text">the allowlisted Yogabase workload graph</text>
-  <path d="M715 440V468" class="arrow"/>
+  <rect x="836" y="374" width="388" height="190" rx="14" fill="#ffffff" stroke="#8ac7b7" stroke-width="1.5"/>
+  <text x="856" y="402" class="node">2  artifact-admission Job</text>
+  <text x="856" y="428" class="text">isolated and non-executing</text>
+  <text x="856" y="450" class="text">derives the CycloneDX inventory</text>
+  <text x="856" y="472" class="text">scans it with the C# OSV matcher</text>
+  <text x="856" y="494" class="text">against the pinned OSV snapshot</text>
+  <text x="856" y="516" class="text">signs manifest, inventory and scan</text>
+  <text x="856" y="538" class="text">with the installation admission key</text>
 
-  <rect x="980" y="478" width="366" height="92" class="box-runtime"/>
-  <text x="1004" y="509" class="box-title">Kubernetes runs the custom build</text>
-  <text x="1004" y="533" class="box-text">No direct SDK mutation of Pods, Services, Secrets,</text>
-  <text x="1004" y="554" class="box-text">StatefulSets, CRDs, or provider infrastructure</text>
-  <path d="M930 524H970" class="arrow"/>
+  <!-- 3 Build check -->
+  <path d="M1180 564 V644 H750" fill="none" stroke="#138b8d" stroke-width="2.5" stroke-dasharray="9 6" marker-end="url(#arrowTeal)"/>
+  <text x="840" y="634" class="edgeTeal">signed observation (fleet)</text>
 
-  <text x="54" y="626" class="lane">APPLICATION RUNTIME</text>
-  <rect x="500" y="644" width="430" height="62" class="box"/>
-  <text x="524" y="670" class="box-title">Cluster-local application gateway</text>
-  <text x="524" y="691" class="box-text">Auth, storage, Lambdas, Realtime, and hosted game servers</text>
-  <path d="M1163 570C1163 676 974 676 940 676" class="arrow-muted dashed"/>
+  <rect x="396" y="594" width="348" height="100" rx="14" fill="#ffffff" stroke="#91b8d7" stroke-width="1.5"/>
+  <text x="416" y="622" class="node">3  Build check</text>
+  <text x="416" y="648" class="text">re-verifies the signed result: admitted,</text>
+  <text x="416" y="670" class="text">or refused with CVE, package, fixed-in</text>
 
-  <rect x="54" y="358" width="390" height="212" rx="14" fill="#fff8e8" stroke="#e0bf78" stroke-width="1.5"/>
-  <text x="78" y="392" class="note-title">Runtime-host boundary</text>
-  <text x="78" y="422" class="note-text">The Delivery API covers build admission, release,</text>
-  <text x="78" y="442" class="note-text">durable operations, polling, and events.</text>
-  <text x="78" y="474" class="note-text">A running build reports health and readiness, may reserve</text>
-  <text x="78" y="494" class="note-text">itself, reads its assignments, and drains on shutdown</text>
-  <text x="78" y="514" class="note-text">through the self-scoped Runtime Host v1 contract over its</text>
-  <text x="78" y="534" class="note-text">Pod-local relay. The workload is offered no allocation call</text>
-  <text x="78" y="554" class="note-text">and never holds a Kubernetes or cloud credential.</text>
+  <rect x="56" y="594" width="248" height="100" rx="14" fill="#f3effa" stroke="#b7a3de" stroke-width="1.5"/>
+  <text x="76" y="622" class="sdkNode">Read the check</text>
+  <text x="76" y="648" class="code">GET …/builds/{buildId}</text>
+  <text x="76" y="670" class="text">the CLI polls until terminal</text>
 
-  <text x="54" y="742" class="small">Reference patterns improve lifecycle handling; they never grant Kubernetes authority or imply Agones, PlayFlow, Nakama, Firebase, or Supabase compatibility.</text>
+  <path d="M396 644 H310" fill="none" stroke="#466785" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <text x="330" y="634" class="edge">GET</text>
+
+  <!-- 4 Release -->
+  <path d="M570 694 V718" fill="none" stroke="#466785" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <rect x="396" y="724" width="348" height="110" rx="14" fill="#ffffff" stroke="#91b8d7" stroke-width="1.5"/>
+  <text x="416" y="752" class="node">4  Release</text>
+  <text x="416" y="778" class="text">a runtime command under the</text>
+  <text x="416" y="800" class="text">installation approval policy, from</text>
+  <text x="416" y="822" class="text">the console or the Delivery API</text>
+
+  <path d="M744 778 H830" fill="none" stroke="#138b8d" stroke-width="2.5" stroke-dasharray="9 6" marker-end="url(#arrowTeal)"/>
+  <text x="768" y="768" class="edgeTeal">fleet</text>
+
+  <rect x="836" y="724" width="388" height="200" rx="14" fill="#ffffff" stroke="#8ac7b7" stroke-width="1.5"/>
+  <text x="856" y="752" class="node">Hosted-service Pods</text>
+  <text x="856" y="778" class="text">local actuator: one Deployment per release</text>
+  <text x="856" y="800" class="text"><tspan class="code">service-materializer</tspan> re-fetches and</text>
+  <text x="856" y="822" class="text">verifies the exact admitted object</text>
+  <text x="856" y="844" class="text"><tspan class="code">service-host</tspan> runs the entrypoint under</text>
+  <text x="856" y="866" class="text">the hardened profile with no Kubernetes</text>
+  <text x="856" y="888" class="text">or cloud credential; Ready by Runtime</text>
+  <text x="856" y="910" class="text">Host calls or once its port opens</text>
+
+  <!-- 5 Lifecycle and allocation -->
+  <path d="M1180 924 V1004 H750" fill="none" stroke="#138b8d" stroke-width="2.5" stroke-dasharray="9 6" marker-end="url(#arrowTeal)"/>
+  <text x="840" y="994" class="edgeTeal">Runtime Host v1, Pod-local relay</text>
+
+  <rect x="396" y="954" width="348" height="100" rx="14" fill="#ffffff" stroke="#91b8d7" stroke-width="1.5"/>
+  <text x="416" y="982" class="node">5  Lifecycle and allocation</text>
+  <text x="416" y="1008" class="text">per-instance health, Ready and drain;</text>
+  <text x="416" y="1030" class="text">selects and allocates a Ready instance</text>
+
+  <rect x="56" y="954" width="248" height="120" rx="14" fill="#f3effa" stroke="#b7a3de" stroke-width="1.5"/>
+  <text x="76" y="982" class="sdkNode">Players</text>
+  <text x="76" y="1008" class="code">POST /v1/servers/start</text>
+  <text x="76" y="1030" class="text">via the application gateway,</text>
+  <text x="76" y="1052" class="text">then dial host:port directly</text>
+
+  <path d="M304 1004 H390" fill="none" stroke="#466785" stroke-width="2.5" marker-end="url(#arrow)"/>
+  
+  <!-- Delivery API note -->
+  <rect x="40" y="1114" width="1200" height="66" rx="14" fill="#f7f9fb" stroke="#8a9bab" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <text x="60" y="1140" class="foot"><tspan class="footStrong">Delivery API for CI (off by default):</tspan> <tspan class="code">/api/v1/delivery</tspan> on its own TLS host with a short-lived workload OIDC token; preview, idempotency, polling or SSE.</text>
+  <text x="60" y="1164" class="foot">It submits a credential-free locator with bundle, manifest, SBOM and scan digests, and never receives Kubernetes or cloud credentials.</text>
 </svg>

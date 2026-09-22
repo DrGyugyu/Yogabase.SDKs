@@ -1,75 +1,83 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="560" viewBox="0 0 1600 560" role="img" aria-labelledby="title description">
-  <title id="title">Yogabase durable operation flow</title>
-  <desc id="description">A requested change moves through preview, validation, submission under the installation's approval policy, signed dispatch, deterministic reconciliation, and signed observation with audit history.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
+  <title id="title">How a Yogabase operation moves</title>
+  <desc id="desc">Each mutation is a durable operation. A requested change is previewed and recorded with its digest before anything mutates, checked against the current resource revision and an idempotency key, and submitted, and the installation's approval policy decides whether it waits for approval. The Control Plane then delivers a signed, target-bound command over the member's outbound mutually authenticated gRPC session, the subordinate local actuator applies only that allowlisted intent, and signed, bounded observations update status while the audit trail records every step.</desc>
   <defs>
-    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#f8fafc"/>
-      <stop offset="100%" stop-color="#eef4f6"/>
-    </linearGradient>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
-      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#0f2342" flood-opacity=".10"/>
-    </filter>
-    <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#466785"/>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#466785"/>
+    </marker>
+    <marker id="arrowTeal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#138b8d"/>
     </marker>
     <style>
-      .title { font: 700 35px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; fill: #102a43; }
-      .subtitle { font: 400 18px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; fill: #5c7185; }
-      .number { font: 700 16px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; fill: #ffffff; }
-      .stage { font: 700 20px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; fill: #102a43; }
-      .detail { font: 400 15px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; fill: #4e6478; }
-      .caption { font: 600 15px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; fill: #466785; }
-      .line { fill: none; stroke: #466785; stroke-width: 3; marker-end: url(#arrow); }
+      text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', Helvetica, Arial, sans-serif; }
+      .title { font-size: 30px; font-weight: 700; fill: #102a43; }
+      .subtitle { font-size: 17px; fill: #4e6478; }
+      .lane { font-size: 14px; font-weight: 700; letter-spacing: 1.2px; fill: #466785; }
+      .number { font-size: 16px; font-weight: 700; fill: #ffffff; }
+      .node { font-size: 19px; font-weight: 700; fill: #102a43; }
+      .text { font-size: 16px; fill: #4e6478; }
+      .foot { font-size: 15.5px; fill: #4e6478; }
     </style>
   </defs>
 
-  <rect width="1600" height="560" fill="url(#background)"/>
-  <text x="64" y="72" class="title">How a Yogabase operation moves</text>
-  <text x="64" y="106" class="subtitle">Every meaningful change is previewed, concurrency-checked, idempotent, auditable, and approved under the installation's approval policy.</text>
+  <rect x="0" y="0" width="1280" height="640" fill="#ffffff"/>
+  <rect x="0.5" y="0.5" width="1279" height="639" fill="none" stroke="#d9e2ec"/>
 
-  <path d="M180 296 H1416" class="line"/>
+  <text x="40" y="58" class="title">How a Yogabase operation moves</text>
+  <text x="40" y="90" class="subtitle">Each mutation is a durable operation: previewed, concurrency-checked, idempotent and auditable; the installation's approval policy decides if it waits.</text>
 
-  <g filter="url(#shadow)">
-    <rect x="58" y="204" width="206" height="184" rx="18" fill="#ffffff"/>
-    <rect x="314" y="204" width="206" height="184" rx="18" fill="#ffffff"/>
-    <rect x="570" y="204" width="206" height="184" rx="18" fill="#ffffff"/>
-    <rect x="826" y="204" width="206" height="184" rx="18" fill="#ffffff"/>
-    <rect x="1082" y="204" width="206" height="184" rx="18" fill="#ffffff"/>
-    <rect x="1338" y="204" width="206" height="184" rx="18" fill="#ffffff"/>
-  </g>
+  <text x="40" y="140" class="lane">CONTROL PLANE</text>
 
-  <g>
-    <circle cx="92" cy="238" r="18" fill="#138b8d"/><text x="87" y="244" class="number">1</text>
-    <text x="88" y="288" class="stage">Preview</text>
-    <text x="88" y="318" class="detail">Exact proposed change</text>
-    <text x="88" y="343" class="detail">before any mutation</text>
+  <rect x="40" y="156" width="372" height="150" rx="14" fill="#ffffff" stroke="#91b8d7" stroke-width="1.5"/>
+  <circle cx="72" cy="190" r="16" fill="#138b8d"/><text x="72" y="196" class="number" text-anchor="middle">1</text>
+  <text x="100" y="197" class="node">Preview</text>
+  <text x="64" y="236" class="text">The exact requested change, previewed</text>
+  <text x="64" y="260" class="text">and recorded with its digest before</text>
+  <text x="64" y="284" class="text">anything mutates.</text>
 
-    <circle cx="348" cy="238" r="18" fill="#138b8d"/><text x="343" y="244" class="number">2</text>
-    <text x="344" y="288" class="stage">Validate</text>
-    <text x="344" y="318" class="detail">Revision, policy,</text>
-    <text x="344" y="343" class="detail">and risk checks</text>
+  <rect x="454" y="156" width="372" height="150" rx="14" fill="#ffffff" stroke="#91b8d7" stroke-width="1.5"/>
+  <circle cx="486" cy="190" r="16" fill="#138b8d"/><text x="486" y="196" class="number" text-anchor="middle">2</text>
+  <text x="514" y="197" class="node">Check</text>
+  <text x="478" y="236" class="text">Against the current resource revision</text>
+  <text x="478" y="260" class="text">(If-Match) and an Idempotency-Key.</text>
 
-    <circle cx="604" cy="238" r="18" fill="#138b8d"/><text x="599" y="244" class="number">3</text>
-    <text x="600" y="288" class="stage">Submit</text>
-    <text x="600" y="318" class="detail">Idempotency key and</text>
-    <text x="600" y="343" class="detail">approval policy</text>
+  <rect x="868" y="156" width="372" height="150" rx="14" fill="#ffffff" stroke="#91b8d7" stroke-width="1.5"/>
+  <circle cx="900" cy="190" r="16" fill="#138b8d"/><text x="900" y="196" class="number" text-anchor="middle">3</text>
+  <text x="928" y="197" class="node">Submit</text>
+  <text x="892" y="236" class="text">Becomes a durable operation. Default</text>
+  <text x="892" y="260" class="text">policy approves at submission; four-eyes</text>
+  <text x="892" y="284" class="text">approval is an Enterprise opt-in.</text>
 
-    <circle cx="860" cy="238" r="18" fill="#138b8d"/><text x="855" y="244" class="number">4</text>
-    <text x="856" y="288" class="stage">Dispatch</text>
-    <text x="856" y="318" class="detail">Signed, target-bound</text>
-    <text x="856" y="343" class="detail">intent to the member</text>
+  <path d="M412 231 H448" fill="none" stroke="#466785" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <path d="M826 231 H862" fill="none" stroke="#466785" stroke-width="2.5" marker-end="url(#arrow)"/>
 
-    <circle cx="1116" cy="238" r="18" fill="#138b8d"/><text x="1111" y="244" class="number">5</text>
-    <text x="1112" y="288" class="stage">Reconcile</text>
-    <text x="1112" y="318" class="detail">Allowlisted workload</text>
-    <text x="1112" y="343" class="detail">changes only</text>
+  <path d="M1054 306 V344 H226 V382" fill="none" stroke="#138b8d" stroke-width="2.5" stroke-dasharray="9 6" marker-end="url(#arrowTeal)"/>
 
-    <circle cx="1372" cy="238" r="18" fill="#138b8d"/><text x="1367" y="244" class="number">6</text>
-    <text x="1368" y="288" class="stage">Observe</text>
-    <text x="1368" y="318" class="detail">Signed status and</text>
-    <text x="1368" y="343" class="detail">durable audit history</text>
-  </g>
+  <text x="40" y="376" class="lane">MEMBER</text>
 
-  <text x="64" y="474" class="caption">The Control Plane accepts intent. Member services carry out only admitted, signed work and return bounded observations.</text>
-  <text x="64" y="510" class="subtitle">If the Console is disconnected, durable operations continue independently; the UI becomes stale rather than inventing state.</text>
+  <rect x="40" y="388" width="372" height="150" rx="14" fill="#ffffff" stroke="#8ac7b7" stroke-width="1.5"/>
+  <circle cx="72" cy="422" r="16" fill="#138b8d"/><text x="72" y="428" class="number" text-anchor="middle">4</text>
+  <text x="100" y="429" class="node">Deliver</text>
+  <text x="64" y="468" class="text">A signed, target-bound command reaches</text>
+  <text x="64" y="492" class="text">the member over its outbound mutual-TLS</text>
+  <text x="64" y="516" class="text">gRPC session; the Agent persists it.</text>
+
+  <rect x="454" y="388" width="372" height="150" rx="14" fill="#ffffff" stroke="#8ac7b7" stroke-width="1.5"/>
+  <circle cx="486" cy="422" r="16" fill="#138b8d"/><text x="486" y="428" class="number" text-anchor="middle">5</text>
+  <text x="514" y="429" class="node">Reconcile</text>
+  <text x="478" y="468" class="text">The subordinate local actuator applies</text>
+  <text x="478" y="492" class="text">only that allowlisted, signed intent.</text>
+
+  <rect x="868" y="388" width="372" height="150" rx="14" fill="#ffffff" stroke="#8ac7b7" stroke-width="1.5"/>
+  <circle cx="900" cy="422" r="16" fill="#138b8d"/><text x="900" y="428" class="number" text-anchor="middle">6</text>
+  <text x="928" y="429" class="node">Observe</text>
+  <text x="892" y="468" class="text">Signed, bounded observations update</text>
+  <text x="892" y="492" class="text">status; the audit trail records each</text>
+  <text x="892" y="516" class="text">step. Nothing is fabricated.</text>
+
+  <path d="M412 463 H448" fill="none" stroke="#466785" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <path d="M826 463 H862" fill="none" stroke="#466785" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <text x="40" y="582" class="foot">A missing resource in inventory is never read as a deletion; deletion needs a tombstone bound to the exact resource UID.</text>
+  <text x="40" y="610" class="foot">While the Control Plane is unavailable, members keep reconciling accepted work but begin no new destructive, provisioning, approval, or upgrade work.</text>
 </svg>

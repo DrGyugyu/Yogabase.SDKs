@@ -1,0 +1,165 @@
+<svg xmlns="http://www.w3.org/2000/svg" xml:lang="ko" width="1280" height="1096" viewBox="0 0 1280 1096" role="img" aria-labelledby="title desc">
+  <title id="title">Yogabase가 실행되는 곳: 사용자의 클러스터에 설치되는 하나의 Kubernetes 제품</title>
+  <desc id="desc">Helm 차트와 이미지 제품군으로 이루어진 하나의 Yogabase 릴리스는 k3d부터 Amazon EKS까지 표준을 준수하는 모든 Kubernetes 클러스터에 설치되며, AWS Marketplace 등록 상품은 같은 차트와 이미지의 선택적 배포 경로 중 하나입니다. 모든 릴리스는 non-root, 멀티 아키텍처여야 하고 외부 차트/이미지 의존성과 런타임 다운로드가 없어야 한다는 요구 사항을 지지만, 아직 적격성 검증을 통과한 릴리스는 없습니다. 설치 ID는 등록 시 증명되는 Kubernetes 클러스터입니다. control-plane 모드에서 클러스터는 Console 로그인, REST API, fleet gateway를 갖춘 Control Plane, 내부 YSQL 카탈로그, 이 클러스터를 첫 번째 member로 등록하는 agent와 로컬 actuator, 그리고 선택적인 Yogabase 소유 오브젝트 스토어를 실행합니다. 차트는 StorageClass와 노드 zone을 찾아내지 않습니다. 카탈로그는 values에서 둘 다 지정하며, 등록 후에는 member의 Agent가 클러스터의 StorageClass와 노드 zone을 보고합니다. 다른 클러스터는 같은 차트를 member 모드로 설치하고 상호 인증 gRPC로 아웃바운드 연결합니다. 설치에는 yogabase.io/workload=true 레이블과 taint가 붙은 노드 풀이 있는 표준 준수 클러스터, 그리고 카탈로그 StorageClass, controlPlane.targetId, Data Protection 키 암호화 키(KEK) Secret, OIDC issuer 또는 시트 claim-token Secret을 통한 Console 로그인을 포함한 차트 values가 필요합니다. 클라우드 오브젝트 스토어, 워크로드 ID, 클러스터 프로비저닝, AWS Marketplace entitlement는 각각 독립적으로 연결되는 선택적 바인딩이며, 어느 것도 설치 ID가 아니고 설치에 필요하지 않습니다.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#466785"/>
+    </marker>
+    <marker id="arrowTeal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#138b8d"/>
+    </marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#8a9bab"/>
+    </marker>
+    <style>
+      text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', Helvetica, Arial, sans-serif; }
+      .title { font-size: 30px; font-weight: 700; fill: #102a43; }
+      .subtitle { font-size: 17px; fill: #4e6478; }
+      .lane { font-size: 14px; font-weight: 700; letter-spacing: 1.2px; fill: #466785; }
+      .group { font-size: 21px; font-weight: 700; fill: #17324d; }
+      .groupNote { font-size: 15px; fill: #4e6478; }
+      .mode { font-size: 15px; font-weight: 700; fill: #466785; }
+      .node { font-size: 18px; font-weight: 700; fill: #102a43; }
+      .text { font-size: 15.5px; fill: #4e6478; }
+      .code { font-size: 14px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; fill: #17324d; }
+      .strong { font-size: 15.5px; font-weight: 700; fill: #0f6f71; }
+      .chip { font-size: 14.5px; font-weight: 600; fill: #17324d; }
+      .foot { font-size: 15px; fill: #4e6478; }
+      .edge { font-size: 14px; font-weight: 700; fill: #466785; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1280" height="1096" fill="#ffffff"/>
+  <rect x="0.5" y="0.5" width="1279" height="1095" fill="none" stroke="#d9e2ec"/>
+
+  <text x="40" y="58" class="title">Yogabase가 실행되는 곳</text>
+  <text x="40" y="90" class="subtitle">하나의 Kubernetes 제품: 하나의 Helm 차트와 하나의 이미지 제품군을 표준을 준수하는 모든 클러스터에 설치합니다.</text>
+
+  <!-- Distribution -->
+  <text x="40" y="140" class="lane">배포 경로</text>
+
+  <rect x="40" y="156" width="250" height="272" rx="14" fill="#ffffff" stroke="#c7dcec" stroke-width="1.5"/>
+  <text x="62" y="190" class="node">Yogabase 릴리스</text>
+  <text x="62" y="220" class="text">Helm 차트 하나</text>
+  <text x="62" y="244" class="text">이미지 제품군 하나</text>
+  <text x="62" y="280" class="mode">모든 릴리스의 요구 사항:</text>
+  <text x="62" y="304" class="text">non-root, 멀티 아키텍처,</text>
+  <text x="62" y="328" class="text">외부 차트/이미지 의존성과</text>
+  <text x="62" y="352" class="text">런타임 다운로드 없음</text>
+  <text x="62" y="384" class="text">적격성 검증을 통과한 릴리스는</text>
+  <text x="62" y="408" class="text">아직 없음</text>
+
+  <rect x="40" y="452" width="250" height="160" rx="14" fill="#f7f9fb" stroke="#8a9bab" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <text x="62" y="486" class="node">AWS Marketplace</text>
+  <text x="62" y="516" class="text">같은 차트와 이미지의</text>
+  <text x="62" y="540" class="text">선택적 배포 경로(등록 상품)</text>
+  <text x="62" y="572" class="text">릴리스 적격성 검증 전</text>
+
+  <path d="M290 254 H334" fill="none" stroke="#466785" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <text x="296" y="244" class="edge">helm</text>
+  <path d="M290 532 H334" fill="none" stroke="#8a9bab" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#arrowMuted)"/>
+
+  <!-- The installation cluster -->
+  <rect x="340" y="124" width="560" height="652" rx="20" fill="#eef5fb" stroke="#c7dcec" stroke-width="2"/>
+  <text x="364" y="160" class="group">사용자의 Kubernetes 클러스터</text>
+  <text x="364" y="186" class="groupNote">설치 ID는 이 클러스터이며, 등록 시 증명됩니다.</text>
+
+  <rect x="364" y="202" width="160" height="32" rx="16" fill="#ffffff" stroke="#c7dcec" stroke-width="1.5"/>
+  <text x="444" y="223" class="chip" text-anchor="middle">개발자의 k3d</text>
+  <rect x="534" y="202" width="118" height="32" rx="16" fill="#ffffff" stroke="#c7dcec" stroke-width="1.5"/>
+  <text x="593" y="223" class="chip" text-anchor="middle">Amazon EKS</text>
+  <rect x="662" y="202" width="214" height="32" rx="16" fill="#ffffff" stroke="#c7dcec" stroke-width="1.5"/>
+  <text x="769" y="223" class="chip" text-anchor="middle">모든 표준 준수 클러스터</text>
+
+  <text x="364" y="270" class="mode">차트 모드: control-plane</text>
+
+  <rect x="364" y="284" width="512" height="126" rx="14" fill="#ffffff" stroke="#91b8d7" stroke-width="1.5"/>
+  <text x="386" y="316" class="node">Control Plane</text>
+  <text x="386" y="344" class="text">Console 로그인: 명명된 시트 또는 외부 OIDC</text>
+  <text x="386" y="368" class="text">REST API, fleet gateway, 내구성 있는 작업</text>
+  <text x="386" y="392" class="text">허용된 의도의 유일한 권위</text>
+
+  <rect x="364" y="428" width="248" height="100" rx="14" fill="#ffffff" stroke="#c7dcec" stroke-width="1.5"/>
+  <text x="386" y="460" class="node">YSQL 카탈로그</text>
+  <text x="386" y="488" class="text">내부 전용, 기본값 RF1</text>
+  <text x="386" y="510" class="text">(고가용성 아님)</text>
+
+  <rect x="628" y="428" width="248" height="100" rx="14" fill="#ffffff" stroke="#c7dcec" stroke-width="1.5"/>
+  <text x="650" y="460" class="node">Agent + 로컬 actuator</text>
+  <text x="650" y="488" class="text">이 클러스터를 첫 번째</text>
+  <text x="650" y="510" class="text">member로 등록</text>
+
+  <rect x="364" y="544" width="512" height="76" rx="14" fill="#f7f9fb" stroke="#8a9bab" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <text x="386" y="574" class="node">Yogabase 소유 오브젝트 스토어(선택 사항)</text>
+  <text x="386" y="602" class="text">member 역할 옆에서 실행되는 Tasks 역할, 기본값은 꺼짐</text>
+
+  <rect x="364" y="636" width="512" height="124" rx="14" fill="#ffffff" stroke="#c7dcec" stroke-width="1.5"/>
+  <text x="386" y="666" class="node">StorageClass와 zone</text>
+  <text x="386" y="694" class="text">차트는 둘 다 찾아내지 않으며, 카탈로그는 values에서</text>
+  <text x="386" y="718" class="text">둘 다 지정합니다. 등록 후에는 member의 Agent가 클러스터의</text>
+  <text x="386" y="742" class="text">StorageClass와 노드 zone을 Control Plane에 보고합니다.</text>
+
+  <!-- More clusters -->
+  <rect x="950" y="124" width="290" height="260" rx="20" fill="#eef8f5" stroke="#b7ddd4" stroke-width="2" stroke-dasharray="9 6"/>
+  <text x="974" y="160" class="group">Member 클러스터</text>
+  <text x="974" y="186" class="groupNote">선택 사항, 차트 모드: member</text>
+
+  <rect x="974" y="202" width="242" height="96" rx="14" fill="#ffffff" stroke="#b7ddd4" stroke-width="1.5"/>
+  <text x="996" y="230" class="node">Agent + 로컬 actuator</text>
+  <text x="996" y="256" class="text">서명된 의도만 조정</text>
+  <text x="996" y="280" class="text">선택적 오브젝트 스토어</text>
+
+  <text x="974" y="322" class="text">상호 인증 gRPC로 Control Plane에</text>
+  <text x="974" y="344" class="text">아웃바운드로 연결</text>
+  <text x="974" y="368" class="strong">인바운드 관리 API 없음</text>
+
+  <path d="M974 290 H882" fill="none" stroke="#138b8d" stroke-width="3" stroke-dasharray="9 6" marker-end="url(#arrowTeal)"/>
+
+  <!-- What installing needs -->
+  <rect x="950" y="404" width="290" height="372" rx="20" fill="#ffffff" stroke="#c7dcec" stroke-width="1.5"/>
+  <text x="974" y="434" class="node">설치에 필요한 것</text>
+  <text x="974" y="460" class="text">표준 준수 Kubernetes 클러스터</text>
+  <text x="974" y="483" class="code">yogabase.io/workload=true</text>
+  <text x="974" y="506" class="text">레이블과 taint가 붙은 노드 풀</text>
+  <text x="974" y="529" class="text">다음을 포함한 차트 values:</text>
+  <text x="974" y="552" class="text">카탈로그 StorageClass,</text>
+  <text x="974" y="575" class="code">controlPlane.targetId,</text>
+  <text x="974" y="598" class="text">Data Protection KEK Secret,</text>
+  <text x="974" y="621" class="text">로그인용 OIDC issuer 또는</text>
+  <text x="974" y="644" class="text">시트 claim-token Secret</text>
+  <text x="974" y="682" class="node">필요하지 않은 것</text>
+  <text x="974" y="706" class="text">클라우드 계정, 오브젝트 스토어,</text>
+  <text x="974" y="729" class="text">클러스터 프로비저닝,</text>
+  <text x="974" y="752" class="text">AWS Marketplace 구독</text>
+
+  <!-- Optional bindings -->
+  <text x="40" y="824" class="lane">선택적 바인딩: 각각 독립적으로 연결되며, 설치 ID가 되지 않습니다</text>
+
+  <rect x="40" y="840" width="288" height="176" rx="14" fill="#f7f9fb" stroke="#8a9bab" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <text x="62" y="874" class="node">클라우드 오브젝트 스토어</text>
+  <text x="62" y="904" class="text">s3, azure-blob, gcs, oci</text>
+  <text x="62" y="944" class="text">기본값: Yogabase 소유 스토어,</text>
+  <text x="62" y="968" class="text">클라우드 계정이 필요 없음</text>
+
+  <rect x="344" y="840" width="288" height="176" rx="14" fill="#f7f9fb" stroke="#8a9bab" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <text x="366" y="874" class="node">워크로드 ID</text>
+  <text x="366" y="904" class="text">EKS IRSA 또는 AKS, GKE,</text>
+  <text x="366" y="928" class="text">OCI 워크로드 ID</text>
+  <text x="366" y="968" class="text">기본값: 없음</text>
+
+  <rect x="648" y="840" width="288" height="176" rx="14" fill="#f7f9fb" stroke="#8a9bab" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <text x="670" y="874" class="node">클러스터 프로비저닝</text>
+  <text x="670" y="904" class="text">Provisioner: Pulumi .NET,</text>
+  <text x="670" y="928" class="text">ICloudProvisioner 경계 뒤</text>
+  <text x="670" y="968" class="text">기본값: 꺼짐, 적격성 검증을</text>
+  <text x="670" y="992" class="text">통과한 클라우드 프로필 없음</text>
+
+  <rect x="952" y="840" width="288" height="176" rx="14" fill="#f7f9fb" stroke="#8a9bab" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <text x="974" y="874" class="node">AWS Marketplace 바인딩</text>
+  <text x="974" y="904" class="text">entitlement 게이트와 계량은</text>
+  <text x="974" y="928" class="text">설정 전까지 휴면 상태</text>
+  <text x="974" y="968" class="text">기본값: 없음, 모든 작업 허용,</text>
+  <text x="974" y="992" class="text">계량 없음</text>
+
+  <text x="40" y="1060" class="foot">Secret 값은 브라우저 상태, CRD status, 로그, 감사 기록, Pulumi 출력, 지원 번들에 절대 들어가지 않습니다.</text>
+</svg>

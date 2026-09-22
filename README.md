@@ -21,17 +21,17 @@ It is one Kubernetes product — one Helm chart and one coordinated image family
 
 The Control Plane is Yogabase's sole source of accepted management intent. A member never exposes an inbound management API, never decides product policy, and never becomes a peer control plane. Members connect **outbound** to the Control Plane over mutually authenticated gRPC, persist signed target-bound intent, and keep reconciling already accepted local work while the Control Plane is unavailable.
 
-## AWS Marketplace distribution (optional)
+## Where Yogabase runs
 
-![Yogabase AWS Marketplace distribution on Amazon EKS](assets/marketplace-architecture.svg)
+![Yogabase installs as one Kubernetes product into any conformant cluster; a cloud object store, workload identity, cluster provisioning, and AWS Marketplace are optional bindings](assets/yogabase-installation.svg)
 
-This diagram shows the optional AWS Marketplace distribution on Amazon EKS as first drawn for its beta; the same chart installs into any conformant Kubernetes cluster. In that distribution, databases, secrets, and operational state stay inside the customer's AWS account, members connect outbound-only to the authoritative Control Plane, and the customer controls the optional backup destination. That distribution has not yet passed its release qualification.
+One Yogabase release — one Helm chart and one image family — installs into any conformant Kubernetes cluster, from a developer's k3d cluster to Amazon EKS. The installation is identified by the cluster it runs in, attested at enrollment: the Control Plane's own cluster enrolls itself as the first member, and further clusters install the same chart in `member` mode and connect outbound. A cloud object store, workload identity, cluster provisioning, and an AWS Marketplace entitlement are each an optional binding attached independently; none of them is the installation's identity, and installing needs none of them. Installing does need a node pool labelled and tainted `yogabase.io/workload=true` and chart values, among them the catalog's StorageClass, `controlPlane.targetId`, a Secret holding the Data Protection key-encryption key, and console sign-in through either an OIDC issuer or a Secret of seat claim tokens. The chart discovers neither a StorageClass nor node zones, so its catalog names both in values; once a cluster is enrolled, its member Agent reports the cluster's StorageClasses and node zones to the Control Plane. The AWS Marketplace listing is one optional distribution of the same chart and images, whose entitlement gate and metering stay dormant unless that binding is configured; it has not yet passed its release qualification.
 
 ## Console experience
 
-![Illustrative Yogabase Blazor Console concept](assets/yogabase-console-concept-v2.png)
+![The Yogabase Console's Get started page for a demo project](assets/yogabase-console-get-started.png)
 
-_Early Console concept, not a live environment or status display. It predates the current Console: it shows an AWS Marketplace/EKS installation badge and an operations-first navigation, whereas an installation is now identified by its Kubernetes cluster and a developer lands on Get started. It intentionally uses empty states and does not represent customer data, metrics, or enabled capabilities._
+_A real capture of the Console's Get started page, taken on 2026-09-22 at 1440 px in the light appearance from the product's own browser-test harness with demo data — a project "Arena", its default environment on an enrolled local cluster, and a database the harness marks healthy — not a customer installation or live status. The product repository reproduces it with an explicit capture test (`ReadmeCaptureBrowserTests`) that never runs in its normal suites; two consecutive runs wrote identical files. A developer lands here after signing in: setup status, the environment's infrastructure design, then Data, Compose, and Deploy. The rail groups the Console into Core, Extended, Enterprise, and Operate; Enterprise and Operate start collapsed._
 
 ## How the architecture works
 
@@ -78,17 +78,27 @@ Direct operation through Yogabase is authoritative. GitOps support exports deter
 
 ![Custom build delivery through the Yogabase Control Plane](assets/custom-build-delivery-flow.svg)
 
-A custom-build workflow reaches Kubernetes through the authoritative Control Plane, never by
-receiving Kubernetes or cloud credentials. The separately configured Delivery client uses a
-short-lived workload OIDC token to call the TLS-only `/api/v1/delivery` host. It can discover
-approved templates, preview and submit environments and immutable artifact admissions, create
-releases, promote or roll back them, decommission an environment, abandon a stuck operation, and
-follow the resulting durable operation through bounded polling or server-sent events.
+A custom build reaches Kubernetes through the authoritative Control Plane, never by receiving
+Kubernetes or cloud credentials. A developer uploads one archive — from the Console's upload page, or
+with a project-scoped `ybt_` developer token through `yogabase build upload`, the .NET
+`YogabaseBuildsClient`, or the Unity Editor's Publish Server window — without preparing a manifest,
+SBOM, or scan by hand. The Control Plane's Builds ingest stages the archive and derives the service
+layout and a detached manifest from the archive and any declared name, version, and ports. The
+member's isolated `artifact-admission` Job derives the CycloneDX inventory, scans it with a C# port
+of OSV-Scanner's matcher against a digest-pinned OSV snapshot, and signs manifest, inventory, and
+scan with the installation's admission key; a refused build names the failing field, or the CVE,
+package, version, and fixed-in version. An admitted build is released as a runtime command under the
+installation's approval policy, and signed intent travels over the outbound mutually authenticated
+fleet channel to the member's subordinate local actuator, which alone reconciles the Kubernetes
+workload.
 
-Artifact submission carries a credential-free provider-native locator and exact bundle, manifest,
-SBOM, and scan-evidence digests. The Control Plane records intent; an isolated admission job verifies
-the artifact; signed intent then travels over the outbound mutually authenticated fleet channel to
-the member's subordinate local actuator, which alone reconciles the Kubernetes workload.
+The separately configured Delivery client is the CI path. It uses a short-lived workload OIDC token
+to call the TLS-only `/api/v1/delivery` host, which the chart leaves off by default
+(`controlPlane.delivery.enabled: false`). It can discover approved templates, preview and submit environments and
+immutable artifact admissions, create releases, promote or roll back them, decommission an
+environment, abandon a stuck operation, and follow the resulting durable operation through bounded
+polling or server-sent events. Its artifact submission carries a credential-free provider-native
+locator and exact bundle, manifest, SBOM, and scan-evidence digests.
 
 The server now exposes a versioned runtime-host contract that lets a running build report health
 and readiness, be reserved or allocated, and drain on shutdown
@@ -150,7 +160,7 @@ This README describes product architecture and boundaries, not a promise that a 
 
 ## Packages
 
-The non-.NET package identifiers retain their existing preview names for continuity. They do not imply registry publication or a support commitment. Version `0.3` added the workload-authenticated Control Plane Delivery v1 surface and cross-platform lifecycle improvements. The application contract has changed since without a version change: the client-facing Data API was removed (2026-09-08), the `/v1/servers/*` game-server surface was added, and the .NET package gained its Servers and Builds clients, all still versioned `0.3.0-preview.1`.
+The non-.NET package identifiers retain their existing preview names for continuity. They do not imply registry publication or a support commitment. Version `0.3` added the workload-authenticated Control Plane Delivery v1 surface and cross-platform lifecycle improvements. The application contract has changed since without a version change: the client-facing Data API was removed (2026-09-08; its restoration, decided on 2026-09-17, is not in the contract yet), the `/v1/servers/*` game-server surface was added, and the .NET package gained its Servers and Builds clients, all still versioned `0.3.0-preview.1`.
 
 | Platform | Location | Current package identity | Qualification |
 |---|---|---|---|

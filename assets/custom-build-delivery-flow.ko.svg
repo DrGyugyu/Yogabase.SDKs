@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1200" viewBox="0 0 1280 1200" role="img" aria-labelledby="title desc">
+  <title id="title">커스텀 빌드 전달: 업로드 한 번으로 Control Plane을 거쳐 Kubernetes까지</title>
+  <desc id="desc">개발자는 Console 업로드 페이지에서, 또는 프로젝트 범위의 ybt_ 개발자 토큰으로 yogabase CLI, YogabaseBuildsClient, Unity Editor의 Publish Server 창을 통해 아카이브 하나를 업로드합니다. Control Plane의 Builds 수집은 이를 준비하고, 아카이브와 선언된 경우 이름, 버전, 포트로 서비스 레이아웃과 분리된 manifest를 도출합니다. 서명된 의도가 member의 격리된 artifact-admission Job으로 전달되고, 이 Job은 CycloneDX 인벤토리를 도출해 고정된 스냅샷을 기준으로 C# OSV matcher로 스캔한 뒤 manifest, 인벤토리, 스캔 결과를 설치 admission 키로 서명합니다. Control Plane은 서명된 결과를 다시 검증하고 빌드 검사 결과를 보고합니다. 릴리스는 설치 승인 정책 아래의 runtime 명령이며, 로컬 actuator가 릴리스당 Deployment 하나를 쓰고, service-materializer가 admission을 통과한 객체를 검증하며, service-host가 Kubernetes나 클라우드 자격 증명 없이 진입점을 실행합니다. 인스턴스는 Pod 로컬 relay를 통해 Runtime Host v1 계약으로 수명 주기를 보고하고, 플레이어는 /v1/servers로 인스턴스를 할당받아 host와 port로 직접 접속합니다. CI용 Delivery API는 기본값이 꺼진 별도 경로입니다.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#466785"/>
+    </marker>
+    <marker id="arrowTeal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#138b8d"/>
+    </marker>
+    <style>
+      text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', Helvetica, Arial, sans-serif; }
+      .title { font-size: 30px; font-weight: 700; fill: #102a43; }
+      .subtitle { font-size: 17px; fill: #4e6478; }
+      .group { font-size: 20px; font-weight: 700; fill: #17324d; }
+      .groupNote { font-size: 14.5px; fill: #4e6478; }
+      .node { font-size: 17.5px; font-weight: 700; fill: #102a43; }
+      .sdkNode { font-size: 17.5px; font-weight: 700; fill: #4b2e83; }
+      .text { font-size: 15px; fill: #4e6478; }
+      .code { font-size: 14.5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; fill: #4b2e83; }
+      .edge { font-size: 13.5px; font-weight: 700; fill: #466785; }
+      .edgeTeal { font-size: 13.5px; font-weight: 700; fill: #0f6f71; }
+      .foot { font-size: 15px; fill: #4e6478; }
+      .footStrong { font-size: 15px; font-weight: 700; fill: #17324d; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1280" height="1200" fill="#ffffff"/>
+  <rect x="0.5" y="0.5" width="1279" height="1199" fill="none" stroke="#d9e2ec"/>
+
+  <text x="40" y="58" class="title">커스텀 빌드 → Control Plane → Kubernetes</text>
+  <text x="40" y="88" class="subtitle">업로드는 한 번: Yogabase가 manifest와 인벤토리를 도출하고, 빌드를 스캔·서명한 뒤 member를 통해 릴리스합니다.</text>
+
+  <!-- Columns -->
+  <rect x="40" y="108" width="280" height="986" rx="20" fill="#f8f5fd" stroke="#d9ccef" stroke-width="1.5"/>
+  <text x="60" y="140" class="group">사용자와 SDK</text>
+  <text x="60" y="162" class="groupNote">개발자 도구와 플레이어</text>
+
+  <rect x="380" y="108" width="380" height="986" rx="20" fill="#eef5fb" stroke="#c7dcec" stroke-width="1.5"/>
+  <text x="400" y="140" class="group">Control Plane</text>
+  <text x="400" y="162" class="groupNote">허용된 의도의 유일한 권위</text>
+
+  <rect x="820" y="108" width="420" height="986" rx="20" fill="#eef8f5" stroke="#b7ddd4" stroke-width="1.5"/>
+  <text x="840" y="140" class="group">Member 클러스터</text>
+  <text x="840" y="162" class="groupNote">Agent, 로컬 actuator, Tasks 역할</text>
+
+  <!-- 1 Upload -->
+  <rect x="56" y="184" width="248" height="160" rx="14" fill="#f3effa" stroke="#b7a3de" stroke-width="1.5"/>
+  <text x="76" y="212" class="sdkNode">1  아카이브 하나 업로드</text>
+  <text x="76" y="238" class="text">Console 업로드 페이지, 또는</text>
+  <text x="76" y="260" class="text"><tspan class="code">ybt_</tspan> 개발자 토큰으로:</text>
+  <text x="76" y="282" class="code">yogabase build upload</text>
+  <text x="76" y="304" class="code">YogabaseBuildsClient</text>
+  <text x="76" y="326" class="text">Unity Editor Publish Server</text>
+
+  <rect x="396" y="184" width="348" height="160" rx="14" fill="#ffffff" stroke="#91b8d7" stroke-width="1.5"/>
+  <text x="416" y="212" class="node">Builds 수집</text>
+  <text x="416" y="238" class="text">아카이브를 준비 영역에 저장</text>
+  <text x="416" y="260" class="text">아카이브와, 선언된 경우 이름·버전·포트로</text>
+  <text x="416" y="282" class="text">서비스 레이아웃과</text>
+  <text x="416" y="304" class="text">분리된 manifest를 도출</text>
+  <text x="416" y="332" class="text">빌드 상태: checking</text>
+
+  <path d="M304 264 H390" fill="none" stroke="#466785" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <text x="326" y="254" class="edge">POST</text>
+
+  <!-- 2 Admission -->
+  <path d="M570 344 V420 H830" fill="none" stroke="#138b8d" stroke-width="2.5" stroke-dasharray="9 6" marker-end="url(#arrowTeal)"/>
+  <text x="584" y="410" class="edgeTeal">서명된 의도(fleet)</text>
+
+  <rect x="836" y="374" width="388" height="190" rx="14" fill="#ffffff" stroke="#8ac7b7" stroke-width="1.5"/>
+  <text x="856" y="402" class="node">2  artifact-admission Job</text>
+  <text x="856" y="428" class="text">격리되어 있고 코드를 실행하지 않음</text>
+  <text x="856" y="450" class="text">CycloneDX 인벤토리를 도출</text>
+  <text x="856" y="472" class="text">C# OSV matcher로 스캔</text>
+  <text x="856" y="494" class="text">고정된 OSV 스냅샷 기준</text>
+  <text x="856" y="516" class="text">manifest, 인벤토리, 스캔 결과를</text>
+  <text x="856" y="538" class="text">설치 admission 키로 서명</text>
+
+  <!-- 3 Build check -->
+  <path d="M1180 564 V644 H750" fill="none" stroke="#138b8d" stroke-width="2.5" stroke-dasharray="9 6" marker-end="url(#arrowTeal)"/>
+  <text x="840" y="634" class="edgeTeal">서명된 관찰(fleet)</text>
+
+  <rect x="396" y="594" width="348" height="100" rx="14" fill="#ffffff" stroke="#91b8d7" stroke-width="1.5"/>
+  <text x="416" y="622" class="node">3  빌드 검사</text>
+  <text x="416" y="648" class="text">서명된 결과를 다시 검증: admission 통과,</text>
+  <text x="416" y="670" class="text">또는 CVE, 패키지, 수정 버전과 함께 거부</text>
+
+  <rect x="56" y="594" width="248" height="100" rx="14" fill="#f3effa" stroke="#b7a3de" stroke-width="1.5"/>
+  <text x="76" y="622" class="sdkNode">검사 결과 읽기</text>
+  <text x="76" y="648" class="code">GET …/builds/{buildId}</text>
+  <text x="76" y="670" class="text">CLI는 완료될 때까지 polling</text>
+
+  <path d="M396 644 H310" fill="none" stroke="#466785" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <text x="330" y="634" class="edge">GET</text>
+
+  <!-- 4 Release -->
+  <path d="M570 694 V718" fill="none" stroke="#466785" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <rect x="396" y="724" width="348" height="110" rx="14" fill="#ffffff" stroke="#91b8d7" stroke-width="1.5"/>
+  <text x="416" y="752" class="node">4  릴리스</text>
+  <text x="416" y="778" class="text">설치 승인 정책 아래의</text>
+  <text x="416" y="800" class="text">runtime 명령, Console 또는</text>
+  <text x="416" y="822" class="text">Delivery API에서 실행</text>
+
+  <path d="M744 778 H830" fill="none" stroke="#138b8d" stroke-width="2.5" stroke-dasharray="9 6" marker-end="url(#arrowTeal)"/>
+  <text x="768" y="768" class="edgeTeal">fleet</text>
+
+  <rect x="836" y="724" width="388" height="200" rx="14" fill="#ffffff" stroke="#8ac7b7" stroke-width="1.5"/>
+  <text x="856" y="752" class="node">호스팅 서비스 Pod</text>
+  <text x="856" y="778" class="text">로컬 actuator: 릴리스당 Deployment 하나</text>
+  <text x="856" y="800" class="text"><tspan class="code">service-materializer</tspan>가 admission을</text>
+  <text x="856" y="822" class="text">통과한 정확한 객체를 다시 가져와 검증</text>
+  <text x="856" y="844" class="text"><tspan class="code">service-host</tspan>가 강화된 프로필에서</text>
+  <text x="856" y="866" class="text">Kubernetes나 클라우드 자격 증명 없이</text>
+  <text x="856" y="888" class="text">진입점을 실행, Runtime Host 호출이나</text>
+  <text x="856" y="910" class="text">포트 열림으로 Ready</text>
+
+  <!-- 5 Lifecycle and allocation -->
+  <path d="M1180 924 V1004 H750" fill="none" stroke="#138b8d" stroke-width="2.5" stroke-dasharray="9 6" marker-end="url(#arrowTeal)"/>
+  <text x="840" y="994" class="edgeTeal">Runtime Host v1, Pod 로컬 relay</text>
+
+  <rect x="396" y="954" width="348" height="100" rx="14" fill="#ffffff" stroke="#91b8d7" stroke-width="1.5"/>
+  <text x="416" y="982" class="node">5  수명 주기와 할당</text>
+  <text x="416" y="1008" class="text">인스턴스별 health, Ready, drain,</text>
+  <text x="416" y="1030" class="text">Ready 인스턴스를 선택해 할당</text>
+
+  <rect x="56" y="954" width="248" height="120" rx="14" fill="#f3effa" stroke="#b7a3de" stroke-width="1.5"/>
+  <text x="76" y="982" class="sdkNode">플레이어</text>
+  <text x="76" y="1008" class="code">POST /v1/servers/start</text>
+  <text x="76" y="1030" class="text">애플리케이션 게이트웨이를 거쳐</text>
+  <text x="76" y="1052" class="text">받은 host:port로 직접 접속</text>
+
+  <path d="M304 1004 H390" fill="none" stroke="#466785" stroke-width="2.5" marker-end="url(#arrow)"/>
+  
+  <!-- Delivery API note -->
+  <rect x="40" y="1114" width="1200" height="66" rx="14" fill="#f7f9fb" stroke="#8a9bab" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <text x="60" y="1140" class="foot"><tspan class="footStrong">CI용 Delivery API(기본값은 꺼짐):</tspan> <tspan class="code">/api/v1/delivery</tspan>, 별도 TLS 호스트, 수명이 짧은 워크로드 OIDC 토큰, preview, idempotency, polling 또는 SSE.</text>
+  <text x="60" y="1164" class="foot">자격 증명 없는 locator와 bundle, manifest, SBOM, scan digest를 제출하며, Kubernetes나 클라우드 자격 증명을 받지 않습니다.</text>
+</svg>

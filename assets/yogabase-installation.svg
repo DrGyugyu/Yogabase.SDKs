@@ -1,0 +1,166 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1096" viewBox="0 0 1280 1096" role="img" aria-labelledby="title desc">
+  <title id="title">Where Yogabase runs: one Kubernetes product installed into your cluster</title>
+  <desc id="desc">One Yogabase release, a Helm chart and an image family, installs into any conformant Kubernetes cluster, from k3d to Amazon EKS; an AWS Marketplace listing is one optional distribution of the same chart and images. Every release is required to be non-root and multi-architecture, with no external chart or image dependency and no runtime downloads; no release has qualified yet. The installation's identity is the Kubernetes cluster, attested at enrollment. In control-plane mode the cluster runs the Control Plane with its console sign-in, REST API and fleet gateway, its internal YSQL catalog, and an agent and local actuator that enroll the cluster as the first member, plus an optional Yogabase-owned object store. The chart discovers neither a StorageClass nor node zones: its catalog names both in values, and once enrolled the member Agent reports the cluster's StorageClasses and node zones. Further clusters install the same chart in member mode and connect outbound over mutually authenticated gRPC. Installing needs a conformant cluster with a node pool labelled and tainted yogabase.io/workload=true, and chart values including the catalog StorageClass, controlPlane.targetId, a Data Protection key-encryption-key Secret, and console sign-in through an OIDC issuer or a seat claim-token Secret. A cloud object store, workload identity, cluster provisioning and an AWS Marketplace entitlement are optional bindings attached independently; none is the installation's identity and none is needed to install.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#466785"/>
+    </marker>
+    <marker id="arrowTeal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#138b8d"/>
+    </marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#8a9bab"/>
+    </marker>
+    <style>
+      text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', Helvetica, Arial, sans-serif; }
+      .title { font-size: 30px; font-weight: 700; fill: #102a43; }
+      .subtitle { font-size: 17px; fill: #4e6478; }
+      .lane { font-size: 14px; font-weight: 700; letter-spacing: 1.2px; fill: #466785; }
+      .group { font-size: 21px; font-weight: 700; fill: #17324d; }
+      .groupNote { font-size: 15px; fill: #4e6478; }
+      .mode { font-size: 15px; font-weight: 700; fill: #466785; }
+      .node { font-size: 18px; font-weight: 700; fill: #102a43; }
+      .text { font-size: 15.5px; fill: #4e6478; }
+      .code { font-size: 14px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; fill: #17324d; }
+      .strong { font-size: 15.5px; font-weight: 700; fill: #0f6f71; }
+      .chip { font-size: 14.5px; font-weight: 600; fill: #17324d; }
+      .foot { font-size: 15px; fill: #4e6478; }
+      .edge { font-size: 14px; font-weight: 700; fill: #466785; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1280" height="1096" fill="#ffffff"/>
+  <rect x="0.5" y="0.5" width="1279" height="1095" fill="none" stroke="#d9e2ec"/>
+
+  <text x="40" y="58" class="title">Where Yogabase runs</text>
+  <text x="40" y="90" class="subtitle">One Kubernetes product: one Helm chart and one image family, installed into any conformant cluster.</text>
+
+  <!-- Distribution -->
+  <text x="40" y="140" class="lane">DISTRIBUTION</text>
+
+  <rect x="40" y="156" width="250" height="272" rx="14" fill="#ffffff" stroke="#c7dcec" stroke-width="1.5"/>
+  <text x="62" y="190" class="node">Yogabase release</text>
+  <text x="62" y="220" class="text">one Helm chart</text>
+  <text x="62" y="244" class="text">one image family</text>
+  <text x="62" y="280" class="mode">Required of every release:</text>
+  <text x="62" y="304" class="text">non-root, multi-architecture,</text>
+  <text x="62" y="328" class="text">no external chart or image</text>
+  <text x="62" y="352" class="text">dependency, no runtime</text>
+  <text x="62" y="376" class="text">downloads</text>
+  <text x="62" y="408" class="text">No release has qualified yet.</text>
+
+  <rect x="40" y="452" width="250" height="160" rx="14" fill="#f7f9fb" stroke="#8a9bab" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <text x="62" y="486" class="node">AWS Marketplace listing</text>
+  <text x="62" y="516" class="text">optional distribution of the</text>
+  <text x="62" y="540" class="text">same chart and images</text>
+  <text x="62" y="572" class="text">not yet release-qualified</text>
+
+  <path d="M290 254 H334" fill="none" stroke="#466785" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <text x="296" y="244" class="edge">helm</text>
+  <path d="M290 532 H334" fill="none" stroke="#8a9bab" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#arrowMuted)"/>
+
+  <!-- The installation cluster -->
+  <rect x="340" y="124" width="560" height="652" rx="20" fill="#eef5fb" stroke="#c7dcec" stroke-width="2"/>
+  <text x="364" y="160" class="group">Your Kubernetes cluster</text>
+  <text x="364" y="186" class="groupNote">The installation's identity: this cluster, attested at enrollment.</text>
+
+  <rect x="364" y="202" width="160" height="32" rx="16" fill="#ffffff" stroke="#c7dcec" stroke-width="1.5"/>
+  <text x="444" y="223" class="chip" text-anchor="middle">a developer's k3d</text>
+  <rect x="534" y="202" width="118" height="32" rx="16" fill="#ffffff" stroke="#c7dcec" stroke-width="1.5"/>
+  <text x="593" y="223" class="chip" text-anchor="middle">Amazon EKS</text>
+  <rect x="662" y="202" width="214" height="32" rx="16" fill="#ffffff" stroke="#c7dcec" stroke-width="1.5"/>
+  <text x="769" y="223" class="chip" text-anchor="middle">any conformant cluster</text>
+
+  <text x="364" y="270" class="mode">chart mode: control-plane</text>
+
+  <rect x="364" y="284" width="512" height="126" rx="14" fill="#ffffff" stroke="#91b8d7" stroke-width="1.5"/>
+  <text x="386" y="316" class="node">Control Plane</text>
+  <text x="386" y="344" class="text">Console with sign-in: named seats or external OIDC</text>
+  <text x="386" y="368" class="text">REST API, fleet gateway, durable operations</text>
+  <text x="386" y="392" class="text">the sole authority for accepted intent</text>
+
+  <rect x="364" y="428" width="248" height="100" rx="14" fill="#ffffff" stroke="#c7dcec" stroke-width="1.5"/>
+  <text x="386" y="460" class="node">YSQL catalog</text>
+  <text x="386" y="488" class="text">internal; RF1 by default,</text>
+  <text x="386" y="510" class="text">which is not highly available</text>
+
+  <rect x="628" y="428" width="248" height="100" rx="14" fill="#ffffff" stroke="#c7dcec" stroke-width="1.5"/>
+  <text x="650" y="460" class="node">Agent + local actuator</text>
+  <text x="650" y="488" class="text">enroll this cluster as</text>
+  <text x="650" y="510" class="text">its first member</text>
+
+  <rect x="364" y="544" width="512" height="76" rx="14" fill="#f7f9fb" stroke="#8a9bab" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <text x="386" y="574" class="node">Yogabase-owned object store (optional)</text>
+  <text x="386" y="602" class="text">a Tasks role beside the member roles; off by default</text>
+
+  <rect x="364" y="636" width="512" height="124" rx="14" fill="#ffffff" stroke="#c7dcec" stroke-width="1.5"/>
+  <text x="386" y="666" class="node">StorageClass and zones</text>
+  <text x="386" y="694" class="text">Not discovered by the chart: its catalog names both in values.</text>
+  <text x="386" y="718" class="text">Once enrolled, the member Agent reports the cluster's own</text>
+  <text x="386" y="742" class="text">StorageClasses and node zones to the Control Plane.</text>
+
+  <!-- More clusters -->
+  <rect x="950" y="124" width="290" height="260" rx="20" fill="#eef8f5" stroke="#b7ddd4" stroke-width="2" stroke-dasharray="9 6"/>
+  <text x="974" y="160" class="group">Member clusters</text>
+  <text x="974" y="186" class="groupNote">optional; chart mode: member</text>
+
+  <rect x="974" y="202" width="242" height="96" rx="14" fill="#ffffff" stroke="#b7ddd4" stroke-width="1.5"/>
+  <text x="996" y="230" class="node">Agent + local actuator</text>
+  <text x="996" y="256" class="text">reconcile only signed</text>
+  <text x="996" y="280" class="text">intent; optional object store</text>
+
+  <text x="974" y="322" class="text">connect out to the Control Plane</text>
+  <text x="974" y="344" class="text">over mutually authenticated gRPC</text>
+  <text x="974" y="368" class="strong">no inbound management API</text>
+
+  <path d="M974 290 H882" fill="none" stroke="#138b8d" stroke-width="3" stroke-dasharray="9 6" marker-end="url(#arrowTeal)"/>
+
+  <!-- What installing needs -->
+  <rect x="950" y="404" width="290" height="372" rx="20" fill="#ffffff" stroke="#c7dcec" stroke-width="1.5"/>
+  <text x="974" y="434" class="node">To install you need</text>
+  <text x="974" y="460" class="text">a conformant Kubernetes cluster</text>
+  <text x="974" y="483" class="text">a node pool labelled and tainted</text>
+  <text x="974" y="506" class="code">yogabase.io/workload=true</text>
+  <text x="974" y="529" class="text">chart values, among them:</text>
+  <text x="974" y="552" class="text">the catalog StorageClass,</text>
+  <text x="974" y="575" class="code">controlPlane.targetId,</text>
+  <text x="974" y="598" class="text">a Data Protection KEK Secret,</text>
+  <text x="974" y="621" class="text">an OIDC issuer or a seat</text>
+  <text x="974" y="644" class="text">claim-token Secret for sign-in</text>
+  <text x="974" y="682" class="node">You do not need</text>
+  <text x="974" y="706" class="text">a cloud account, an object store,</text>
+  <text x="974" y="729" class="text">cluster provisioning, or an</text>
+  <text x="974" y="752" class="text">AWS Marketplace subscription</text>
+
+  <!-- Optional bindings -->
+  <text x="40" y="824" class="lane">OPTIONAL BINDINGS: ATTACHED INDEPENDENTLY, NEVER THE INSTALLATION'S IDENTITY</text>
+
+  <rect x="40" y="840" width="288" height="176" rx="14" fill="#f7f9fb" stroke="#8a9bab" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <text x="62" y="874" class="node">Cloud object store</text>
+  <text x="62" y="904" class="text">s3, azure-blob, gcs or oci</text>
+  <text x="62" y="944" class="text">default: the Yogabase-owned</text>
+  <text x="62" y="968" class="text">store, which needs no cloud</text>
+  <text x="62" y="992" class="text">account</text>
+
+  <rect x="344" y="840" width="288" height="176" rx="14" fill="#f7f9fb" stroke="#8a9bab" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <text x="366" y="874" class="node">Workload identity</text>
+  <text x="366" y="904" class="text">EKS IRSA, or AKS, GKE or OCI</text>
+  <text x="366" y="928" class="text">workload identity</text>
+  <text x="366" y="968" class="text">default: none</text>
+
+  <rect x="648" y="840" width="288" height="176" rx="14" fill="#f7f9fb" stroke="#8a9bab" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <text x="670" y="874" class="node">Cluster provisioning</text>
+  <text x="670" y="904" class="text">Provisioner: Pulumi .NET</text>
+  <text x="670" y="928" class="text">behind ICloudProvisioner</text>
+  <text x="670" y="968" class="text">default: off; no AWS, Azure,</text>
+  <text x="670" y="992" class="text">Google or OCI profile qualified yet</text>
+
+  <rect x="952" y="840" width="288" height="176" rx="14" fill="#f7f9fb" stroke="#8a9bab" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <text x="974" y="874" class="node">AWS Marketplace binding</text>
+  <text x="974" y="904" class="text">entitlement gate and metering</text>
+  <text x="974" y="928" class="text">stay dormant unless it is set</text>
+  <text x="974" y="968" class="text">default: none; every operation</text>
+  <text x="974" y="992" class="text">allowed, nothing metered</text>
+
+  <text x="40" y="1060" class="foot">Secret values never enter browser state, CRD status, logs, audit records, Pulumi output, or support bundles.</text>
+</svg>
