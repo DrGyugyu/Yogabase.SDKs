@@ -18,4 +18,11 @@
   <ItemGroup>
     <ProjectReference Include="../../../src/dotnet/Yogabase.Yogabase.Client/Yogabase.Yogabase.Client.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Built first, never referenced: UnityBuildTests reads their output assemblies and locks. -->
+    <ProjectReference Include="../../../src/unity/Yogabase.Yogabase.Client.Unity/Yogabase.Yogabase.Client.Unity.csproj"
+                      ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" PrivateAssets="all" />
+    <ProjectReference Include="../../../src/unity/Yogabase.Yogabase.RuntimeHost.Unity/Yogabase.Yogabase.RuntimeHost.Unity.csproj"
+                      ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" PrivateAssets="all" />
+  </ItemGroup>
 </Project>

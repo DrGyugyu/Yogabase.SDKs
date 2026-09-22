@@ -3,6 +3,8 @@
     <Project Path="src/dotnet/Yogabase.Yogabase.Client/Yogabase.Yogabase.Client.csproj" />
     <Project Path="src/dotnet/Yogabase.Yogabase.RuntimeHost/Yogabase.Yogabase.RuntimeHost.csproj" />
     <Project Path="src/dotnet/Yogabase.Lambda/Yogabase.Lambda.csproj" />
+    <Project Path="src/unity/Yogabase.Yogabase.Client.Unity/Yogabase.Yogabase.Client.Unity.csproj" />
+    <Project Path="src/unity/Yogabase.Yogabase.RuntimeHost.Unity/Yogabase.Yogabase.RuntimeHost.Unity.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/dotnet/Yogabase.Yogabase.Client.Tests/Yogabase.Yogabase.Client.Tests.csproj" />

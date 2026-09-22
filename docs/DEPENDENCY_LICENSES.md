@@ -1,7 +1,7 @@
 # Dependency licenses
 
 Status: local preview inventory
-Last reviewed: 2026-09-22
+Last reviewed: 2026-09-23
 
 This inventory covers direct SDK and test dependencies. Exact transitive versions and integrity
 values remain locked in `packages.lock.json`, `package-lock.json`, `pubspec.lock`, the hash-pinned
@@ -32,6 +32,26 @@ transitive graph before publication.
 | Microsoft Kiota generator | 1.34.1 | External source generation | MIT | Generation tool only; source commit and NuGet digest are bound in `MANIFEST.json`. |
 | Agones client SDK loop shape (`v1.60.0`, `67b44a783218f7811084adaa5d9b334fb28e44ba`) | Source-ported, not a package reference | Client loop shape for `Yogabase.Yogabase.RuntimeHost` and its Unity package | Apache-2.0 | Retain the Apache-2.0 licence and the "Copyright Contributors to Agones a Series of LF Projects, LLC" attribution; ship the unmodified licence text at `licenses/Apache-2.0-Agones.txt` and pack it into the package; mark every translated file prominently as a modified derivative. Apache-2.0 imposes no source-disclosure, network-use, or commercial restriction. Copying boundary and modifications are recorded in [`REFERENCE_REVIEW.md`](REFERENCE_REVIEW.md). |
 | Nakama Plus runtime-module surface shape (`18e4d2cd53d5f546d5684d6f70996c08234afc45`) | Shape-ported, not a package reference and not a source copy | Grouping of the `Yogabase.Lambda` runtime context | Apache-2.0 | Retain the Apache-2.0 licence and the "Copyright 2018 The Nakama Authors" attribution; ship the unmodified licence text at `licenses/Apache-2.0-Nakama.txt` (SHA-256 `cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30`) and pack it into the package alongside `THIRD-PARTY-NOTICES.md`. No Nakama source, type name, wire contract, or storage model is adopted. Copying boundary is recorded in [`REFERENCE_REVIEW.md`](REFERENCE_REVIEW.md). |
+
+## The Unity build line (8.0)
+
+The owner decided on 2026-09-17 that the Unity SDK is a separate netstandard2.1 build pinned to the
+8.0 package line. `src/unity/Yogabase.Yogabase.Client.Unity` and
+`src/unity/Yogabase.Yogabase.RuntimeHost.Unity` compile the same sources as the NuGet builds against
+`src/unity/Directory.Packages.props`, which does not import the root pins. Both locks
+(`src/unity/*/packages.lock.json`) resolve nothing at 9.x or above; `UnityBuildTests` pins that and
+the references the built assemblies carry. The versions are exactly the ones the AI Game Developer
+(MCP) Unity package restores, so a Unity project that also has that package holds byte-identical
+copies of each.
+
+| Dependency | Locked version | Use | License | Obligation / boundary |
+|---|---:|---|---|---|
+| `Microsoft.AspNetCore.SignalR.Client` and its closure: `SignalR.Client.Core`, `SignalR.Common`, `SignalR.Protocols.Json`, `Http.Connections.Client`, `Http.Connections.Common`, `Connections.Abstractions`, `Microsoft.Extensions.Features` | 8.0.15 | Unity client realtime transport | MIT | Retain the MIT notice (each package's `LICENSE.TXT`) wherever the DLLs are redistributed, including a Unity project that vendors them. |
+| `System.Text.Json` | 8.0.5 | Unity client and runtime-host JSON | MIT | Retain the MIT notice. Unity 6000.5.7f1 binds its own 8.0.0.0 copy (a BCL extension); the package is a build input only there. |
+| `Microsoft.Extensions.DependencyInjection` / `.Abstractions`, `Logging` / `.Abstractions`, `Options`, `Primitives` | 8.0.1 / 8.0.2, 8.0.1 / 8.0.3, 8.0.2, 8.0.0 | SignalR client dependencies | MIT | Retain the MIT notice. |
+| `Microsoft.Bcl.TimeProvider`, `Microsoft.Bcl.AsyncInterfaces`, `System.IO.Pipelines`, `System.Threading.Channels`, `System.Text.Encodings.Web`, `System.Diagnostics.DiagnosticSource` | 8.0.1, 8.0.0, 8.0.0, 8.0.0, 8.0.0, 8.0.1 | SignalR and JSON dependencies | MIT | Retain the MIT notice. |
+| `System.ComponentModel.Annotations`, `System.Runtime.CompilerServices.Unsafe` | 5.0.0, 6.0.0 | Options and JSON dependencies | MIT | Retain the MIT notice. |
+| `System.Memory`, `System.Buffers`, `System.Numerics.Vectors`, `System.Threading.Tasks.Extensions` | 4.5.5, 4.5.1, 4.4.0, 4.5.4 | netstandard2.0 support packages `System.Text.Json` 8.0.5 names (it has no netstandard2.1 group) | MIT (the corefx `LICENSE.TXT` their nuspecs point at) | Build inputs only: netstandard2.1 and Unity's profile carry these types, so no Unity project needs the package DLLs. |
 
 The Python runtime lock resolves these transitive packages, with the licence each wheel's own
 metadata declares (pip 26.0 report, 2026-09-17): `anyio` 4.15.1, `h11` 0.16.0, `h2` 4.4.1,

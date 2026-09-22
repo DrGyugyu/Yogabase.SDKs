@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The Unity build of Yogabase.Yogabase.Client: the same sources as
+    src/dotnet/Yogabase.Yogabase.Client, compiled for netstandard2.1 only against the 8.0 package
+    line in src/unity/Directory.Packages.props. It keeps the assembly name, so a Unity project drops
+    it in as Yogabase.Yogabase.Client.dll. It is not a NuGet package: the NuGet package stays the
+    dual-target 10.x build, and this build exists for Unity players (Mono and IL2CPP), which bind
+    Unity's own 8.0 BCL extensions. UnityBuildReferencesNoAssemblyAbove8 pins that.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <RootNamespace>Yogabase.Yogabase</RootNamespace>
+    <AssemblyName>Yogabase.Yogabase.Client</AssemblyName>
+    <Version>0.3.0-preview.1</Version>
+    <Authors>Yogabase</Authors>
+    <Company>Yogabase</Company>
+    <Product>Yogabase.Yogabase.Client (Unity build, 8.0 package line)</Product>
+    <Description>Unity build of the preview first-party .NET client for the Yogabase application gateway, pinned to the 8.0 package line.</Description>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>$(NoWarn);CS1591;CA1510;CA1512;CA1847;CA1850;CA1865</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../dotnet/Yogabase.Yogabase.Client/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
+    <PackageReference Include="System.Text.Json" />
+  </ItemGroup>
+</Project>

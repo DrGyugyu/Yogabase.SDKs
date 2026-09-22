@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The Unity build of Yogabase.Yogabase.RuntimeHost: the same sources as
+    src/dotnet/Yogabase.Yogabase.RuntimeHost (languages/unity/.../Runtime carries the identical code
+    with block-scoped namespaces for Unity's C# 9), compiled for netstandard2.1 against
+    System.Text.Json 8.0.5 from src/unity/Directory.Packages.props, so a Unity project can take the
+    runtime-host client as a built, digest-locked assembly instead of a sibling source checkout.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <RootNamespace>Yogabase.Yogabase.RuntimeHost</RootNamespace>
+    <AssemblyName>Yogabase.Yogabase.RuntimeHost</AssemblyName>
+    <Version>0.2.3-preview.1</Version>
+    <Authors>Yogabase</Authors>
+    <Company>Yogabase</Company>
+    <Product>Yogabase.Yogabase.RuntimeHost (Unity build, 8.0 package line)</Product>
+    <Description>Unity build of the preview runtime-host client for a Yogabase hosted self-contained service workload, pinned to the 8.0 package line.</Description>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>$(NoWarn);CS1591;CA1510;CA1512;CA1847;CA1850;CA1865</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../dotnet/Yogabase.Yogabase.RuntimeHost/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" />
+  </ItemGroup>
+</Project>

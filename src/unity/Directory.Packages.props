@@ -1,0 +1,29 @@
+<Project>
+  <!--
+    The Unity SDK build's own package line, and deliberately not the repository root's
+    Directory.Packages.props: MSBuild imports the nearest Directory.Packages.props only, so nothing
+    below src/unity/ ever sees the root's 10.x pins or its transitive pinning.
+
+    Owner decision, 2026-09-17 (afternoon, "SDKs and the Unity demo"): the Unity SDK is a separate
+    netstandard2.1 build pinned to the 8.0 package line, so an IL2CPP player never meets a 10.x-only
+    member. Unity 6000.5.7f1 ships System.Text.Json, Microsoft.Extensions.Logging.Abstractions,
+    Microsoft.Extensions.DependencyInjection.Abstractions, Microsoft.Bcl.AsyncInterfaces,
+    System.Diagnostics.DiagnosticSource and System.Text.Encodings.Web at 8.0.0.0 as BCL extensions,
+    and an assembly built against a higher version of any of them is CS1705 in every Unity-compiled
+    assembly that uses it.
+
+    The versions are exactly the 8.0 line the AI Game Developer (MCP) package restores into
+    Assets/Plugins/NuGet (its NuGetConfig pins SignalR 8.0.15 and System.Text.Json 8.0.5). Unity
+    6000.5 keeps one copy per assembly name, preferring the higher assembly version and the first one
+    it enumerated on a tie; with identical package versions the two copies are byte-identical, so a
+    player ships the same bytes whichever copy Unity keeps. Raise these only together with the demo's
+    plugin lock, never one at a time.
+  -->
+  <PropertyGroup>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.15" />
+    <PackageVersion Include="System.Text.Json" Version="8.0.5" />
+  </ItemGroup>
+</Project>
