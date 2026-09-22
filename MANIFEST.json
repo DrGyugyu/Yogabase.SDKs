@@ -33,17 +33,17 @@
     "pathCount": 22,
     "operationCount": 23,
     "schemaCount": 26,
-    "mirroredFrom": "Byte-identical, like the builds, delivery and runtime-host documents below, to the product document on main as of 6471fa1c (2026-09-22), the last commit that changed docs/api; re-checked unchanged at main 9bd1cce0. It carries the player-facing /v1/servers/* game-server surface, the requested-only realtime-presence capability row with its X-Yogabase-Accept-Capabilities request header, and no /v1/data/* route, Data* schema, or data-rest capability id: the client Data API's restoration was decided on 2026-09-17 and is not in the product contract yet."
+    "mirroredFrom": "Byte-identical, like the builds, delivery and runtime-host documents below, to the product document on main; this document last changed in 6471fa1c (2026-09-22). The builds document was re-mirrored from 1f7ad8a3 (2026-09-22), the last commit that changed docs/api, which states registeredLambdaIds for a RegisterLambdas bundle; all four were re-checked byte-identical at main 084d7053 (2026-09-23). It carries the player-facing /v1/servers/* game-server surface, the requested-only realtime-presence capability row with its X-Yogabase-Accept-Capabilities request header, and no /v1/data/* route, Data* schema, or data-rest capability id: the client Data API's restoration was decided on 2026-09-17 and is not in the product contract yet."
   },
   "buildsContract": {
     "path": "contracts/yogabase-builds-v1.openapi.json",
     "sourcePath": "Yogabase product repository: docs/api/yogabase-builds-v1.openapi.json",
-    "sha256": "d677cce911b0ee74810104d10e7ca10023b8f89336bb6833bc56c573e767588a",
+    "sha256": "368a15e2baa2567983894752444cf7efe5687da2e40b461cef7523d124923750",
     "pathCount": 3,
     "operationCount": 3,
     "schemaCount": 5,
     "generated": false,
-    "notGeneratedReason": "A developer-tool surface (Unity Editor, CLI, CI) reached with a project-scoped ybt_ developer token, not a shipped-client surface. The .NET YogabaseBuildsClient and the Unity package implement it by hand; no other language needs a client for it yet, so none is generated."
+    "notGeneratedReason": "A developer-tool surface (Unity Editor, CLI, CI) reached with a project-scoped ybt_ developer token, not a shipped-client surface. The .NET YogabaseBuildsClient and the Unity package implement it by hand, including the Lambda execution declaration and registeredLambdaIds; no other language needs a client for it yet, so none is generated."
   },
   "deliveryContract": {
     "path": "contracts/yogabase-delivery-v1.openapi.json",
@@ -91,7 +91,7 @@
         "path": "artifacts/local/Yogabase.Yogabase.Client.0.3.0-preview.1.nupkg",
         "sha256": "038ccd2d935cc56a6ed1d6d0f2b259d22f665fdee576c3fd0c02299f0b8d8bbd"
       },
-      "qualification": "locked-restore-release-dual-target-build-and-143-tests-passed-2026-09-22-pack-not-rerun-since-2026-09-09; clean-package-consumer-not-rerun; wire-shapes-pinned-against-the-mirrored-contracts-by-fake-transport-tests-and-realtime-presence-against-a-loopback-signalr-hub-only-no-live-installation"
+      "qualification": "locked-restore-release-dual-target-build-and-170-tests-passed-2026-09-23-including-registeredLambdaIds-and-the-unity-build-pins-pack-not-rerun-since-2026-09-09; clean-package-consumer-not-rerun; wire-shapes-pinned-against-the-mirrored-contracts-by-fake-transport-tests-and-realtime-presence-against-a-loopback-signalr-hub-only-no-live-installation"
     },
     {
       "language": "TypeScript",
@@ -126,21 +126,47 @@
       "source": "src/dotnet/Yogabase.Yogabase.RuntimeHost",
       "packageId": "Yogabase.Yogabase.RuntimeHost",
       "version": "0.1.0-preview.1",
-      "qualification": "locked-restore-release-dual-target-build-and-14-fake-transport-unit-tests-passed-2026-09-09-no-live-relay-session-and-no-runtime-host-conformance-battery"
+      "qualification": "locked-restore-release-dual-target-build-and-49-fake-transport-unit-tests-passed-2026-09-23-including-the-page-head-and-its-paging-fallback-no-live-relay-session-and-no-runtime-host-conformance-battery"
     },
     {
       "language": "Unity",
       "source": "languages/unity/com.stackyoga.yogabase-runtime-host",
       "packageId": "com.stackyoga.yogabase-runtime-host",
-      "version": "0.2.2-preview.1",
-      "qualification": "runtime-folder-compile-checked-2026-09-17-at-csharp-9-against-the-unity-6000.5.7f1-netstandard2.1-reference-set; editor-scripts-compile-checked-2026-09-09-against-a-real-unity-6000.5.7f1-editor-reference-set-at-csharp-9-warnings-as-errors; no-unity-editor-import-of-this-version, no-il2cpp-build, no-publish-window-run, and-no-live-relay-session"
+      "version": "0.2.3-preview.1",
+      "qualification": "runtime-folder-compile-checked-2026-09-23-at-csharp-9-warnings-as-errors-against-the-unity-6000.5.7f1-player-reference-set; editor-scripts-compile-checked-2026-09-23-with-scripts/compile-unity-editor.sh-against-the-unity-6000.5.7f1-editor-reference-set-at-csharp-9-warnings-as-errors; no-unity-editor-import-of-this-version, no-il2cpp-build, no-publish-window-run, and-no-live-relay-session"
     },
     {
       "language": "CSharp",
       "source": "src/dotnet/Yogabase.Lambda",
       "packageId": "Yogabase.Lambda",
       "version": "0.1.0-preview.1",
-      "qualification": "locked-restore-release-dual-target-build-and-197-fake-provider-unit-tests-passed-2026-09-22-against-the-runtime-api-route-table-and-cdc-event-shape-of-product-main-b04dcd42-no-live-installation-no-live-broker-and-no-sandbox-load-context-evidence"
+      "qualification": "locked-restore-release-dual-target-build-and-206-fake-provider-unit-tests-passed-2026-09-23-including-the-kafka-record-key-against-the-runtime-api-route-table-and-cdc-event-shape-of-product-main-b04dcd42-and-the-keyBase64-rules-of-main-084d7053-no-live-installation-no-live-broker-and-no-sandbox-load-context-evidence"
+    },
+    {
+      "language": "CSharp",
+      "source": "src/unity/Yogabase.Yogabase.Client.Unity",
+      "packageId": "(not packaged: the Unity build of Yogabase.Yogabase.Client)",
+      "version": "0.3.0-preview.1",
+      "unityBuild": {
+        "targetFramework": "netstandard2.1",
+        "packageLine": "src/unity/Directory.Packages.props: Microsoft.AspNetCore.SignalR.Client 8.0.15, System.Text.Json 8.0.5",
+        "assembly": "src/unity/Yogabase.Yogabase.Client.Unity/bin/Release/netstandard2.1/Yogabase.Yogabase.Client.dll",
+        "sha256AtThisCommitsSources": "11c18654846e3867e51edddf7f6b8057efdaa77bf08aeaab67b3667e33baf7b6"
+      },
+      "qualification": "locked-restore-release-netstandard2.1-build-deterministic-across-two-no-incremental-builds-2026-09-23; UnityBuildTests-pin-no-9.x-or-10.x-assembly-reference-or-lock-entry; unity-editor-and-il2cpp-evidence-is-the-consuming-project's-own"
+    },
+    {
+      "language": "CSharp",
+      "source": "src/unity/Yogabase.Yogabase.RuntimeHost.Unity",
+      "packageId": "(not packaged: the Unity build of Yogabase.Yogabase.RuntimeHost)",
+      "version": "0.2.3-preview.1",
+      "unityBuild": {
+        "targetFramework": "netstandard2.1",
+        "packageLine": "src/unity/Directory.Packages.props: System.Text.Json 8.0.5",
+        "assembly": "src/unity/Yogabase.Yogabase.RuntimeHost.Unity/bin/Release/netstandard2.1/Yogabase.Yogabase.RuntimeHost.dll",
+        "sha256AtThisCommitsSources": "a787fd4b2fc7900bdf3e9e4949083e707ba4695aed3dd366023afa1d0f2c122d"
+      },
+      "qualification": "locked-restore-release-netstandard2.1-build-deterministic-across-two-no-incremental-builds-2026-09-23; UnityBuildTests-pin-no-9.x-or-10.x-assembly-reference-or-lock-entry; unity-editor-and-il2cpp-evidence-is-the-consuming-project's-own"
     }
   ],
   "publicationAuthorized": false
