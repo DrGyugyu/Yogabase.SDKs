@@ -57,6 +57,14 @@ gateway checks it again. A refusal surfaces as `YogabaseApiException` with the g
 the client does not pretend to know whether an installation enables it — an installation without it
 answers the gateway's own refusal.
 
+`YogabaseServer` and each `YogabaseServerPort` also accept the Agones-shaped typed addresses the
+product has decided to add: `Address`, the address a client is handed, and `Addresses`, every typed
+address observed (`Type` such as `Advertised`, `ExternalIP`, `InternalIP` or `PodIP`, and `Address`).
+Today's product sends neither — `Host` already carries the advertised address — and will add them only
+once a client that accepts them is the minimum, because this client refuses members it does not know;
+both read as `null` until then. When present they are checked: at most 16 addresses, each typed and
+non-empty, and a stated `Address` among them, or the answer is refused as `server_response_invalid`.
+
 ## Uploading a build
 
 `YogabaseClient.Builds(...)` returns a `YogabaseBuildsClient` for the **Control Plane** origin, not

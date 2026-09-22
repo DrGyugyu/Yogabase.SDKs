@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -28,6 +29,21 @@ public sealed class YogabaseServer
     /// observed an address for the instance yet; a client must not connect to such an instance.
     /// </summary>
     public IReadOnlyList<YogabaseServerPort> NetworkPorts { get; set; } = Array.Empty<YogabaseServerPort>();
+
+    /// <summary>
+    /// The address a client is handed for this instance, in the Agones shape, or
+    /// <see langword="null"/> from a Control Plane that does not send it — today's does not, and adds
+    /// it only once a client that accepts it is the minimum. When <see cref="Addresses"/> is also
+    /// present it is one of them.
+    /// </summary>
+    public string? Address { get; set; }
+
+    /// <summary>
+    /// Every typed address observed for this instance, in the Agones shape (for example
+    /// <c>Advertised</c>, the node's <c>ExternalIP</c> or <c>InternalIP</c>, <c>PodIP</c>), at most 16, or
+    /// <see langword="null"/> when the Control Plane sends none.
+    /// </summary>
+    public IReadOnlyList<YogabaseServerAddress>? Addresses { get; set; }
 
     /// <summary>The named port, or <see langword="null"/> when the instance does not declare it.</summary>
     public YogabaseServerPort? FindPort(string name)
@@ -69,6 +85,30 @@ public sealed class YogabaseServerPort
 
     /// <summary>The <c>host:port</c> a client dials.</summary>
     public string Endpoint => Host + ":" + ExternalPort.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// The address a client is handed for this port, in the Agones shape, or <see langword="null"/>
+    /// when the Control Plane does not send it. When <see cref="Addresses"/> is also present it is one
+    /// of them. <see cref="Host"/> stays the address to dial.
+    /// </summary>
+    public string? Address { get; set; }
+
+    /// <summary>Every typed address observed for this port, at most 16, or <see langword="null"/>.</summary>
+    public IReadOnlyList<YogabaseServerAddress>? Addresses { get; set; }
+}
+
+/// <summary>One typed address in the Agones shape: its kind and the address itself.</summary>
+public sealed class YogabaseServerAddress
+{
+    /// <summary>
+    /// What kind of address this is, verbatim (for example <c>Advertised</c>, <c>ExternalIP</c>,
+    /// <c>InternalIP</c>, <c>ExternalDNS</c>, <c>InternalDNS</c>, <c>Hostname</c> or <c>PodIP</c>). Not
+    /// an enumeration, so a kind added later stays readable.
+    /// </summary>
+    public string Type { get; set; } = string.Empty;
+
+    /// <summary>An IP literal or DNS name.</summary>
+    public string Address { get; set; } = string.Empty;
 }
 
 /// <summary>Request body of <c>POST /v1/servers/start</c>.</summary>
@@ -130,6 +170,7 @@ internal sealed class YogabaseServersClient : IYogabaseServers
     private const int MaximumCustomDataKeyLength = 64;
     private const int MaximumCustomDataValueLength = 1024;
     private const int MaximumCustomDataBytes = 4 * 1024;
+    private const int MaximumTypedAddresses = 16;
 
     private readonly YogabaseHttpTransport transport;
 
@@ -286,13 +327,47 @@ internal sealed class YogabaseServersClient : IYogabaseServers
                 || string.IsNullOrWhiteSpace(port.Host)
                 || port.ExternalPort is < 1 or > 65535
                 || port.InternalPort is < 1 or > 65535
-                || port.Protocol is not ("udp" or "tcp"))
+                || port.Protocol is not ("udp" or "tcp")
+                || !TypedAddressesAreWellFormed(port.Address, port.Addresses))
             {
                 throw new YogabaseApiException(502, "server_response_invalid", "Yogabase returned an invalid game-server address.");
             }
         }
 
+        if (!TypedAddressesAreWellFormed(server.Address, server.Addresses))
+        {
+            throw new YogabaseApiException(502, "server_response_invalid", "Yogabase returned an invalid game-server address.");
+        }
+
         return server;
+    }
+
+    /// <summary>
+    /// The Agones-shaped pair is optional, but when present it is bounded, typed and consistent: at
+    /// most 16 addresses, each with a type and an address, and a stated address among them.
+    /// </summary>
+    private static bool TypedAddressesAreWellFormed(string? address, IReadOnlyList<YogabaseServerAddress>? addresses)
+    {
+        if (address is not null && string.IsNullOrWhiteSpace(address))
+        {
+            return false;
+        }
+        if (addresses is null)
+        {
+            return true;
+        }
+        if (addresses.Count > MaximumTypedAddresses)
+        {
+            return false;
+        }
+        foreach (var typed in addresses)
+        {
+            if (typed is null || string.IsNullOrWhiteSpace(typed.Type) || string.IsNullOrWhiteSpace(typed.Address))
+            {
+                return false;
+            }
+        }
+        return address is null || addresses.Any(typed => string.Equals(typed.Address, address, StringComparison.Ordinal));
     }
 
     private sealed class StartBody

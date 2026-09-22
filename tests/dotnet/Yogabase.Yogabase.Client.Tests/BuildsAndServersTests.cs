@@ -199,6 +199,85 @@ public sealed class BuildsAndServersTests
         Assert.Equal("server_response_invalid", exception.Code);
     }
 
+    // The Agones-shaped typed addresses the product will add once this client is the minimum: an
+    // `address` and `addresses: [{type, address}]` on the instance and on each port. Today's
+    // product sends neither, and a client that refuses unknown members must accept both first.
+    private const string TypedAddressAllocation =
+        "{\"serverId\":\"srv-01\",\"state\":\"Allocated\","
+        + "\"address\":\"203.0.113.10\","
+        + "\"addresses\":[{\"type\":\"Advertised\",\"address\":\"203.0.113.10\"},{\"type\":\"InternalIP\",\"address\":\"10.0.0.7\"},{\"type\":\"PodIP\",\"address\":\"10.42.0.9\"}],"
+        + "\"networkPorts\":[{\"name\":\"game\",\"internalPort\":7777,\"externalPort\":31245,\"protocol\":\"udp\",\"host\":\"203.0.113.10\","
+        + "\"address\":\"203.0.113.10\",\"addresses\":[{\"type\":\"Advertised\",\"address\":\"203.0.113.10\"},{\"type\":\"InternalIP\",\"address\":\"10.0.0.7\"}]}]}";
+
+    [Fact]
+    public async Task AnAllocationCarryingTypedAddressesReadsThemOnTheInstanceAndEachPort()
+    {
+        var handler = new ScriptedHandler((_, _) => Task.FromResult(Json(HttpStatusCode.OK, TypedAddressAllocation)));
+        await using var client = await ClientAsync(handler);
+
+        var server = await client.Servers.StartAsync("battle", TestContext.Current.CancellationToken);
+
+        Assert.Equal("203.0.113.10", server.Address);
+        Assert.Equal(
+            [("Advertised", "203.0.113.10"), ("InternalIP", "10.0.0.7"), ("PodIP", "10.42.0.9")],
+            server.Addresses!.Select(address => (address.Type, address.Address)));
+        var game = server.FindPort("game")!;
+        Assert.Equal("203.0.113.10", game.Address);
+        Assert.Equal(2, game.Addresses!.Count);
+        Assert.Equal("203.0.113.10:31245", game.Endpoint);
+    }
+
+    [Fact]
+    public async Task AnAllocationWithoutTypedAddressesLeavesThemAbsent()
+    {
+        var handler = new ScriptedHandler((_, _) => Task.FromResult(Json(HttpStatusCode.OK, Allocation())));
+        await using var client = await ClientAsync(handler);
+
+        var server = await client.Servers.StartAsync("battle", TestContext.Current.CancellationToken);
+
+        Assert.Null(server.Address);
+        Assert.Null(server.Addresses);
+        Assert.Null(server.FindPort("game")!.Address);
+        Assert.Null(server.FindPort("game")!.Addresses);
+    }
+
+    [Theory]
+    // An address outside the typed list the same answer names.
+    [InlineData("{\"serverId\":\"srv-01\",\"state\":\"Allocated\",\"address\":\"198.51.100.1\","
+        + "\"addresses\":[{\"type\":\"Advertised\",\"address\":\"203.0.113.10\"}],\"networkPorts\":[]}")]
+    // A typed address with no type, or no address.
+    [InlineData("{\"serverId\":\"srv-01\",\"state\":\"Allocated\",\"addresses\":[{\"type\":\"\",\"address\":\"203.0.113.10\"}],\"networkPorts\":[]}")]
+    [InlineData("{\"serverId\":\"srv-01\",\"state\":\"Allocated\",\"addresses\":[{\"type\":\"InternalIP\",\"address\":\"\"}],\"networkPorts\":[]}")]
+    // An empty address where one is stated.
+    [InlineData("{\"serverId\":\"srv-01\",\"state\":\"Allocated\",\"address\":\"\",\"networkPorts\":[]}")]
+    // The same fault on a port.
+    [InlineData("{\"serverId\":\"srv-01\",\"state\":\"Allocated\",\"networkPorts\":[{\"name\":\"game\",\"internalPort\":7777,\"externalPort\":31245,"
+        + "\"protocol\":\"udp\",\"host\":\"10.0.0.7\",\"address\":\"10.0.0.8\",\"addresses\":[{\"type\":\"InternalIP\",\"address\":\"10.0.0.7\"}]}]}")]
+    public async Task ATypedAddressOutsideTheAgonesShapeIsRefused(string payload)
+    {
+        var handler = new ScriptedHandler((_, _) => Task.FromResult(Json(HttpStatusCode.OK, payload)));
+        await using var client = await ClientAsync(handler);
+
+        var exception = await Assert.ThrowsAsync<YogabaseApiException>(() =>
+            client.Servers.StartAsync("battle", TestContext.Current.CancellationToken));
+
+        Assert.Equal("server_response_invalid", exception.Code);
+    }
+
+    [Fact]
+    public async Task MoreThanSixteenTypedAddressesAreRefused()
+    {
+        var addresses = string.Join(",", Enumerable.Range(1, 17).Select(index => "{\"type\":\"InternalIP\",\"address\":\"10.0.0." + index + "\"}"));
+        var payload = "{\"serverId\":\"srv-01\",\"state\":\"Allocated\",\"addresses\":[" + addresses + "],\"networkPorts\":[]}";
+        var handler = new ScriptedHandler((_, _) => Task.FromResult(Json(HttpStatusCode.OK, payload)));
+        await using var client = await ClientAsync(handler);
+
+        var exception = await Assert.ThrowsAsync<YogabaseApiException>(() =>
+            client.Servers.StartAsync("battle", TestContext.Current.CancellationToken));
+
+        Assert.Equal("server_response_invalid", exception.Code);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]

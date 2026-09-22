@@ -91,7 +91,7 @@
         "path": "artifacts/local/Yogabase.Yogabase.Client.0.3.0-preview.1.nupkg",
         "sha256": "038ccd2d935cc56a6ed1d6d0f2b259d22f665fdee576c3fd0c02299f0b8d8bbd"
       },
-      "qualification": "locked-restore-release-dual-target-build-106-tests-and-pack-passed-2026-09-09; clean-package-consumer-not-rerun; wire-shapes-pinned-against-the-mirrored-contracts-by-fake-transport-tests-only-no-live-installation"
+      "qualification": "locked-restore-release-dual-target-build-and-143-tests-passed-2026-09-22-pack-not-rerun-since-2026-09-09; clean-package-consumer-not-rerun; wire-shapes-pinned-against-the-mirrored-contracts-by-fake-transport-tests-and-realtime-presence-against-a-loopback-signalr-hub-only-no-live-installation"
     },
     {
       "language": "TypeScript",
