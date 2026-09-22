@@ -1,7 +1,7 @@
 # Dependency licenses
 
 Status: local preview inventory
-Last reviewed: 2026-09-01
+Last reviewed: 2026-09-22
 
 This inventory covers direct SDK and test dependencies. Exact transitive versions and integrity
 values remain locked in `packages.lock.json`, `package-lock.json`, `pubspec.lock`, the hash-pinned
@@ -21,7 +21,7 @@ transitive graph before publication.
 | `typescript` | 7.0.2 | TypeScript compiler, development only | Apache-2.0 | Build-only; do not bundle the compiler with the client. |
 | `microsoft-kiota-bundle` | 1.9.10 | Python runtime | MIT | Retain the MIT notice. Install the runtime closure from `languages/python/requirements.lock` with `--require-hashes`; its transitive licences are listed below the table. |
 | `httpx` | 0.28.1 | Authored Python async Delivery transport and SSE | BSD-3-Clause | Retain copyright and licence text when redistributed. Redirect following remains disabled. |
-| `setuptools` | 84.0.0 (`build-requirements.lock`; `pyproject.toml` still accepts 80 or newer) | Python package build backend | MIT | Build-only; not shipped in the wheel. The locked build runs `python -m build --no-isolation` over `build-requirements.lock`. |
+| `setuptools` | 84.0.0 (`build-requirements.lock`; `pyproject.toml` pins exactly `setuptools==84.0.0`) | Python package build backend | MIT | Build-only; not shipped in the wheel. The locked build runs `python -m build --no-isolation` over `build-requirements.lock`. |
 | `build` | 1.6.1 (`build-requirements.lock`) | Python wheel and sdist build frontend | MIT | Build-only; not shipped. Its lock also pins `packaging` 26.3 (Apache-2.0 OR BSD-2-Clause) and `pyproject_hooks` 1.3.3 (MIT), and, only where their markers hold, `tomli` 2.4.1 (MIT), `importlib_metadata` 9.0.1 (Apache-2.0), `zipp` 4.1.0 (MIT) and `colorama` 0.4.6 (BSD classifier). |
 | `com.microsoft.kiota:microsoft-kiota-bundle` | 1.9.3 | Java runtime | MIT | Retain the MIT notice. |
 | `com.microsoft.kiota:microsoft-kiota-serialization-*` | 1.9.3 | Java serializers | MIT | Retain the MIT notice. |
@@ -41,6 +41,14 @@ metadata declares (pip 26.0 report, 2026-09-17): `anyio` 4.15.1, `h11` 0.16.0, `
 `typing_extensions` 4.16.0 is PSF-2.0; and `certifi` 2026.7.22 is MPL-2.0, a file-level
 weak-copyleft licence. The package does not vendor or modify any of them; the release SBOM audit
 still has to confirm these declarations and review the MPL-2.0 obligation explicitly.
+
+The owner decided on 2026-09-17 to drop `certifi` in favour of the platform trust store. The trust
+half is done: the package's own HTTP clients verify against `ssl.create_default_context()`
+(`stackyoga_yogabase.platform_ssl_context`), and the README tells callers to build the Kiota adapter's
+client the same way. The dependency half is not possible with this stack: `httpx` 0.28.1 and
+`httpcore` 1.0.9 both declare `Requires-Dist: certifi` unconditionally and import it (re-checked on
+2026-09-22), so `certifi` stays in `requirements.lock` until the Kiota Python runtime stops depending
+on httpx or an owner-approved replacement transport is recorded here.
 
 The SDK implementations and package-specific `LICENSE.md` files are proprietary. Third-party
 dependencies do not receive rights to Yogabase source beyond their own license terms.

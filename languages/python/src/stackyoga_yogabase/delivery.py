@@ -11,6 +11,7 @@ import asyncio
 import inspect
 import json
 import re
+import ssl
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar, TypedDict, cast
@@ -24,6 +25,19 @@ YOGABASE_DELIVERY_CONTRACT_SHA256 = "1eca152807ed2c6ab834b6ad7fea5fedb514ce359bd
 DELIVERY_TERMINAL_OPERATION_STATES = ("Succeeded", "Failed", "Abandoned", "Cancelled", "Blocked")
 AccessToken = str | Callable[[], str | Awaitable[str]]
 T = TypeVar("T")
+
+
+def platform_ssl_context() -> ssl.SSLContext:
+    """A verifying TLS context over the platform's certificate store, not certifi's bundle.
+
+    ``ssl.create_default_context()`` with no ``cafile`` loads the interpreter's default trust: the
+    OpenSSL default verify paths, plus the system stores on Windows. It requires a valid peer
+    certificate and a matching host name. httpx builds its own default context from certifi's
+    bundle, so every client this package creates passes this one instead; pass it to any
+    ``httpx.AsyncClient`` you hand to a Kiota ``HttpxRequestAdapter`` as ``verify=``. certifi stays
+    installed because httpx and httpcore require it, but its bundle is not what these clients trust.
+    """
+    return ssl.create_default_context()
 
 
 class DeliveryEnvironmentPreviewRequest(TypedDict):
@@ -301,7 +315,7 @@ class AsyncDeliveryClient:
         self._token = options.access_token
         self._timeout = _bounded_timeout(options.timeout)
         self._headers = dict(options.headers or {})
-        self._http = http_client or httpx.AsyncClient()
+        self._http = http_client or httpx.AsyncClient(verify=platform_ssl_context())
         self._owns_http = http_client is None
 
     async def __aenter__(self) -> "AsyncDeliveryClient":

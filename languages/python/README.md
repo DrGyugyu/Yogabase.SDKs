@@ -98,6 +98,38 @@ resume tokens are never persisted or parsed by the client. Artifact admission su
 source and evidence metadata plus digests; it does not upload bundle bytes and this client adds no
 custom-build, Kubernetes, Agones, PlayFlow, or other compatibility operations.
 
+## TLS trust
+
+`platform_ssl_context()` returns a verifying `ssl.SSLContext` built by
+`ssl.create_default_context()` with no CA file: the interpreter's default trust, which is the
+OpenSSL default verify paths (plus the system stores on Windows). It requires a valid certificate
+and a matching host name. `AsyncDeliveryClient` uses it for the HTTP client it creates when you
+pass none. The generated application client uses whatever `httpx.AsyncClient` you give its Kiota
+`HttpxRequestAdapter`; build that client with `verify=platform_ssl_context()` too, because httpx's
+own default and Kiota's `get_default_client()` both trust certifi's bundle:
+
+```python
+import httpx
+from kiota_http.httpx_request_adapter import HttpxRequestAdapter
+from kiota_http.kiota_client_factory import KiotaClientFactory
+from stackyoga_yogabase import YogabaseApiClient, platform_ssl_context
+
+http = KiotaClientFactory.create_with_default_middleware(
+    httpx.AsyncClient(verify=platform_ssl_context(), http2=True))
+adapter = HttpxRequestAdapter(auth_provider, http_client=http, base_url="https://<installation-host>")
+client = YogabaseApiClient(adapter)
+```
+
+An interpreter whose OpenSSL has no default store configured (some macOS installers ship one
+empty until a certificate step is run) then fails verification instead of silently trusting
+certifi's copy; install the platform's certificates rather than switching verification off.
+
+`certifi` (MPL-2.0) is still installed. The owner decided on 2026-09-17 to drop it, but httpx
+0.28.1 and httpcore 1.0.9 — the HTTP stack under the Kiota Python runtime — both declare
+`Requires-Dist: certifi` unconditionally and import it, so `requirements.lock` keeps it and a
+hash-checked install cannot leave it out. Removing it would mean replacing httpx beneath Kiota,
+which no locked dependency here allows.
+
 ## Local verification
 
 ```text
@@ -109,9 +141,9 @@ PYTHONPATH=src .venv/bin/python -m unittest discover -s tests
 ```
 
 `requirements.lock` hash-pins the runtime closure of the two direct pins (22 wheels, one of them
-only for Python below 3.11). `build-requirements.lock` hash-pins `build` 1.6.1 and the setuptools
-84.0.0 backend, so the wheel and sdist are built with exactly those tools rather than whatever an
-isolated build environment resolves. The tests import whichever `stackyoga_yogabase` is on the path:
+only for Python below 3.11). `pyproject.toml` pins the build backend exactly (`setuptools==84.0.0`),
+and `build-requirements.lock` hash-pins `build` 1.6.1 and that backend, so the wheel and sdist are
+built with exactly those tools rather than whatever an isolated build environment resolves. The tests import whichever `stackyoga_yogabase` is on the path:
 with `PYTHONPATH=src` they check this source tree; in a fresh environment holding only
 `requirements.lock` and the built wheel (`pip install --no-index dist/*.whl`), running
 `python -P -m unittest discover -s tests` from this folder checks the installed wheel instead.
@@ -119,9 +151,13 @@ with `PYTHONPATH=src` they check this source tree; in a fresh environment holdin
 subpackages have no `__init__.py` and a package walk would miss them, and round-trips the generated
 game-server list and refusal through a real Kiota `HttpxRequestAdapter` over an in-memory transport.
 
-Last run on 2026-09-17 on CPython 3.13.12 and 3.12.13 (macOS arm64, pip 26.0): both locks installed
-with `--require-hashes`; 15 tests passed from source under `-X dev` with `ResourceWarning` as an
+`test_packaging_and_trust.py` pins the exact build-backend pin against the build lock and checks
+that the Delivery client's default transport uses `platform_ssl_context()` without consulting
+certifi's bundle.
+
+Last run on 2026-09-22 on CPython 3.13.12 and 3.12.13 (macOS arm64, pip 26.0): both locks installed
+with `--require-hashes`; 23 tests passed from source under `-X dev` with `ResourceWarning` as an
 error; `build --no-isolation` produced the wheel (88 Python files) and the sdist; in a second fresh
 environment the wheel installed offline over the runtime lock, `pip check` reported no broken
-requirements, and the same 15 tests passed against the installed wheel. Python 3.10 and 3.11, a
+requirements, and the same 23 tests passed against the installed wheel. Python 3.10 and 3.11, a
 live gateway, and a published index were not exercised.

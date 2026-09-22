@@ -33,6 +33,7 @@ from .delivery import (
     YogabaseDeliveryError,
     YOGABASE_DELIVERY_CONTRACT_SHA256,
     DELIVERY_TERMINAL_OPERATION_STATES,
+    platform_ssl_context,
 )
 
 __all__ = [
@@ -69,4 +70,5 @@ __all__ = [
     "YogabaseDeliveryError",
     "YOGABASE_DELIVERY_CONTRACT_SHA256",
     "DELIVERY_TERMINAL_OPERATION_STATES",
+    "platform_ssl_context",
 ]

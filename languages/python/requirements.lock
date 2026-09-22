@@ -11,6 +11,12 @@
 # Install before running the tests or importing the source tree:
 #   python -m pip install --require-hashes -r requirements.lock
 # Hash-checking mode also refuses any dependency missing from this file.
+#
+# certifi (MPL-2.0) stays in this closure although the owner decided on 2026-09-17 to drop it:
+# httpx 0.28.1 and httpcore 1.0.9 both declare `Requires-Dist: certifi` unconditionally and import it,
+# so no locked install of httpx can leave it out. What changed is trust: the package's own HTTP
+# clients verify TLS against the platform store (stackyoga_yogabase.platform_ssl_context), not
+# certifi's bundle. Re-checked on 2026-09-22 against the installed wheels' metadata and source.
 
 anyio==4.15.1 \
     --hash=sha256:6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101

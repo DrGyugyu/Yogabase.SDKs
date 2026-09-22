@@ -75,7 +75,7 @@
     "dotnetSdk": "10.0.400",
     "node": "25.9.0",
     "npm": "11.12.1",
-    "python": "3.13.12 and 3.12.13 on macOS arm64 with pip 26.0 (2026-09-17 full run: runtime closure from languages/python/requirements.lock and build 1.6.1 with setuptools 84.0.0 from build-requirements.lock, all installed with --require-hashes; Python 3.10 and 3.11 not run)",
+    "python": "3.13.12 and 3.12.13 on macOS arm64 with pip 26.0 (2026-09-22 full run: runtime closure from languages/python/requirements.lock and build 1.6.1 with setuptools 84.0.0 from build-requirements.lock, all installed with --require-hashes; Python 3.10 and 3.11 not run)",
     "javaCompiler": "21.0.10 with --release 17",
     "dartSdk": "3.13.2 stable, revision 60a57cd42d64dc03e9f07aa60a2e250755c1ef28 (2026-09-17 full run from the macOS arm64 archive, whose SHA-256 matched dartSdkArchiveSha256 before it was unpacked)",
     "dartSdkArchiveSha256": "1e79f51341937f84cc1563a3fcad4a91706e35dee72bda69f4e955065c0e373a",
@@ -105,7 +105,7 @@
       "source": "languages/python",
       "packageId": "stackyoga-yogabase-client-preview",
       "version": "0.3.0.dev1",
-      "qualification": "hash-locked-install-and-15-tests-from-source-under-dev-mode-passed-2026-09-17-on-cpython-3.13.12-and-3.12.13; build-no-isolation-wheel-and-sdist-built; fresh-venv-offline-wheel-install-pip-check-clean-and-the-same-15-tests-passed-against-the-installed-wheel; python-3.10-and-3.11-not-run; no-live-gateway-and-no-published-index"
+      "qualification": "hash-locked-install-and-23-tests-from-source-under-dev-mode-passed-2026-09-22-on-cpython-3.13.12-and-3.12.13; build-no-isolation-wheel-and-sdist-built-with-the-exactly-pinned-setuptools-84.0.0-backend; fresh-venv-offline-wheel-install-pip-check-clean-and-the-same-23-tests-passed-against-the-installed-wheel; python-3.10-and-3.11-not-run; own-clients-trust-the-platform-store-but-certifi-stays-in-the-closure-because-httpx-and-httpcore-require-it; no-live-gateway-and-no-published-index"
     },
     {
       "language": "Java",
