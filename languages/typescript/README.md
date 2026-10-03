@@ -66,6 +66,66 @@ For `PUT`, pass both required contract headers through the Kiota request configu
 models operation header parameters through the generic `headers` record rather than dedicated
 method arguments in this generated TypeScript surface.
 
+## Durable Jobs
+
+`YogabaseJobsClient`, authored and exported from the package root, starts, reads, cancels and collects
+the result of a durable background job as the signed-in user, against `/v1/projects/{projectId}/jobs`
+on the application gateway and behind the same project token (the `lambda.invoke` scope) as invoking a
+function. A **job type is the id of a deployed stateless function**; its highest released version runs
+the job. A job belongs to the user who submitted it, and another user's job is answered exactly as one
+that does not exist.
+
+Nothing is generated for it: the product serves these routes (owner decision, 2026-10-03) but its client
+OpenAPI document does not describe them yet, so the client is written from the gateway's source and
+developer documentation and pinned by `tests/jobs.test.mjs`. Like the delivery client it takes its own
+gateway host and access token rather than a Kiota adapter, because the result route's digest is a response
+header the adapter would hide.
+
+```ts
+const jobs = new YogabaseJobsClient({
+  gatewayHost: "https://apps.example.test",
+  projectId,                                  // the bootstrap document's projectId
+  accessToken: () => session.accessToken,     // the signed-in user's access token
+});
+let job = await jobs.submit({
+  jobType: "orders-create",
+  idempotencyKey: "order-42",                 // keep it across retries of this submit
+  payload: new TextEncoder().encode("hello"), // optional, at most 1 MiB before base64
+  maxAttempts: 3,                             // optional, 1 through 10; the gateway's default is 5
+});
+while (!YOGABASE_JOB_TERMINAL_STATUSES.includes(job.status)) {   // Succeeded, Cancelled or DeadLettered
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  job = await jobs.get(job.jobId);
+}
+if (job.status === "Succeeded" && job.resultReference !== null) {
+  const { content, digest } = await jobs.result(job.jobId);
+}
+await jobs.cancel(job.jobId);                 // idempotent; a running job is flagged and stopped by its worker
+```
+
+- **Retrying a submit is safe.** The idempotency key is a member of the request body, not a header (the
+  gateway reads no `Idempotency-Key` header on this route). The same request under the same key answers
+  the job it already made (202 again, whatever the job has become); a different request under that key is
+  refused with `job_idempotency_conflict` (409). The key belongs to the signed-in user.
+- **Checked before anything is sent**, with the gateway's own bounds: a job type of 1 to 128 ASCII letters,
+  digits, `.`, `-`, `_` or `:`; a trimmed idempotency key of 1 to 256 characters with no control character;
+  a payload of at most 1,048,576 bytes (exactly that is a job); and `maxAttempts` from 1 through 10.
+- **Refusals** are `YogabaseJobsError`s carrying the gateway's `status` and `code`
+  (`YOGABASE_JOB_ERROR_CODES` names them): `job_type_not_registered` (422), `job_idempotency_conflict`
+  (409), `job_payload_too_large` (413, with `limitBytes` and `maxBodyBytes` naming the payload and body
+  limits), `job_request_invalid` (400), `job_access_denied` (403), `job_unavailable` (503) and
+  `job_not_found` (404, for no such job and for another user's, never told apart). A plain `not_found` is
+  an installation that does not serve Jobs at all; no capability row says whether one does.
+- **A result is read separately.** `resultReference` is a name, not a capability; `result()` returns
+  `{ content, digest }` after hashing the bytes (Web Crypto) and comparing them with the
+  `X-Yogabase-Content-Sha256` header. A result that does not match (`job_result_digest_mismatch`), arrives
+  without exactly one well-formed `sha256:` digest, is larger than 16 MiB or is not a 200 is refused
+  (`job_response_invalid`) and never returned. `job_result_not_ready` (409) is your own job that has not
+  settled; `job_result_not_found` (404) is another user's job, an unknown one and a job that finished
+  without a result, never told apart.
+- A response member this client does not know is ignored, as the generated clients keep unknown members
+  aside; a job that breaks a bound it does know (an unknown status, `maxAttempts` outside 1 through 10) is refused.
+
 ## Workload delivery
 
 The authored `YogabaseDeliveryClient` is a separate client for the release-configured Delivery

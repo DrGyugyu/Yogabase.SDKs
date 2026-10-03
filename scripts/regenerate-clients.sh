@@ -85,6 +85,7 @@ find "$stage" -name .kiota.log -delete
 rsync -a --delete \
     --exclude /index.ts \
     --exclude /delivery.ts \
+    --exclude /jobs.ts \
     --exclude /storageLogicalKey.ts \
     "$stage/languages/typescript/src/" \
     "$repo_root/languages/typescript/src/"
