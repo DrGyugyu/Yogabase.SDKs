@@ -86,6 +86,63 @@ class GeneratedSurfaceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(raised.exception.status, 409)
         self.assertEqual(raised.exception.trace_id, "trace-1")
 
+    async def test_generated_invoke_413_is_a_payload_too_large_problem_that_names_both_limits(self) -> None:
+        from stackyoga_yogabase.models.invocation_request import InvocationRequest
+
+        requests: list[httpx.Request] = []
+        problem = {
+            "type": "https://tools.ietf.org/html/rfc9110#section-15.5.14",
+            "title": "Payload too large.",
+            "status": 413,
+            "detail": "The request is larger than this route accepts.",
+            "code": "payload_too_large",
+            "limitBytes": 1_048_576,
+            "maxBodyBytes": 8_392_166,
+        }
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(413, content=json.dumps(problem).encode(), headers={"Content-Type": "application/problem+json"}, request=request)
+
+        body = InvocationRequest()
+        body.idempotency_key = "request-1"
+        body.correlation_id = "correlation-1"
+        body.mode = 1
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+            client = _client(http)
+            with self.assertRaises(Problem) as raised:
+                await client.v1.projects.by_project_id("11111111-1111-4111-8111-111111111111").functions.by_function_id("resize").versions.by_function_version("1").invoke.post(body)
+
+        self.assertEqual(str(requests[0].url), f"{GATEWAY}/v1/projects/11111111-1111-4111-8111-111111111111/functions/resize/versions/1/invoke")
+        self.assertEqual(raised.exception.code, "payload_too_large")
+        self.assertEqual(raised.exception.status, 413)
+        self.assertEqual(raised.exception.additional_data["limitBytes"], 1_048_576)
+        self.assertEqual(raised.exception.additional_data["maxBodyBytes"], 8_392_166)
+
+    async def test_the_restored_data_api_is_generated_and_a_select_posts_to_the_tables_route(self) -> None:
+        from stackyoga_yogabase.models.data_select_request import DataSelectRequest
+
+        requests: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(
+                200,
+                content=json.dumps({"rows": [{"id": 1}], "affectedRows": 1, "hasMore": False}).encode(),
+                headers={"Content-Type": "application/json"},
+                request=request,
+            )
+
+        body = DataSelectRequest()
+        body.limit = 10
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+            client = _client(http)
+            result = await client.v1.data.by_table("notes").select.post(body)
+
+        self.assertEqual((requests[0].method, str(requests[0].url)), ("POST", f"{GATEWAY}/v1/data/notes/select"))
+        self.assertEqual(json.loads(requests[0].content)["limit"], 10)
+        self.assertEqual((result.affected_rows, result.has_more), (1, False))
+
     async def test_logical_key_adapter_addresses_the_generated_item_builder(self) -> None:
         async with httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(500))) as http:
             client = _client(http)

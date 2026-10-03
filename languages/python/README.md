@@ -64,6 +64,68 @@ For `PUT`, add both required contract headers to the Kiota request configuration
 `HeadersCollection`: `X-Yogabase-Content-Sha256: sha256:<64 lowercase hex>` and a bounded
 `Idempotency-Key`. Kiota does not emit dedicated Python method arguments for these headers.
 
+## Durable Jobs
+
+`AsyncJobsClient`, authored and exported from the package root, starts, reads, cancels and collects the
+result of a durable background job as the signed-in user, against `/v1/projects/{projectId}/jobs` on the
+application gateway and behind the same project token (the `lambda.invoke` scope) as invoking a function.
+A **job type is the id of a deployed stateless function**; its highest released version runs the job. A
+job belongs to the user who submitted it, and another user's job is answered exactly as one that does not
+exist.
+
+Nothing is generated for it: the product serves these routes (owner decision, 2026-10-03) but its client
+OpenAPI document does not describe them yet, so the client is written from the gateway's source and
+developer documentation and pinned by `tests/test_jobs.py`. Like the delivery client it takes its own
+gateway host and access token rather than a Kiota adapter, because the result route's digest is a response
+header the adapter would hide, and it uses the same platform trust store.
+
+```python
+from stackyoga_yogabase import AsyncJobsClient
+
+async with AsyncJobsClient(
+    gateway_host="https://apps.example.test",
+    project_id=project_id,                    # the bootstrap document's projectId
+    access_token=lambda: session.access_token,  # the signed-in user's access token
+) as jobs:
+    job = await jobs.submit(
+        job_type="orders-create",
+        idempotency_key="order-42",           # keep it across retries of this submit
+        payload=b"hello",                     # optional, at most 1 MiB before base64
+        max_attempts=3,                       # optional, 1 through 10; the gateway's default is 5
+    )
+    while not job.is_terminal:                # Succeeded, Cancelled or DeadLettered
+        await asyncio.sleep(1)
+        job = await jobs.get(job.job_id)
+    if job.status == "Succeeded" and job.result_reference is not None:
+        result = await jobs.result(job.job_id)  # result.content, result.digest
+    await jobs.cancel(job.job_id)             # idempotent; a running job is flagged and stopped by its worker
+```
+
+- **Retrying a submit is safe.** The idempotency key is a member of the request body, not a header (the
+  gateway reads no `Idempotency-Key` header on this route). The same request under the same key answers
+  the job it already made (202 again, whatever the job has become); a different request under that key is
+  refused with `job_idempotency_conflict` (409). The key belongs to the signed-in user.
+- **Checked before anything is sent**, with the gateway's own bounds: a job type of 1 to 128 ASCII letters,
+  digits, `.`, `-`, `_` or `:`; a trimmed idempotency key of 1 to 256 characters with no control character;
+  a payload of at most 1,048,576 bytes (exactly that is a job); and `max_attempts` from 1 through 10.
+- **Refusals** are `YogabaseJobsError`s carrying the gateway's `status` and `code` (the `JOB_*` constants
+  name them): `job_type_not_registered` (422), `job_idempotency_conflict` (409), `job_payload_too_large`
+  (413, with `limit_bytes` and `max_body_bytes` naming the payload and body limits), `job_request_invalid`
+  (400), `job_access_denied` (403), `job_unavailable` (503) and `job_not_found` (404, for no such job and for
+  another user's, never told apart). A plain `not_found` is an installation that does not serve Jobs at
+  all; no capability row says whether one does.
+- **A result is read separately.** `result_reference` is a name, not a capability; `result()` returns
+  `YogabaseJobResult(content, digest)` after hashing the bytes and comparing them with the
+  `X-Yogabase-Content-Sha256` header. A result that does not match (`job_result_digest_mismatch`), arrives
+  without exactly one well-formed `sha256:` digest, is larger than 16 MiB or is not a 200 is refused
+  (`job_response_invalid`) and never returned. `job_result_not_ready` (409) is your own job that has not
+  settled; `job_result_not_found` (404) is another user's job, an unknown one and a job that finished
+  without a result, never told apart.
+- Timestamps stay the ISO 8601 text the gateway wrote (it writes seven fractional digits, which Python
+  before 3.11 cannot parse). A response member this client does not know is ignored, as the generated
+  clients keep unknown members aside; a job that breaks a bound it does know (an unknown status,
+  `maxAttempts` outside 1 through 10) is refused.
+
 ## Workload delivery
 
 `AsyncDeliveryClient` is a separate client for the release-configured Delivery API host. It uses

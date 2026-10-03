@@ -93,6 +93,7 @@ rsync -a --delete \
 rsync -a --delete \
     --exclude /__init__.py \
     --exclude /delivery.py \
+    --exclude /jobs.py \
     --exclude /storage_logical_key.py \
     "$stage/languages/python/src/stackyoga_yogabase/" \
     "$repo_root/languages/python/src/stackyoga_yogabase/"
