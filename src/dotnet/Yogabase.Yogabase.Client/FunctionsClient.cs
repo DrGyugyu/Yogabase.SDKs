@@ -8,6 +8,24 @@ using System.Threading.Tasks;
 
 namespace Yogabase.Yogabase;
 
+/// <summary>
+/// Codes the function invoke route refuses with that a client may match on in
+/// <see cref="YogabaseApiException.Code"/>. The invocation outcomes the route answers with an
+/// invocation result (a conflict, a missing function, a deadline) are not errors and are not here.
+/// </summary>
+public static class YogabaseInvocationErrors
+{
+    /// <summary>
+    /// 413: the request's payload is over the 1 MiB inline limit before base64 encoding (the same limit
+    /// whether it is sent inline or as the object an object reference names), or the whole request body
+    /// is over the largest the route reads. <see cref="YogabaseApiException.LimitBytes"/> and
+    /// <see cref="YogabaseApiException.MaxBodyBytes"/> name both limits. A request at exactly the limit is
+    /// accepted. A gateway that predates the named refusal answered a bare 413 for an oversized body,
+    /// and that reads as this code too.
+    /// </summary>
+    public const string PayloadTooLarge = "payload_too_large";
+}
+
 internal sealed class YogabaseFunctionsClient : IYogabaseFunctions
 {
     private const int MaximumInlinePayloadBytes = 1_048_576;

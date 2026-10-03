@@ -8,8 +8,8 @@ System.Text.Json 8.0.5 line), because Unity 6000.5 binds its own 8.0 BCL extensi
 built against 10.x is CS1705 there; `UnityBuildTests` pins that the Unity build references nothing
 at 9.x or above. The Unity build is unqualified until the demo's IL2CPP player has run it. It supports non-secret publishable-key bootstrap,
 OIDC authorization-code/PKCE, mediated object
-storage, stateless Function invocation, Actor and Workflow Lambdas, SignalR realtime, and
-game-server allocation.
+storage, stateless Function invocation, Actor and Workflow Lambdas, durable background jobs, SignalR
+realtime, and game-server allocation.
 
 Every route this package calls lives in one place, `YogabaseRoutes`, grouped by the host and
 credential it belongs to. Nothing else in the package builds a path from string literals.
@@ -70,6 +70,81 @@ Today's product sends neither — `Host` already carries the advertised address 
 once a client that accepts them is the minimum, because this client refuses members it does not know;
 both read as `null` until then. When present they are checked: at most 16 addresses, each typed and
 non-empty, and a stated `Address` among them, or the answer is refused as `server_response_invalid`.
+
+## Background jobs
+
+`yogabase.Jobs` starts, reads, cancels and collects the result of a durable background job for the
+signed-in user, against `/v1/projects/{projectId}/jobs` on the application gateway and behind the same
+project token (the `lambda.invoke` scope) as invoking a function. A **job type is the id of a deployed
+stateless function**, and its highest released version runs the job; nothing assigns job types, so the
+next deploy changes them. A job belongs to the user who submitted it, and another user's job is
+answered exactly as one that does not exist.
+
+```csharp
+var job = await yogabase.Jobs.SubmitAsync(new YogabaseJobSubmitRequest
+{
+    JobType = "orders-create",
+    IdempotencyKey = "order-42",                      // keep it across retries of this submit
+    Payload = Encoding.UTF8.GetBytes("hello"),        // optional, at most 1 MiB before base64
+    MaxAttempts = 3,                                  // optional, 1 to 10; the gateway's default is 5
+});
+
+while (!job.IsTerminal)                               // Succeeded, Cancelled or DeadLettered
+{
+    await Task.Delay(TimeSpan.FromSeconds(1));
+    job = await yogabase.Jobs.GetAsync(job.JobId);
+}
+
+if (job.Status == YogabaseJobStatus.Succeeded && job.ResultReference is not null)
+{
+    YogabaseJobResult result = await yogabase.Jobs.GetResultAsync(job.JobId);
+    // result.Content is exactly what the function returned; result.Digest is its sha256: digest.
+}
+
+await yogabase.Jobs.CancelAsync(job.JobId);           // idempotent; a running job is flagged and stopped by its worker
+```
+
+- **Retrying a submit is safe.** The idempotency key is a member of the request body, not a header
+  (the gateway reads no `Idempotency-Key` header on this route). The same request under the same key
+  answers the job it already made (202 again, whatever the job has become); a different request under
+  that key is refused with `job_idempotency_conflict` (409). The key belongs to the signed-in user, so
+  another user's identical key makes that user's own job. Keep one key across the retries of one submit
+  and a new one for a new job.
+- **Checked before anything is sent**, with the gateway's own bounds: a job type of 1 to 128 ASCII
+  letters, digits, `.`, `-`, `_` or `:`; a trimmed idempotency key of 1 to 256 characters with no
+  control character; a payload of at most 1,048,576 bytes (a payload of exactly that is a job); and
+  `MaxAttempts` from 1 to 10. A function that fails and asks for a retry is retried with backoff until
+  `MaxAttempts`, and the job is then `DeadLettered` with the function's own failure code. A function
+  still running at the longest a job may run (30 seconds unless the environment's designer set
+  another, up to 15 minutes) fails that attempt as `job_duration_exceeded`.
+- **Refusals** surface as `YogabaseApiException` with the gateway's code, which `YogabaseJobErrors`
+  names: `job_type_not_registered` (422, no deployed function has that name),
+  `job_idempotency_conflict` (409), `job_payload_too_large` (413, with `LimitBytes` and `MaxBodyBytes`
+  naming the payload and body limits), `job_request_invalid` (400), `job_access_denied` (403),
+  `job_unavailable` (503) and `job_not_found` (404, for no such job and for another user's job, never
+  told apart). A plain `not_found` with no body is an installation that does not serve Jobs at all.
+- **A result is read separately.** `ResultReference` on the job is a name, not a capability; the bytes
+  come from `GetResultAsync`, which hashes them and compares the digest with the
+  `X-Yogabase-Content-Sha256` header the gateway sent. A result that does not match
+  (`job_result_digest_mismatch`), arrives without exactly one well-formed `sha256:` digest, is larger
+  than 16 MiB or is not a 200 is refused (`job_response_invalid`, 502) and never returned.
+  `job_result_not_ready` (409) is your own job that has not settled; `job_result_not_found` (404) is
+  another user's job, an unknown one and a job that finished without a result, which are never told
+  apart; `job_result_integrity_failed` (502) and `job_result_reference_invalid` (500) are the gateway
+  refusing a stored result that is not what the job recorded, with no byte of it sent.
+- **No capability gates it.** The bootstrap document carries no capability identifier for Jobs, so
+  the client does not pretend to know whether an installation serves them and, unlike
+  `yogabase.Functions`, does not refuse on `functions-rest`.
+- **It is not in the contract.** The product serves these routes (owner decision, 2026-10-03) but its
+  client OpenAPI document does not describe them yet, so this surface is written from the gateway's
+  source and developer documentation and pinned by `JobsClientTests`, not by the mirrored contract.
+  As everywhere in this client, a response member it does not know is refused (`response_invalid`)
+  rather than ignored.
+
+A function invoked directly by `yogabase.Functions` that is refused as too large (413
+`payload_too_large`) carries the same two limits: the payload limit is 1 MiB before base64, the same
+whether the payload is sent inline or as the object an `objectReference` names, and a request at
+exactly the limit is accepted.
 
 ## Uploading a build
 

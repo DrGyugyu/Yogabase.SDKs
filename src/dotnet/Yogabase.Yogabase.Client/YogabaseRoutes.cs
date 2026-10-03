@@ -92,6 +92,19 @@ public static class YogabaseRoutes
     public const string WorkflowCancelTemplate =
         "v1/projects/{projectId}/workflows/instances/{workflowInstanceId}/cancel";
 
+    /// <summary>
+    /// Durable Jobs: <c>POST</c> submits a job, and the other three name one job by its id (read it,
+    /// cancel it, fetch its result). The gateway serves them behind the project token's
+    /// <c>lambda.invoke</c> scope, and only on an installation that has Jobs turned on.
+    /// </summary>
+    public const string JobsTemplate = "v1/projects/{projectId}/jobs";
+    /// <inheritdoc cref="JobsTemplate"/>
+    public const string JobTemplate = "v1/projects/{projectId}/jobs/{jobId}";
+    /// <inheritdoc cref="JobsTemplate"/>
+    public const string JobCancelTemplate = "v1/projects/{projectId}/jobs/{jobId}/cancel";
+    /// <inheritdoc cref="JobsTemplate"/>
+    public const string JobResultTemplate = "v1/projects/{projectId}/jobs/{jobId}/result";
+
     /// <summary>SignalR realtime hub path, carried verbatim in the bootstrap document.</summary>
     public const string RealtimePath = "/v1/realtime";
 
@@ -206,6 +219,18 @@ public static class YogabaseRoutes
     /// <summary>Cancel route for one running Workflow Lambda instance.</summary>
     public static string WorkflowCancel(Guid projectId, string escapedWorkflowInstanceId) =>
         "v1/projects/" + Id(projectId) + "/workflows/instances/" + escapedWorkflowInstanceId + "/cancel";
+
+    /// <summary>Submit route of one project's durable Jobs.</summary>
+    public static string Jobs(Guid projectId) => "v1/projects/" + Id(projectId) + "/jobs";
+
+    /// <summary>Route of one job, which is its canonical <c>D</c>-form UUID.</summary>
+    public static string Job(Guid projectId, Guid jobId) => Jobs(projectId) + "/" + Id(jobId);
+
+    /// <summary>Cancel route of one job.</summary>
+    public static string JobCancel(Guid projectId, Guid jobId) => Job(projectId, jobId) + "/cancel";
+
+    /// <summary>Result route of one job.</summary>
+    public static string JobResult(Guid projectId, Guid jobId) => Job(projectId, jobId) + "/result";
 
     /// <summary>Route of one allocated game-server instance.</summary>
     public static string Server(string escapedServerId) => "v1/servers/" + escapedServerId;

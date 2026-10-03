@@ -180,16 +180,44 @@ public sealed class YogabasePkceOptions
 public sealed class YogabaseApiException : Exception
 {
     public YogabaseApiException(int statusCode, string code, string message, string? traceId = null)
+        : this(statusCode, code, message, traceId, limitBytes: null, maxBodyBytes: null)
+    {
+    }
+
+    public YogabaseApiException(
+        int statusCode,
+        string code,
+        string message,
+        string? traceId,
+        long? limitBytes,
+        long? maxBodyBytes)
         : base(message)
     {
         StatusCode = statusCode;
         Code = code;
         TraceId = traceId;
+        LimitBytes = limitBytes;
+        MaxBodyBytes = maxBodyBytes;
     }
 
     public int StatusCode { get; }
     public string Code { get; }
     public string? TraceId { get; }
+
+    /// <summary>
+    /// The most bytes the refused request's payload may have, before base64 encoding, when the gateway
+    /// named it: a <c>413</c> from the function invoke route (<see cref="YogabaseInvocationErrors.PayloadTooLarge"/>)
+    /// or the Jobs submit route (<see cref="YogabaseJobErrors.PayloadTooLarge"/>) carries it as
+    /// <c>limitBytes</c>. <see langword="null"/> for every other refusal.
+    /// </summary>
+    public long? LimitBytes { get; }
+
+    /// <summary>
+    /// The most bytes the route's whole request body may have, when the gateway named it
+    /// (<c>maxBodyBytes</c> on the same <c>413</c> problem), so a caller can tell a payload over the
+    /// limit from a body over it. <see langword="null"/> for every other refusal.
+    /// </summary>
+    public long? MaxBodyBytes { get; }
 }
 
 public interface IYogabaseAuth

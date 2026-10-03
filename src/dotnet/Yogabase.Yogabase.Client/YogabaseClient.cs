@@ -37,6 +37,7 @@ public sealed class YogabaseClient : IDisposable, IAsyncDisposable
         Functions = new YogabaseFunctionsClient(Configuration, transport);
         Actors = new YogabaseActorsClient(Configuration, transport);
         Workflows = new YogabaseWorkflowsClient(Configuration, transport);
+        Jobs = new YogabaseJobsClient(Configuration, transport);
         realtime = new YogabaseRealtimeClient(Configuration, auth.GetValidAccessTokenAsync);
         Realtime = realtime;
     }
@@ -48,6 +49,14 @@ public sealed class YogabaseClient : IDisposable, IAsyncDisposable
     public IYogabaseFunctions Functions { get; }
     public IYogabaseActors Actors { get; }
     public IYogabaseWorkflows Workflows { get; }
+
+    /// <summary>
+    /// Durable background jobs for the signed-in user: submit a run of a deployed stateless function,
+    /// read it, cancel it and fetch its result. The bootstrap document carries no capability
+    /// identifier for this surface, so the client does not pretend to know whether the installation
+    /// serves it; an installation without it answers the gateway's own <c>not_found</c>.
+    /// </summary>
+    public IYogabaseJobs Jobs { get; }
 
     /// <summary>
     /// Game-server allocation for the signed-in player: start, list, inspect, and stop instances of

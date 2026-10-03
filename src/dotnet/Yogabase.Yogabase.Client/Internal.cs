@@ -156,9 +156,14 @@ internal sealed class YogabaseHttpTransport : IDisposable
             HttpStatusCode.Forbidden => "forbidden",
             HttpStatusCode.NotFound => "not_found",
             HttpStatusCode.Conflict => "conflict",
+            // A gateway that predates the named refusal answers a bare 413 for a body over its
+            // listener's limit; the status alone says what was too large, so it reads the same.
+            HttpStatusCode.RequestEntityTooLarge => YogabaseInvocationErrors.PayloadTooLarge,
             (HttpStatusCode)429 => "rate_limited",
             _ => "request_failed",
         };
+        long? limitBytes = null;
+        long? maxBodyBytes = null;
         var message = $"Yogabase returned HTTP {(int)response.StatusCode}.";
         // The Control Plane and the application gateway both answer X-Correlation-ID; the older
         // header name is still read so an installation one release behind is not blind here.
@@ -198,6 +203,24 @@ internal sealed class YogabaseHttpTransport : IDisposable
                     message = title.GetString() ?? message;
                 }
 
+                // A 413 names the limits it applied: limitBytes for the payload and maxBodyBytes for the
+                // whole request body, as plain numbers at the top level of the problem.
+                if (root.TryGetProperty("limitBytes", out var limit)
+                    && limit.ValueKind == JsonValueKind.Number
+                    && limit.TryGetInt64(out var limitValue)
+                    && limitValue > 0)
+                {
+                    limitBytes = limitValue;
+                }
+
+                if (root.TryGetProperty("maxBodyBytes", out var maxBody)
+                    && maxBody.ValueKind == JsonValueKind.Number
+                    && maxBody.TryGetInt64(out var maxBodyValue)
+                    && maxBodyValue > 0)
+                {
+                    maxBodyBytes = maxBodyValue;
+                }
+
                 if (root.TryGetProperty("traceId", out var trace) && trace.ValueKind == JsonValueKind.String)
                 {
                     traceId = trace.GetString();
@@ -222,7 +245,7 @@ internal sealed class YogabaseHttpTransport : IDisposable
             response.Dispose();
         }
 
-        throw new YogabaseApiException((int)response.StatusCode, code, message, traceId);
+        throw new YogabaseApiException((int)response.StatusCode, code, message, traceId, limitBytes, maxBodyBytes);
     }
 
     public void Dispose()
