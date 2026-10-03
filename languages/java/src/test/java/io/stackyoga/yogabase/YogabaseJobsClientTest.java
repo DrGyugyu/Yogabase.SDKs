@@ -35,10 +35,11 @@ import okio.BufferedSource;
 
 /**
  * Executable conformance checks for the authored Java Jobs client. The shapes pinned here are the ones the
- * product's gateway writes ({@code DurableJobsGateway}) and its developer documentation states; the
- * product's client OpenAPI document does not describe the Jobs routes, which is why they are pinned here
- * rather than by the mirrored contract. The client runs over a real Kiota {@code OkHttpRequestAdapter} whose
- * OkHttp client answers every call from a script, so the request that reaches the wire is the one asserted.
+ * mirrored client OpenAPI document declares for the Jobs routes ({@code x-yogabase-jobs} and the four
+ * operations) and the product's gateway writes. The client builds each request with the generated Kiota request
+ * builders and runs over a real Kiota {@code OkHttpRequestAdapter} whose OkHttp client answers every call from a
+ * script, so the request that reaches the wire is the one asserted, and it is held to the request the generated
+ * builder builds on its own.
  */
 public final class YogabaseJobsClientTest {
     private static final String GATEWAY = "https://apps.example.test";
@@ -82,6 +83,7 @@ public final class YogabaseJobsClientTest {
         aResultTheGatewayRefusesSurfacesItsStatusAndCodeAndNoBytes();
         theOriginAndTheProjectAreValidatedAndTheApplicationClientHandsOutTheClient();
         anAdapterThatDoesNotHandBackItsNativeResponseIsNamed();
+        theRequestsAreTheOnesTheGeneratedBuildersBuild();
         System.out.println("java jobs client tests: PASS (" + cases + " checks)");
     }
 
@@ -100,8 +102,9 @@ public final class YogabaseJobsClientTest {
         assertEquals("Bearer user-token", request.header("Authorization"));
         assertEquals("application/json", request.header("Content-Type") == null ? null : request.header("Content-Type").split(";")[0]);
         assertTrue(request.header("Accept").contains("application/json"));
-        // The member order and the names are the gateway's submission, which refuses any other member.
-        assertEquals(
+        // The names are the gateway's submission, which refuses any other member; the member order is the
+        // generated serializer's, so the body is compared as the JSON document it is.
+        assertJson(
             "{\"jobType\":\"orders-create\",\"idempotencyKey\":\"order-42\",\"payloadBase64\":\"aGVsbG8=\",\"maxAttempts\":3}",
             script.bodyText(0));
         // The key rides in the body: the gateway reads no Idempotency-Key header on this route.
@@ -126,8 +129,8 @@ public final class YogabaseJobsClientTest {
         jobs.submit(new YogabaseJobSubmitRequest("emails-send", "k"));
         jobs.submit(new YogabaseJobSubmitRequest("emails-send", "k", new byte[0], null));
         // A job with no payload and one with an empty payload are the same job to the gateway.
-        assertEquals("{\"jobType\":\"emails-send\",\"idempotencyKey\":\"k\"}", script.bodyText(0));
-        assertEquals("{\"jobType\":\"emails-send\",\"idempotencyKey\":\"k\"}", script.bodyText(1));
+        assertJson("{\"jobType\":\"emails-send\",\"idempotencyKey\":\"k\"}", script.bodyText(0));
+        assertJson("{\"jobType\":\"emails-send\",\"idempotencyKey\":\"k\"}", script.bodyText(1));
     }
 
     private static void aRetriedSubmitIsTheSameRequestOnTheWireSoTheGatewayCanReplayIt() {
@@ -190,7 +193,9 @@ public final class YogabaseJobsClientTest {
         final Script script = new Script(request -> json(request, 202, jobJson(Map.of())));
         script.client().submit(new YogabaseJobSubmitRequest("orders-create", "주문-42\"\\"));
         final String body = script.bodyText(0);
-        assertTrue(body.chars().allMatch(character -> character >= 0x20 && character < 0x7f));
+        // The generated serializer writes the key as UTF-8 text, which is smaller than the six-byte escape the
+        // gateway's body limit allows for every character, and it escapes the quote and the backslash.
+        assertTrue(body.contains("주문-42"));
         assertEquals("주문-42\"\\", com.google.gson.JsonParser.parseString(body).getAsJsonObject().get("idempotencyKey").getAsString());
     }
 
@@ -540,6 +545,67 @@ public final class YogabaseJobsClientTest {
     }
 
     // ---------------------------------------------------------------------------------------
+    // The authored requests are the generated builders' requests
+    // ---------------------------------------------------------------------------------------
+
+    private static void theRequestsAreTheOnesTheGeneratedBuildersBuild() {
+        final io.stackyoga.yogabase.models.JobSubmitRequest body = new io.stackyoga.yogabase.models.JobSubmitRequest();
+        body.setJobType("orders-create");
+        body.setIdempotencyKey("order-42");
+        body.setPayloadBase64("aGVsbG8=");
+        body.setMaxAttempts(3);
+        assertSameRequest(
+            sentBy(client -> client.submit(new YogabaseJobSubmitRequest("orders-create", "order-42", "hello".getBytes(StandardCharsets.UTF_8), 3))),
+            builtBy(api -> api.v1().projects().byProjectId(PROJECT).jobs().post(body)));
+        assertSameRequest(
+            sentBy(client -> client.get(JOB)),
+            builtBy(api -> api.v1().projects().byProjectId(PROJECT).jobs().byJobId(JOB).get()));
+        assertSameRequest(
+            sentBy(client -> client.cancel(JOB)),
+            builtBy(api -> api.v1().projects().byProjectId(PROJECT).jobs().byJobId(JOB).cancel().post()));
+        assertSameRequest(
+            sentBy(client -> client.result(JOB)),
+            builtBy(api -> api.v1().projects().byProjectId(PROJECT).jobs().byJobId(JOB).result().get()));
+    }
+
+    private record Sent(Request request, String body) {
+    }
+
+    private static Sent sentBy(java.util.function.Consumer<YogabaseJobsClient> call) {
+        final Script script = new Script(request -> json(request, 200, "{}"));
+        try {
+            call.accept(script.client());
+        } catch (RuntimeException expected) {
+            // The canned answer is not a job; only the request is compared.
+        }
+        assertEquals(1, script.requests.size());
+        return new Sent(script.requests.get(0), script.bodyText(0));
+    }
+
+    private static Sent builtBy(java.util.function.Consumer<YogabaseApiClient> call) {
+        final Script script = new Script(request -> json(request, 200, "{}"));
+        final RequestAdapter adapter = script.adapter();
+        adapter.setBaseUrl(GATEWAY);
+        try {
+            call.accept(new YogabaseApiClient(adapter));
+        } catch (RuntimeException expected) {
+            // The canned answer is not a job; only the request is compared.
+        }
+        assertEquals(1, script.requests.size());
+        return new Sent(script.requests.get(0), script.bodyText(0));
+    }
+
+    private static void assertSameRequest(Sent sent, Sent built) {
+        assertEquals(built.request().method(), sent.request().method());
+        assertEquals(built.request().url().toString(), sent.request().url().toString());
+        if (!built.body().isEmpty() || !sent.body().isEmpty()) {
+            assertJson(built.body(), sent.body());
+        }
+        // The authored client sends exactly what the generated builder asks to accept.
+        assertEquals(built.request().header("Accept"), sent.request().header("Accept"));
+    }
+
+    // ---------------------------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------------------------
 
@@ -653,6 +719,13 @@ public final class YogabaseJobsClientTest {
         cases++;
         if (!value) {
             throw new AssertionError("Expected true");
+        }
+    }
+
+    private static void assertJson(String expected, String actual) {
+        cases++;
+        if (!com.google.gson.JsonParser.parseString(expected).equals(com.google.gson.JsonParser.parseString(actual))) {
+            throw new AssertionError("Expected the JSON document " + expected + " but got " + actual);
         }
     }
 

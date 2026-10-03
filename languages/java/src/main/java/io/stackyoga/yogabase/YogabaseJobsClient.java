@@ -1,30 +1,16 @@
 package io.stackyoga.yogabase;
 
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParseException;
-import com.google.gson.JsonParser;
-import com.google.gson.JsonPrimitive;
-import com.microsoft.kiota.HttpMethod;
-import com.microsoft.kiota.NativeResponseHandler;
 import com.microsoft.kiota.RequestAdapter;
-import com.microsoft.kiota.RequestInformation;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.math.BigDecimal;
+import io.stackyoga.yogabase.models.JobSubmitRequest;
+import io.stackyoga.yogabase.v1.projects.item.jobs.JobsRequestBuilder;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.OffsetDateTime;
-import java.time.format.DateTimeParseException;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -38,13 +24,15 @@ import okhttp3.ResponseBody;
  * type is the id of a deployed stateless function. A job belongs to the user who submitted it, and another
  * user's job is answered exactly as one that does not exist.
  *
- * <p>Jobs are served by the product (owner decision, 2026-10-03) but its client OpenAPI document does not
- * describe the routes yet, so Kiota generates nothing for them and this class is written from the gateway's
- * source and developer documentation instead; {@code YogabaseJobsClientTest} pins every shape. It shares the
- * Kiota request adapter, and so the authentication and the origin, of the generated application client
- * ({@link YogabaseApplicationClient#jobs}), and reads the response through the adapter's native response
- * because the result route's digest is a response header: it needs the {@code OkHttpRequestAdapter} the
- * Kiota bundle provides, whose native response is an OkHttp {@link Response}.
+ * <p>The product's client OpenAPI document describes the Jobs routes, so Kiota generates their request builders
+ * ({@code api().v1().projects().byProjectId(id).jobs()}). This class wraps those builders: each request is the
+ * one the generated builder builds (its route, its media types and its serialized body), sent through the
+ * Kiota request adapter of the generated application client ({@link YogabaseApplicationClient#jobs}), and so
+ * with its authentication and origin. What it adds is what a generated builder cannot give: it reads the
+ * response through the adapter's native response, because the result route's digest is a response header, so
+ * it needs the {@code OkHttpRequestAdapter} the Kiota bundle provides, whose native response is an OkHttp
+ * {@link Response}; it validates each call before it is sent; and it refuses an answer that is not what the
+ * route declares and names every refusal by its code. {@code YogabaseJobsClientTest} pins every shape.
  *
  * <p>No capability gates it: the bootstrap document carries no capability identifier for Jobs, so the client
  * does not pretend to know whether an installation serves them. An installation without them answers a plain
@@ -64,20 +52,16 @@ public final class YogabaseJobsClient {
     /** The response header that carries the SHA-256 the result's bytes were verified against. */
     public static final String RESULT_DIGEST_HEADER = "X-Yogabase-Content-Sha256";
 
-    private static final int MAXIMUM_DOCUMENT_BYTES = 1_048_576;
     private static final int MAXIMUM_JOB_TYPE_LENGTH = 128;
     private static final int MAXIMUM_IDEMPOTENCY_KEY_LENGTH = 256;
     private static final Pattern JOB_TYPE = Pattern.compile("[A-Za-z0-9._:-]{1,128}");
     private static final Pattern FAILURE_CODE = Pattern.compile("[a-z0-9_]{1,128}");
     private static final Pattern RESULT_DIGEST = Pattern.compile("sha256:[0-9a-f]{64}");
-    private static final Pattern WHOLE_NUMBER = Pattern.compile("-?[0-9]+");
-    private static final String ROUTE = "{+baseurl}/v1/projects/{projectId}/jobs";
-    private static final String DOCUMENT_ACCEPT = "application/json, application/problem+json";
-    private static final String RESULT_ACCEPT = "application/octet-stream, application/problem+json";
 
     private final RequestAdapter requestAdapter;
     private final URI origin;
     private final UUID projectId;
+    private final YogabaseGatewayChannel channel;
 
     /**
      * @param requestAdapter the Kiota request adapter that authenticates calls to the application gateway
@@ -90,6 +74,7 @@ public final class YogabaseJobsClient {
         this.origin = YogabaseClientOrigin.requireOrigin(applicationOrigin, "applicationOrigin");
         this.projectId = requireId(projectId, "projectId");
         requestAdapter.setBaseUrl(YogabaseClientOrigin.baseUrl(this.origin));
+        this.channel = new YogabaseGatewayChannel(requestAdapter, YogabaseJobsException::new, YogabaseJobErrorCodes.RESPONSE_INVALID);
     }
 
     public URI origin() {
@@ -113,19 +98,17 @@ public final class YogabaseJobsClient {
     public YogabaseJob submit(YogabaseJobSubmitRequest request) {
         Objects.requireNonNull(request, "request");
         validate(request);
-        // The member order and the names are the gateway's submission, which refuses any other member. A job
-        // with no payload and one with an empty payload are the same job to the gateway.
-        final StringBuilder body = new StringBuilder("{\"jobType\":").append(quote(request.jobType()))
-            .append(",\"idempotencyKey\":").append(quote(request.idempotencyKey()));
+        // A job with no payload and one with an empty payload are the same job to the gateway.
+        final JobSubmitRequest body = new JobSubmitRequest();
+        body.setJobType(request.jobType());
+        body.setIdempotencyKey(request.idempotencyKey());
         if (request.payload() != null && request.payload().length > 0) {
-            body.append(",\"payloadBase64\":\"")
-                .append(Base64.getEncoder().encodeToString(request.payload())).append('"');
+            body.setPayloadBase64(Base64.getEncoder().encodeToString(request.payload()));
         }
         if (request.maxAttempts() != null) {
-            body.append(",\"maxAttempts\":").append(request.maxAttempts().intValue());
+            body.setMaxAttempts(request.maxAttempts());
         }
-        body.append('}');
-        try (Response response = send(HttpMethod.POST, "", null, body.toString().getBytes(StandardCharsets.UTF_8), DOCUMENT_ACCEPT)) {
+        try (Response response = channel.send(jobs().toPostRequestInformation(body))) {
             return readJob(response);
         }
     }
@@ -136,7 +119,7 @@ public final class YogabaseJobsClient {
      * @throws YogabaseJobsException {@link YogabaseJobErrorCodes#NOT_FOUND} (404) for no such job and for another user's
      */
     public YogabaseJob get(UUID jobId) {
-        try (Response response = send(HttpMethod.GET, "/{jobId}", requireId(jobId, "jobId"), null, DOCUMENT_ACCEPT)) {
+        try (Response response = channel.send(jobs().byJobId(requireId(jobId, "jobId")).toGetRequestInformation())) {
             return readJob(response);
         }
     }
@@ -149,7 +132,7 @@ public final class YogabaseJobsClient {
      * @throws YogabaseJobsException {@link YogabaseJobErrorCodes#NOT_FOUND} (404) for no such job and for another user's
      */
     public YogabaseJob cancel(UUID jobId) {
-        try (Response response = send(HttpMethod.POST, "/{jobId}/cancel", requireId(jobId, "jobId"), null, DOCUMENT_ACCEPT)) {
+        try (Response response = channel.send(jobs().byJobId(requireId(jobId, "jobId")).cancel().toPostRequestInformation())) {
             return readJob(response);
         }
     }
@@ -167,17 +150,18 @@ public final class YogabaseJobsClient {
      *     (502) from this client
      */
     public YogabaseJobResult result(UUID jobId) {
-        try (Response response = send(HttpMethod.GET, "/{jobId}/result", requireId(jobId, "jobId"), null, RESULT_ACCEPT)) {
+        try (Response response = channel.send(jobs().byJobId(requireId(jobId, "jobId")).result().toGetRequestInformation())) {
             // Headers joins nothing: a repeated header is a list of more than one value, which is not trusted.
             final List<String> declared = response.headers(RESULT_DIGEST_HEADER);
             if (response.code() != 200 || declared.size() != 1 || !RESULT_DIGEST.matcher(declared.get(0)).matches()) {
-                throw invalid("Yogabase returned an invalid job result.", response);
+                throw channel.invalid("Yogabase returned an invalid job result.", response);
             }
             final ResponseBody responseBody = response.body();
             if (responseBody == null || responseBody.contentLength() > MAXIMUM_RESULT_BYTES) {
-                throw invalid("Yogabase returned an invalid or oversized job result.", response);
+                throw channel.invalid("Yogabase returned an invalid or oversized job result.", response);
             }
-            final byte[] content = readBounded(responseBody.byteStream(), MAXIMUM_RESULT_BYTES, response);
+            final byte[] content = channel.readBounded(
+                responseBody.byteStream(), MAXIMUM_RESULT_BYTES, response, "Yogabase returned an oversized response.");
             final String computed = "sha256:" + HexFormat.of().formatHex(sha256(content));
             if (!computed.equals(declared.get(0))) {
                 throw new YogabaseJobsException(
@@ -193,36 +177,12 @@ public final class YogabaseJobsClient {
     }
 
     /**
-     * Sends one request through the adapter and hands back its native response, whatever its status. The
-     * caller owns the response and closes it. A non-2xx status is turned into the exception it is here, so
-     * every caller sees only an answer it may read.
+     * The generated Jobs request builder of this client's project. It is built for each call from the generated
+     * client's own navigation, so the route, the path parameters and the base URL the adapter holds now are the
+     * generated code's and never restated here.
      */
-    private Response send(HttpMethod method, String template, UUID jobId, byte[] body, String accept) {
-        final Map<String, Object> pathParameters = new HashMap<>();
-        pathParameters.put("baseurl", requestAdapter.getBaseUrl());
-        pathParameters.put("projectId", projectId.toString());
-        if (jobId != null) {
-            pathParameters.put("jobId", jobId.toString());
-        }
-        final RequestInformation information = new RequestInformation(method, ROUTE + template, pathParameters);
-        information.headers.add("Accept", accept);
-        if (body != null) {
-            information.setStreamContent(new ByteArrayInputStream(body), "application/json");
-        }
-        final NativeResponseHandler handler = new NativeResponseHandler();
-        information.setResponseHandler(handler);
-        requestAdapter.sendPrimitive(information, new HashMap<>(), Void.class);
-        if (!(handler.getValue() instanceof Response response)) {
-            throw new IllegalStateException(
-                "The request adapter did not hand back its native OkHttp response, which the Jobs client reads; "
-                    + "use the OkHttpRequestAdapter of the Kiota bundle.");
-        }
-        if (response.code() < 200 || response.code() >= 300) {
-            try (response) {
-                throw problem(response);
-            }
-        }
-        return response;
+    private JobsRequestBuilder jobs() {
+        return new YogabaseApiClient(requestAdapter).v1().projects().byProjectId(projectId).jobs();
     }
 
     private static void validate(YogabaseJobSubmitRequest request) {
@@ -256,103 +216,29 @@ public final class YogabaseJobsClient {
         return value;
     }
 
-    /** A JSON string literal, ASCII only: everything outside printable ASCII travels as a \\u escape. */
-    private static String quote(String value) {
-        final StringBuilder text = new StringBuilder("\"");
-        for (int index = 0; index < value.length(); index++) {
-            final char character = value.charAt(index);
-            switch (character) {
-                case '"' -> text.append("\\\"");
-                case '\\' -> text.append("\\\\");
-                default -> {
-                    if (character < 0x20 || character > 0x7e) {
-                        text.append(String.format("\\u%04x", (int) character));
-                    } else {
-                        text.append(character);
-                    }
-                }
-            }
-        }
-        return text.append('"').toString();
-    }
-
-    private static YogabaseJobsException invalid(String message, Response response) {
-        return new YogabaseJobsException(
-            message, 502, YogabaseJobErrorCodes.RESPONSE_INVALID, response.header("X-Correlation-ID"), null, null);
-    }
-
-    private static YogabaseJobsException problem(Response response) {
-        JsonObject document = null;
-        try {
-            final ResponseBody responseBody = response.body();
-            if (responseBody != null) {
-                final JsonElement parsed = JsonParser.parseString(new String(
-                    readBounded(responseBody.byteStream(), MAXIMUM_DOCUMENT_BYTES, response), StandardCharsets.UTF_8));
-                if (parsed.isJsonObject()) {
-                    document = parsed.getAsJsonObject();
-                }
-            }
-        } catch (JsonParseException | IllegalStateException | YogabaseJobsException ignored) {
-            // The status stands when the body is not a problem document.
-        }
-        final String fromStatus = switch (response.code()) {
-            case 401 -> "authentication_required";
-            case 403 -> "forbidden";
-            case 404 -> "not_found";
-            case 409 -> "conflict";
-            // A gateway that predates the named refusal answers a bare 413 for a body over its listener's limit.
-            case 413 -> "payload_too_large";
-            case 429 -> "rate_limited";
-            default -> "request_failed";
-        };
-        final String detail = text(document, "detail");
-        final String title = text(document, "title");
-        final String code = text(document, "code");
-        final String trace = text(document, "traceId");
-        final String correlation = response.header("X-Correlation-ID");
-        return new YogabaseJobsException(
-            detail != null ? detail : title != null ? title : "Yogabase returned HTTP " + response.code() + ".",
-            response.code(),
-            code != null ? code : fromStatus,
-            correlation != null ? correlation : trace,
-            positive(document, "limitBytes"),
-            positive(document, "maxBodyBytes"));
-    }
-
     // A job the gateway describes wrongly is worse than one it refuses: a caller that polls for a state it was
     // never told about waits for ever. Reject the answer instead of returning a guess. A member this client does
     // not know is ignored, as the generated clients keep unknown members aside.
-    private static YogabaseJob readJob(Response response) {
-        final JsonObject document;
-        try {
-            final ResponseBody responseBody = response.body();
-            if (responseBody == null) {
-                throw invalid("Yogabase returned an invalid job.", response);
-            }
-            final JsonElement parsed = JsonParser.parseString(new String(
-                readBounded(responseBody.byteStream(), MAXIMUM_DOCUMENT_BYTES, response), StandardCharsets.UTF_8));
-            if (!parsed.isJsonObject()) {
-                throw invalid("Yogabase returned an invalid job.", response);
-            }
-            document = parsed.getAsJsonObject();
-        } catch (JsonParseException exception) {
-            throw invalid("Yogabase returned a job document that is not JSON.", response);
-        }
+    private YogabaseJob readJob(Response response) {
+        final JsonObject document = channel.readObject(
+            response, "Yogabase returned an invalid job.", "Yogabase returned a job document that is not JSON.");
 
-        final String jobId = text(document, "jobId");
-        final String jobType = text(document, "jobType");
-        final YogabaseJobStatus status = YogabaseJobStatus.fromWireName(text(document, "status"));
-        final Integer attempt = whole(document, "attempt");
-        final Integer maxAttempts = whole(document, "maxAttempts");
-        final Integer progress = whole(document, "progressPercent");
-        final Boolean cancellation = flag(document, "cancellationRequested");
-        final Nullable<String> resultReference = nullableText(document, "resultReference");
-        final Nullable<String> failureCode = nullableText(document, "failureCode");
-        final OffsetDateTime createdAt = timestamp(text(document, "createdAt"));
-        final OffsetDateTime updatedAt = timestamp(text(document, "updatedAt"));
-        final Nullable<String> completed = nullableText(document, "completedAt");
-        final OffsetDateTime completedAt = completed.present() && completed.value() != null ? timestamp(completed.value()) : null;
-        final UUID parsedJobId = canonicalUuid(jobId);
+        final String jobId = YogabaseGatewayChannel.text(document, "jobId");
+        final String jobType = YogabaseGatewayChannel.text(document, "jobType");
+        final YogabaseJobStatus status = YogabaseJobStatus.fromWireName(YogabaseGatewayChannel.text(document, "status"));
+        final Integer attempt = YogabaseGatewayChannel.whole(document, "attempt");
+        final Integer maxAttempts = YogabaseGatewayChannel.whole(document, "maxAttempts");
+        final Integer progress = YogabaseGatewayChannel.whole(document, "progressPercent");
+        final Boolean cancellation = YogabaseGatewayChannel.flag(document, "cancellationRequested");
+        final YogabaseGatewayChannel.Nullable<String> resultReference = YogabaseGatewayChannel.nullableText(document, "resultReference");
+        final YogabaseGatewayChannel.Nullable<String> failureCode = YogabaseGatewayChannel.nullableText(document, "failureCode");
+        final OffsetDateTime createdAt = YogabaseGatewayChannel.timestamp(YogabaseGatewayChannel.text(document, "createdAt"));
+        final OffsetDateTime updatedAt = YogabaseGatewayChannel.timestamp(YogabaseGatewayChannel.text(document, "updatedAt"));
+        final YogabaseGatewayChannel.Nullable<String> completed = YogabaseGatewayChannel.nullableText(document, "completedAt");
+        final OffsetDateTime completedAt = completed.present() && completed.value() != null
+            ? YogabaseGatewayChannel.timestamp(completed.value())
+            : null;
+        final UUID parsedJobId = YogabaseGatewayChannel.canonicalUuid(jobId);
         if (parsedJobId == null
             || jobType == null
             || !JOB_TYPE.matcher(jobType).matches()
@@ -374,7 +260,7 @@ public final class YogabaseJobsClient {
             || updatedAt == null
             || !completed.present()
             || completed.value() != null && completedAt == null) {
-            throw invalid("Yogabase returned an invalid job.", response);
+            throw channel.invalid("Yogabase returned an invalid job.", response);
         }
         return new YogabaseJob(
             parsedJobId,
@@ -391,87 +277,6 @@ public final class YogabaseJobsClient {
             completedAt);
     }
 
-    /** A member that may be null: {@code present} is false for a member that is neither null nor text. */
-    private record Nullable<T>(boolean present, T value) {
-    }
-
-    private static Nullable<String> nullableText(JsonObject document, String name) {
-        final JsonElement element = document.get(name);
-        if (element == null || element.isJsonNull()) {
-            return new Nullable<>(true, null);
-        }
-        final String value = text(document, name);
-        return new Nullable<>(value != null, value);
-    }
-
-    private static String text(JsonObject document, String name) {
-        if (document == null) {
-            return null;
-        }
-        final JsonElement element = document.get(name);
-        return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()
-            ? element.getAsString()
-            : null;
-    }
-
-    private static Boolean flag(JsonObject document, String name) {
-        final JsonElement element = document.get(name);
-        return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isBoolean()
-            ? element.getAsBoolean()
-            : null;
-    }
-
-    private static Integer whole(JsonObject document, String name) {
-        final Long value = wholeNumber(document, name);
-        return value != null && value >= Integer.MIN_VALUE && value <= Integer.MAX_VALUE ? Integer.valueOf(value.intValue()) : null;
-    }
-
-    private static Long positive(JsonObject document, String name) {
-        final Long value = document == null ? null : wholeNumber(document, name);
-        return value != null && value > 0 ? value : null;
-    }
-
-    private static Long wholeNumber(JsonObject document, String name) {
-        final JsonElement element = document.get(name);
-        if (element == null || !element.isJsonPrimitive()) {
-            return null;
-        }
-        final JsonPrimitive primitive = element.getAsJsonPrimitive();
-        if (!primitive.isNumber() || !WHOLE_NUMBER.matcher(primitive.getAsString()).matches()) {
-            return null;
-        }
-        try {
-            return new BigDecimal(primitive.getAsString()).longValueExact();
-        } catch (ArithmeticException exception) {
-            return null;
-        }
-    }
-
-    private static UUID canonicalUuid(String value) {
-        if (value == null || value.length() != 36) {
-            return null;
-        }
-        try {
-            final UUID parsed = UUID.fromString(value);
-            return parsed.toString().equalsIgnoreCase(value) && (parsed.getMostSignificantBits() != 0L || parsed.getLeastSignificantBits() != 0L)
-                ? parsed
-                : null;
-        } catch (IllegalArgumentException exception) {
-            return null;
-        }
-    }
-
-    private static OffsetDateTime timestamp(String value) {
-        if (value == null) {
-            return null;
-        }
-        try {
-            return OffsetDateTime.parse(value);
-        } catch (DateTimeParseException exception) {
-            return null;
-        }
-    }
-
     // The reference is opaque to a client: bounded, an object:// name, and nothing that could be read as more
     // than text. Its grammar belongs to the gateway and is not restated here.
     private static boolean isResultReference(String value) {
@@ -479,31 +284,6 @@ public final class YogabaseJobsClient {
             && value.length() <= 2048
             && value.startsWith("object://")
             && value.chars().noneMatch(character -> Character.isWhitespace(character) || Character.isISOControl(character));
-    }
-
-    private static byte[] readBounded(InputStream stream, int maximumBytes, Response response) {
-        try (InputStream input = stream) {
-            final ByteArrayOutputStream output = new ByteArrayOutputStream();
-            final byte[] buffer = new byte[16 * 1024];
-            int total = 0;
-            int read;
-            while ((read = input.read(buffer)) != -1) {
-                total += read;
-                if (total > maximumBytes) {
-                    throw invalid("Yogabase returned an oversized response.", response);
-                }
-                output.write(buffer, 0, read);
-            }
-            return output.toByteArray();
-        } catch (IOException exception) {
-            throw new YogabaseJobsException(
-                "The response from Yogabase could not be read.",
-                502,
-                YogabaseJobErrorCodes.RESPONSE_INVALID,
-                response.header("X-Correlation-ID"),
-                null,
-                null);
-        }
     }
 
     private static byte[] sha256(byte[] content) {

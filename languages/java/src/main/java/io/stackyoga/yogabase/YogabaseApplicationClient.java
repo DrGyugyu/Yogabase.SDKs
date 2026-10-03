@@ -34,10 +34,18 @@ public final class YogabaseApplicationClient {
     }
 
     /**
-     * Durable background jobs of one project for the signed-in user, beside the generated invoke routes. It
+     * Durable background jobs of one project for the signed-in user, over the generated Jobs routes. It
      * shares this client's adapter, and so its authentication and origin.
      */
     public YogabaseJobsClient jobs(UUID projectId) {
         return new YogabaseJobsClient(requestAdapter, origin, projectId);
+    }
+
+    /**
+     * The signed-in user's own schedules of one project, beside the generated schedule routes: each write is
+     * conditional on the schedule's ETag. It shares this client's adapter, and so its authentication and origin.
+     */
+    public YogabaseSchedulesClient schedules(UUID projectId) {
+        return new YogabaseSchedulesClient(requestAdapter, origin, projectId);
     }
 }

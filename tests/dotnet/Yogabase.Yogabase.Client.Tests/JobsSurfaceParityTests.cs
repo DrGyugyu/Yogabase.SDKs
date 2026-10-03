@@ -1,33 +1,51 @@
 namespace Yogabase.Tests;
 
 /// <summary>
-/// The product serves the durable Jobs routes but its client OpenAPI document does not describe them, so
-/// every language's Jobs surface is authored by hand from the gateway's source rather than generated from
-/// one contract. Nothing generated keeps those five implementations agreeing, so this test does: each
-/// language's authored sources must still spell the same route tails, request members, status names,
-/// error codes, limits and result-digest header. It reads the sources as text, which is the only check a
-/// language this repository cannot run (Dart) can have here; each language's own tests pin behaviour.
+/// Every language reaches the durable Jobs routes through code this repository writes, and nothing generated
+/// keeps those five implementations agreeing on the names a caller meets, so this test does: each language's
+/// Jobs sources must spell the same route tails, request members, status names, error codes, limits and
+/// result-digest header. Where a language wraps the Kiota builders (Java, Dart) the route tails and the
+/// request members are spelled by the generated builders and models, which are read with the authored
+/// client; where it is standalone (.NET, TypeScript, Python) its own file spells them. The operations
+/// themselves, and every limit and code against the contract, are held by
+/// <see cref="ContractOperationParityTests"/> and <see cref="ContractLimitsAndCodesTests"/>. It reads the
+/// sources as text, which is the only check a language this repository cannot run (Dart) can have here;
+/// each language's own tests pin behaviour.
 /// </summary>
 public sealed class JobsSurfaceParityTests
 {
     private const string SolutionFileName = "Yogabase.SDKs.slnx";
 
-    // Each language's authored Jobs sources. A language that spreads the surface over several files lists
-    // them all, and the checks run over their text together.
+    // Each language's Jobs sources. A language that spreads the surface over several files lists them all, and
+    // the checks run over their text together; an entry that ends in a slash is every source file under that
+    // directory (the generated Jobs builders), and the checks run over those too.
     private static readonly Dictionary<string, string[]> Sources = new(StringComparer.Ordinal)
     {
         [".NET"] =
         [
             "src/dotnet/Yogabase.Yogabase.Client/JobsClient.cs",
             "src/dotnet/Yogabase.Yogabase.Client/YogabaseRoutes.cs",
+            "src/dotnet/Yogabase.Yogabase.Client/StatusErrors.cs",
         ],
-        ["TypeScript"] = ["languages/typescript/src/jobs.ts"],
-        ["Python"] = ["languages/python/src/stackyoga_yogabase/jobs.py"],
+        ["TypeScript"] =
+        [
+            "languages/typescript/src/jobs.ts",
+            "languages/typescript/src/gateway.ts",
+        ],
+        ["Python"] =
+        [
+            "languages/python/src/stackyoga_yogabase/jobs.py",
+            "languages/python/src/stackyoga_yogabase/_gateway.py",
+        ],
         ["Java"] =
         [
             "languages/java/src/main/java/io/stackyoga/yogabase/YogabaseJobsClient.java",
             "languages/java/src/main/java/io/stackyoga/yogabase/YogabaseJobStatus.java",
             "languages/java/src/main/java/io/stackyoga/yogabase/YogabaseJobErrorCodes.java",
+            "languages/java/src/main/java/io/stackyoga/yogabase/YogabaseStatusErrorCodes.java",
+            "languages/java/src/main/java/io/stackyoga/yogabase/YogabaseGatewayChannel.java",
+            "languages/java/src/main/java/io/stackyoga/yogabase/v1/projects/item/jobs/",
+            "languages/java/src/main/java/io/stackyoga/yogabase/models/JobSubmitRequest.java",
         ],
         ["Dart"] = ["languages/dart/lib/src/yogabase_jobs_client.dart"],
     };
@@ -117,9 +135,18 @@ public sealed class JobsSurfaceParityTests
         var parts = new List<string>();
         foreach (var relativePath in Sources[language])
         {
-            parts.Add(await File.ReadAllTextAsync(
-                Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar)),
-                TestContext.Current.CancellationToken));
+            var path = Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            if (relativePath.EndsWith('/'))
+            {
+                foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
+                {
+                    parts.Add(await File.ReadAllTextAsync(file, TestContext.Current.CancellationToken));
+                }
+
+                continue;
+            }
+
+            parts.Add(await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
         }
 
         return string.Join('\n', parts);
