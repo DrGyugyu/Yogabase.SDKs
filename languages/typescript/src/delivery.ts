@@ -8,7 +8,7 @@
 
 export type Uuid = string;
 export type Sha256Digest = string;
-export const YOGABASE_DELIVERY_CONTRACT_SHA256 = "1eca152807ed2c6ab834b6ad7fea5fedb514ce359bd8f02f028635b03b8b6cc4";
+export const YOGABASE_DELIVERY_CONTRACT_SHA256 = "d44f95c0364d49071aa29e0d555687c942d91acbc9215cb71bd1eefb294d9c39";
 export const DELIVERY_TERMINAL_OPERATION_STATES = ["Succeeded", "Failed", "Abandoned", "Cancelled", "Blocked"] as const;
 
 export interface DeliveryEnvironmentPreviewRequest {
@@ -42,6 +42,12 @@ export interface DeliveryReleaseConfiguration {
     jobs: boolean;
     maxConcurrentExecutions?: number;
     maxCatchUp?: number;
+    /**
+     * The longest a durable job's function may run, in seconds (1 through 900), valid only with `jobs`.
+     * A release carries the whole configuration, so one that omits it returns the environment to the
+     * 30-second default, as it does `maxCatchUp`: send the value an environment should keep on every release.
+     */
+    jobsMaxRunSeconds?: number;
     allowedTimeZones?: string[];
 }
 

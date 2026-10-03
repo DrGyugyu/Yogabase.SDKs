@@ -6,7 +6,7 @@ import './capability_id.dart';
 class Capability implements Parsable {
     ///  The available property
     bool? available;
-    ///  realtime-presence appears only when requested; it is available exactly when realtime-subscribe is and the runtime's realtime projection enables presence.
+    ///  realtime-presence appears only when requested; it is available exactly when realtime-subscribe is and the runtime's realtime projection enables presence. data-rest appears only when requested; it is available exactly when the runtime enables the Data API, which requires auth.
     CapabilityId? id;
     ///  The unavailableReason property
     String? unavailableReason;

@@ -32,21 +32,18 @@ var game = server.FindPort("game");           // game.Endpoint is "node-ip:hostP
 
 ## Reading and writing data
 
-**There is no Data API client in this package today.** The client-facing Data API was withdrawn on
-2026-09-08; today an application reaches its project's data through a Lambda, which runs
-server-side with a full-access database context, and through Auth, Storage, and Realtime. Call a
-Lambda with `yogabase.Functions`, and write the Lambda itself against the `Yogabase.Lambda` package
-in this repository.
-
-On 2026-09-17 the owner decided to restore the client Data API — clients would again query and write
-project tables directly through the gateway under row-level security as the signed-in user,
-alongside Lambdas, Auth, Storage and Realtime — but that decision is not implemented yet: the
-mirrored contract (`contracts/yogabase-client-v1.openapi.json`) declares no `/v1/data` route, and
-this package has no Data client.
-
-A bootstrap document from an installation that predates the 2026-09-08 removal may still carry a
-`data-rest` capability row. The client accepts that document and ignores the row;
-`Configuration.IsAvailable(YogabaseCapability.WithdrawnDataRest)` answers `false` either way.
+**There is no Data API client in this package yet.** The client-facing Data API, withdrawn on
+2026-09-08, was restored by the owner decision of 2026-09-17 and implemented at the gateway on
+2026-09-23: `POST /v1/data/{table}/select|insert|upsert|update|delete`, run under row-level security
+as the signed-in user and served only where the bootstrap's requested-only `data-rest` row says so.
+The mirrored contract (`contracts/yogabase-client-v1.openapi.json`) declares it and the generated
+TypeScript, Python, Java and Dart clients carry it, but this package has no Data client and does not
+name `data-rest` in `X-Yogabase-Accept-Capabilities`, so
+`Configuration.IsAvailable(YogabaseCapability.WithdrawnDataRest)` answers `false` whatever the
+installation publishes. Until it has one, a .NET application reaches its project's data through a
+Lambda, which runs server-side with a full-access database context, and through Auth, Storage, and
+Realtime. Call a Lambda with `yogabase.Functions`, and write the Lambda itself against the
+`Yogabase.Lambda` package in this repository.
 
 ## Game servers
 

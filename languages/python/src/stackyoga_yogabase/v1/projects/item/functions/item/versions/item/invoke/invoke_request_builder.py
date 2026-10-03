@@ -52,6 +52,7 @@ class InvokeRequestBuilder(BaseRequestBuilder):
             "404": InvocationResult,
             "408": InvocationResult,
             "409": InvocationResult,
+            "413": Problem,
             "422": InvocationResult,
             "503": InvocationResult,
         }

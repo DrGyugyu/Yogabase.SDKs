@@ -21,7 +21,7 @@ import httpx
 
 Uuid = str
 Sha256Digest = str
-YOGABASE_DELIVERY_CONTRACT_SHA256 = "1eca152807ed2c6ab834b6ad7fea5fedb514ce359bd8f02f028635b03b8b6cc4"
+YOGABASE_DELIVERY_CONTRACT_SHA256 = "d44f95c0364d49071aa29e0d555687c942d91acbc9215cb71bd1eefb294d9c39"
 DELIVERY_TERMINAL_OPERATION_STATES = ("Succeeded", "Failed", "Abandoned", "Cancelled", "Blocked")
 AccessToken = str | Callable[[], str | Awaitable[str]]
 T = TypeVar("T")
@@ -74,6 +74,10 @@ class _DeliveryReleaseConfigurationRequired(TypedDict):
 class DeliveryReleaseConfiguration(_DeliveryReleaseConfigurationRequired, total=False):
     maxConcurrentExecutions: int
     maxCatchUp: int
+    # The longest a durable job's function may run, in seconds (1 through 900), valid only with
+    # ``jobs``. A release carries the whole configuration, so one that omits it returns the
+    # environment to the 30-second default, as it does ``maxCatchUp``.
+    jobsMaxRunSeconds: int
     allowedTimeZones: list[str]
 
 

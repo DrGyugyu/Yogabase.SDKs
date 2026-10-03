@@ -1,12 +1,13 @@
 // ignore_for_file: type=lint
 /// auto generated
-///  realtime-presence appears only when requested; it is available exactly when realtime-subscribe is and the runtime's realtime projection enables presence.
+///  realtime-presence appears only when requested; it is available exactly when realtime-subscribe is and the runtime's realtime projection enables presence. data-rest appears only when requested; it is available exactly when the runtime enables the Data API, which requires auth.
 enum CapabilityId {
     auth('auth'),
     storage('storage'),
     functionsRest('functions-rest'),
     realtimeSubscribe('realtime-subscribe'),
-    realtimePresence('realtime-presence');
+    realtimePresence('realtime-presence'),
+    dataRest('data-rest');
     const CapabilityId(this.value);
     final String value;
 }

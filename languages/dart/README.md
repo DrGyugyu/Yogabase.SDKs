@@ -10,18 +10,18 @@ contract returns a separate realtime origin, but this package does not yet inclu
 Dart/Flutter SignalR wrapper. This source preview is local, unpublished, and not
 production-qualified.
 
-## No Data API client yet; game servers are generated, builds are not
+## The Data API and game servers are generated; builds are not
 
-There is no client-facing data surface in this package today. The Data API module was withdrawn on
-2026-09-08. On 2026-09-17 the owner decided to restore it — clients querying and writing project
-tables through the gateway under row-level security as the signed-in user — and to give Lambdas a
-typed data API and Entity Framework Core, which stays server-side (no client SDK will carry EF code
-or a model). None of this is implemented yet: the mirrored contract still declares no `/v1/data`
-route, its `Data*` models or the `data-rest` capability id, and this generated client has no Data
-surface; regenerating from `scripts/regenerate-clients.sh` will only add one once the product
-publishes the route and the contract here is re-mirrored. Today an application reaches its project's
-data through a Lambda — which runs server-side with a full-access database context — and through
-Auth, Storage and Realtime.
+The mirrored contract declares the restored client Data API: `POST /v1/data/{table}/select|insert|upsert|update|delete`
+on the application gateway, authenticated with the signed-in user's access token and run under
+row-level security as that user. It is served only where the bootstrap document's requested-only
+`data-rest` row says so (a client asks for the row by naming it in `X-Yogabase-Accept-Capabilities`),
+and this client carries the operations as generated code, for example `client.v1.data.byTable('notes').select.postAsync(body)` with the builders
+`select`, `insert`, `upsert`, `update` and `delete`. A response is a `DataResult` (`rows`, `affectedRows`, `hasMore`) and a refusal is an RFC 7807 problem whose `code` is one of the refusal codes
+the contract lists under `x-yogabase-data-api`, which also states the limits (at most 1000 rows per
+select and 500 per write, 1 MiB per value, a five-second statement timeout). Request values are plain JSON.
+Nothing in this package has called the Data API against a live installation. A typed data API and
+Entity Framework Core inside Lambdas stay server-side: no client SDK carries EF code or a model.
 
 Two other surfaces were added when the Data API was withdrawn:
 

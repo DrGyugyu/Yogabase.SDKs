@@ -29,11 +29,11 @@
   "contract": {
     "path": "contracts/yogabase-client-v1.openapi.json",
     "sourcePath": "Yogabase product repository: docs/api/yogabase-client-v1.openapi.json",
-    "sha256": "151fcf1a62835d4cccb5bff11a9a3ee3d4328e827575ff24a5443f321b3b4d91",
-    "pathCount": 22,
-    "operationCount": 23,
-    "schemaCount": 26,
-    "mirroredFrom": "Byte-identical, like the builds, delivery and runtime-host documents below, to the product document on main; this document last changed in 6471fa1c (2026-09-22). The builds document was re-mirrored from 1f7ad8a3 (2026-09-22), the last commit that changed docs/api, which states registeredLambdaIds for a RegisterLambdas bundle; all four were re-checked byte-identical at main 084d7053 (2026-09-23). It carries the player-facing /v1/servers/* game-server surface, the requested-only realtime-presence capability row with its X-Yogabase-Accept-Capabilities request header, and no /v1/data/* route, Data* schema, or data-rest capability id: the client Data API's restoration was decided on 2026-09-17 and is not in the product contract yet."
+    "sha256": "d867303d84bb933276a1a544c4b6dd11af39df8f54b381a0863638b75b685551",
+    "pathCount": 27,
+    "operationCount": 28,
+    "schemaCount": 37,
+    "mirroredFrom": "Byte-identical, like the builds, delivery and runtime-host documents below, to the product document on main; this document last changed in 9f653644 (2026-10-03). The delivery document last changed in ec3c58b5 (2026-10-03), the builds document in 1f7ad8a3 (2026-09-22) and the runtime-host document in 87469584 (2026-09-17); all four were re-checked byte-identical at main ab2eca1f (2026-10-03). It carries the player-facing /v1/servers/* game-server surface, the requested-only realtime-presence and data-rest capability rows with the X-Yogabase-Accept-Capabilities request header, the restored client Data API (/v1/data/{table}/select|insert|upsert|update|delete, 9f14ca68, 2026-09-23), the storage refusal codes (858071ba, 2026-09-24), and the inline payload limit with the 413 payload_too_large refusal on the function invoke route (9f653644, 2026-10-03). It declares no /v1/projects/{projectId}/jobs route: the product serves durable Jobs to application clients (owner decision, 2026-10-03) but its document does not describe them yet, so no generator emits them and the Jobs surface in each language is authored here from the gateway's source and docs/DEVELOPER_WORKFLOW.md."
   },
   "buildsContract": {
     "path": "contracts/yogabase-builds-v1.openapi.json",
@@ -48,7 +48,7 @@
   "deliveryContract": {
     "path": "contracts/yogabase-delivery-v1.openapi.json",
     "sourcePath": "Yogabase product repository: docs/api/yogabase-delivery-v1.openapi.json",
-    "sha256": "1eca152807ed2c6ab834b6ad7fea5fedb514ce359bd8f02f028635b03b8b6cc4",
+    "sha256": "d44f95c0364d49071aa29e0d555687c942d91acbc9215cb71bd1eefb294d9c39",
     "pathCount": 22,
     "operationCount": 25,
     "schemaCount": 22

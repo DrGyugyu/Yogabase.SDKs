@@ -106,12 +106,16 @@ public sealed class ContractDigestTests
     }
 
     /// <summary>
-    /// The Data API module is withdrawn, so no mirrored contract may still declare it. Read
-    /// structurally rather than as text: the product's own document explains the withdrawal in its
+    /// The application contract declares the restored client Data API (the product implemented it on
+    /// 2026-09-23) and its requested-only <c>data-rest</c> capability, and the generated TypeScript,
+    /// Python, Java and Dart clients are produced from exactly that. The authored .NET client has no
+    /// Data client and does not request the row, which is a decision recorded in the READMEs rather
+    /// than something this contract implies, so the test pins the contract's side of it. Read
+    /// structurally rather than as text: the document explains the 2026-09-08 withdrawal in its
     /// description, and that prose must not count as a declaration.
     /// </summary>
     [Fact]
-    public async Task TheMirroredApplicationContractDeclaresNoDataApi()
+    public async Task TheMirroredApplicationContractDeclaresTheRestoredDataApiAndItsRequestedOnlyCapability()
     {
         var repoRoot = FindRepoRoot();
         using var document = System.Text.Json.JsonDocument.Parse(await File.ReadAllTextAsync(
@@ -119,21 +123,81 @@ public sealed class ContractDigestTests
             TestContext.Current.CancellationToken));
         var root = document.RootElement;
 
-        foreach (var path in root.GetProperty("paths").EnumerateObject())
+        var paths = root.GetProperty("paths").EnumerateObject().Select(static path => path.Name).ToArray();
+        foreach (var operation in new[] { "select", "insert", "upsert", "update", "delete" })
         {
-            Assert.False(path.Name.StartsWith("/v1/data", StringComparison.Ordinal), $"Data route declared: {path.Name}");
+            Assert.Contains($"/v1/data/{{table}}/{operation}", paths);
         }
-        foreach (var schema in root.GetProperty("components").GetProperty("schemas").EnumerateObject())
+
+        var schemas = root.GetProperty("components").GetProperty("schemas");
+        foreach (var schema in new[] { "DataSelectRequest", "DataInsertRequest", "DataUpsertRequest", "DataUpdateRequest", "DataDeleteRequest", "DataResult" })
         {
-            Assert.False(schema.Name.StartsWith("Data", StringComparison.Ordinal), $"Data schema declared: {schema.Name}");
+            Assert.True(schemas.TryGetProperty(schema, out _), $"Data schema missing: {schema}");
         }
-        var capabilityIds = root.GetProperty("components").GetProperty("schemas").GetProperty("Capability")
+
+        var capabilityIds = schemas.GetProperty("Capability")
             .GetProperty("properties").GetProperty("id").GetProperty("enum")
             .EnumerateArray().Select(static value => value.GetString()).ToArray();
-        Assert.DoesNotContain("data-rest", capabilityIds);
-        // realtime-presence is requested-only: a gateway adds its row after the four core rows only
-        // for a client that names it in X-Yogabase-Accept-Capabilities.
-        Assert.Equal(["auth", "storage", "functions-rest", "realtime-subscribe", "realtime-presence"], capabilityIds);
+        // realtime-presence and data-rest are requested-only: a gateway adds their rows after the four
+        // core rows only for a client that names them in X-Yogabase-Accept-Capabilities, and the
+        // authored .NET client names only realtime-presence.
+        Assert.Equal(["auth", "storage", "functions-rest", "realtime-subscribe", "realtime-presence", "data-rest"], capabilityIds);
+        Assert.True(root.TryGetProperty("x-yogabase-data-api", out _));
+    }
+
+    /// <summary>
+    /// The function invoke route declares the 1 MiB inline limit the authored clients check before
+    /// transport and answers an over-limit request with 413 <c>payload_too_large</c> naming
+    /// <c>limitBytes</c> and <c>maxBodyBytes</c>. Pinned so a re-sync that dropped the refusal, or moved
+    /// the limit the SDKs hard-code, is caught here and not by a consumer's 400.
+    /// </summary>
+    [Fact]
+    public async Task TheMirroredApplicationContractDeclaresTheInlinePayloadLimitAndItsPayloadTooLargeRefusal()
+    {
+        var repoRoot = FindRepoRoot();
+        using var document = System.Text.Json.JsonDocument.Parse(await File.ReadAllTextAsync(
+            Path.Combine(repoRoot, "contracts", "yogabase-client-v1.openapi.json"),
+            TestContext.Current.CancellationToken));
+        var root = document.RootElement;
+
+        var limits = root.GetProperty("x-yogabase-inline-payload");
+        Assert.Equal(1_048_576, limits.GetProperty("limits").GetProperty("maximumPayloadBytes").GetInt32());
+        Assert.Equal(1_398_104, limits.GetProperty("limits").GetProperty("maximumPayloadBase64Characters").GetInt32());
+        Assert.Equal(8_392_166, limits.GetProperty("limits").GetProperty("maximumRequestBodyBytes").GetInt32());
+        var refusal = limits.GetProperty("refusal");
+        Assert.Equal(413, refusal.GetProperty("status").GetInt32());
+        Assert.Equal("payload_too_large", refusal.GetProperty("code").GetString());
+        Assert.Equal(["limitBytes", "maxBodyBytes"], refusal.GetProperty("members").EnumerateArray().Select(static value => value.GetString()).ToArray());
+
+        var invoke = root.GetProperty("paths")
+            .GetProperty("/v1/projects/{projectId}/functions/{functionId}/versions/{functionVersion}/invoke")
+            .GetProperty("post").GetProperty("responses");
+        Assert.Equal("#/components/responses/PayloadTooLarge", invoke.GetProperty("413").GetProperty("$ref").GetString());
+        Assert.True(root.GetProperty("components").GetProperty("responses").TryGetProperty("PayloadTooLarge", out _));
+    }
+
+    /// <summary>
+    /// The product serves durable Jobs to application clients (owner decision, 2026-10-03) but its
+    /// client document does not declare the routes (checked against product main <c>ab2eca1f</c>), so
+    /// no generator emits them and every language's Jobs surface is authored here from the gateway's
+    /// source. This is the tripwire for the day the document does declare them: the failing test
+    /// says to re-mirror, regenerate, and decide per language whether the authored surface stays the
+    /// front door beside the generated builders or is rebuilt over them. It reads paths structurally.
+    /// </summary>
+    [Fact]
+    public async Task TheMirroredApplicationContractDeclaresNoJobsRouteSoTheAuthoredJobsSurfaceIsTheOnlyOne()
+    {
+        var repoRoot = FindRepoRoot();
+        using var document = System.Text.Json.JsonDocument.Parse(await File.ReadAllTextAsync(
+            Path.Combine(repoRoot, "contracts", "yogabase-client-v1.openapi.json"),
+            TestContext.Current.CancellationToken));
+
+        foreach (var path in document.RootElement.GetProperty("paths").EnumerateObject())
+        {
+            Assert.False(
+                path.Name.Contains("/jobs", StringComparison.Ordinal),
+                $"The mirrored contract now declares {path.Name}: re-run scripts/regenerate-clients.sh and revisit the authored Jobs surfaces.");
+        }
     }
 
     /// <summary>

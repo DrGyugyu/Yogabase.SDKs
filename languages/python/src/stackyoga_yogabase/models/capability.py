@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 class Capability(Parsable):
     # The available property
     available: Optional[bool] = None
-    # realtime-presence appears only when requested; it is available exactly when realtime-subscribe is and the runtime's realtime projection enables presence.
+    # realtime-presence appears only when requested; it is available exactly when realtime-subscribe is and the runtime's realtime projection enables presence. data-rest appears only when requested; it is available exactly when the runtime enables the Data API, which requires auth.
     id: Optional[Capability_id] = None
     # The unavailableReason property
     unavailable_reason: Optional[str] = None

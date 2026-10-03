@@ -6,4 +6,5 @@ class Capability_id(str, Enum):
     FunctionsRest = "functions-rest",
     RealtimeSubscribe = "realtime-subscribe",
     RealtimePresence = "realtime-presence",
+    DataRest = "data-rest",
 

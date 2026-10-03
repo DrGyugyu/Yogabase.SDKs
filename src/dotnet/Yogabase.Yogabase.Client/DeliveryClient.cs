@@ -175,6 +175,14 @@ public sealed class YogabaseDeliveryReleaseConfiguration
     public bool Jobs { get; set; }
     public int? MaxConcurrentExecutions { get; set; }
     public int? MaxCatchUp { get; set; }
+
+    /// <summary>
+    /// The longest a durable job's function may run, in seconds, from 1 to 900 and valid only with
+    /// <see cref="Jobs"/>. A release carries the whole configuration, so a release that leaves this
+    /// <see langword="null"/> returns the environment to the 30-second default, as it does
+    /// <see cref="MaxCatchUp"/>: send the value an environment should keep on every release.
+    /// </summary>
+    public int? JobsMaxRunSeconds { get; set; }
     public IReadOnlyList<string>? AllowedTimeZones { get; set; }
 }
 

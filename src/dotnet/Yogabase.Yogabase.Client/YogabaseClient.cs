@@ -297,9 +297,10 @@ public sealed class YogabaseClient : IDisposable, IAsyncDisposable
                 || !string.IsNullOrEmpty(redirect.Query)
                 || !string.IsNullOrEmpty(redirect.Fragment))
             || configuration.Capabilities is null
-            // The Data API module is withdrawn, so an installation now publishes four core capabilities
-            // plus the requested realtime-presence row, and one that predates the removal still
-            // publishes five without it. Accept each rather than refusing either side of a rollout.
+            // An installation publishes the four core capabilities plus a row for each requested-only id
+            // the client names, and this client names only realtime-presence. One that predates the
+            // 2026-09-08 removal of the Data API published five by default, the fifth being data-rest.
+            // Accept each rather than refusing either side of a rollout.
             || configuration.Capabilities.Count is < 4 or > 5
             || configuration.Capabilities.Any(static item => item is null)
             || configuration.Capabilities.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count()

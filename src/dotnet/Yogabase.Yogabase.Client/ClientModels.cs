@@ -10,8 +10,8 @@ namespace Yogabase.Yogabase;
 
 public sealed class YogabaseClientConfiguration
 {
-    // "data-rest" is deliberately absent: the Data API module is withdrawn, so IsAvailable answers
-    // false for it even on an installation that still publishes the capability row.
+    // "data-rest" is deliberately absent: this package has no Data client, so IsAvailable answers
+    // false for it whatever an installation publishes.
     private static readonly HashSet<string> KnownCapabilities = new(
         new[] { "auth", "storage", "functions-rest", "realtime-subscribe", YogabaseCapability.RealtimePresence },
         StringComparer.Ordinal);
@@ -52,10 +52,13 @@ public sealed class YogabaseClientConfiguration
 public sealed class YogabaseCapability
 {
     /// <summary>
-    /// The withdrawn client-facing Data API capability. An installation predating its removal still
-    /// publishes this row; the client accepts it in the bootstrap document and ignores it, and
-    /// <see cref="YogabaseClientConfiguration.IsAvailable"/> answers <see langword="false"/> for it.
-    /// Applications reach data through a Lambda instead.
+    /// The client-facing Data API capability: a requested-only row since the Data API was restored
+    /// (2026-09-23). This package has no Data client, so it never names the row in
+    /// <c>X-Yogabase-Accept-Capabilities</c>; a bootstrap document that carries it anyway (an
+    /// installation that predates the 2026-09-08 removal published it by default) is accepted, the
+    /// row is ignored, and <see cref="YogabaseClientConfiguration.IsAvailable"/> answers
+    /// <see langword="false"/> for it. The constant keeps the name it had when the module was
+    /// withdrawn.
     /// </summary>
     public const string WithdrawnDataRest = "data-rest";
 

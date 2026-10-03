@@ -13,7 +13,7 @@ public class Capability implements Parsable {
      */
     private Boolean available;
     /**
-     * realtime-presence appears only when requested; it is available exactly when realtime-subscribe is and the runtime&apos;s realtime projection enables presence.
+     * realtime-presence appears only when requested; it is available exactly when realtime-subscribe is and the runtime&apos;s realtime projection enables presence. data-rest appears only when requested; it is available exactly when the runtime enables the Data API, which requires auth.
      */
     private CapabilityId id;
     /**
@@ -51,7 +51,7 @@ public class Capability implements Parsable {
         return deserializerMap;
     }
     /**
-     * Gets the id property value. realtime-presence appears only when requested; it is available exactly when realtime-subscribe is and the runtime&apos;s realtime projection enables presence.
+     * Gets the id property value. realtime-presence appears only when requested; it is available exactly when realtime-subscribe is and the runtime&apos;s realtime projection enables presence. data-rest appears only when requested; it is available exactly when the runtime enables the Data API, which requires auth.
      * @return a {@link CapabilityId}
      */
     @jakarta.annotation.Nullable
@@ -84,7 +84,7 @@ public class Capability implements Parsable {
         this.available = value;
     }
     /**
-     * Sets the id property value. realtime-presence appears only when requested; it is available exactly when realtime-subscribe is and the runtime&apos;s realtime projection enables presence.
+     * Sets the id property value. realtime-presence appears only when requested; it is available exactly when realtime-subscribe is and the runtime&apos;s realtime projection enables presence. data-rest appears only when requested; it is available exactly when the runtime enables the Data API, which requires auth.
      * @param value Value to set for the id property.
      */
     public void setId(@jakarta.annotation.Nullable final CapabilityId value) {

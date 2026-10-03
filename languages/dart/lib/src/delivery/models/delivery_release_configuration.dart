@@ -7,6 +7,8 @@ class DeliveryReleaseConfiguration implements Parsable {
     Iterable<String>? allowedTimeZones;
     ///  The jobs property
     bool? jobs;
+    ///  The longest a durable job's function may run, in seconds. Valid only with jobs. Omitting it, or sending 30, is the default.
+    int? jobsMaxRunSeconds;
     ///  The maxCatchUp property
     int? maxCatchUp;
     ///  The maxConcurrentExecutions property
@@ -17,6 +19,7 @@ class DeliveryReleaseConfiguration implements Parsable {
     bool? statelessFunctions;
     /// Instantiates a new [DeliveryReleaseConfiguration] and sets the default values.
     DeliveryReleaseConfiguration() :  
+        jobsMaxRunSeconds = 30,
         maxCatchUp = 1,
         maxConcurrentExecutions = 1;
     /// Creates a new instance of the appropriate class based on discriminator value
@@ -30,6 +33,7 @@ class DeliveryReleaseConfiguration implements Parsable {
         var deserializerMap = <String, void Function(ParseNode)>{};
         deserializerMap['allowedTimeZones'] = (node) => allowedTimeZones = node.getCollectionOfPrimitiveValues<String>();
         deserializerMap['jobs'] = (node) => jobs = node.getBoolValue();
+        deserializerMap['jobsMaxRunSeconds'] = (node) => jobsMaxRunSeconds = node.getIntValue();
         deserializerMap['maxCatchUp'] = (node) => maxCatchUp = node.getIntValue();
         deserializerMap['maxConcurrentExecutions'] = (node) => maxConcurrentExecutions = node.getIntValue();
         deserializerMap['scheduler'] = (node) => scheduler = node.getBoolValue();
@@ -42,6 +46,7 @@ class DeliveryReleaseConfiguration implements Parsable {
     void serialize(SerializationWriter writer) {
         writer.writeCollectionOfPrimitiveValues<String?>('allowedTimeZones', allowedTimeZones);
         writer.writeBoolValue('jobs', value:jobs);
+        writer.writeIntValue('jobsMaxRunSeconds', jobsMaxRunSeconds);
         writer.writeIntValue('maxCatchUp', maxCatchUp);
         writer.writeIntValue('maxConcurrentExecutions', maxConcurrentExecutions);
         writer.writeBoolValue('scheduler', value:scheduler);

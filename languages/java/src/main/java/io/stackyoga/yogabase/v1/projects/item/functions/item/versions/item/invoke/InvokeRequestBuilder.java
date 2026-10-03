@@ -45,6 +45,7 @@ public class InvokeRequestBuilder extends BaseRequestBuilder {
      * @throws InvocationResult When receiving a 404 status code
      * @throws InvocationResult When receiving a 408 status code
      * @throws InvocationResult When receiving a 409 status code
+     * @throws Problem When receiving a 413 status code
      * @throws InvocationResult When receiving a 422 status code
      * @throws InvocationResult When receiving a 503 status code
      */
@@ -62,6 +63,7 @@ public class InvokeRequestBuilder extends BaseRequestBuilder {
      * @throws InvocationResult When receiving a 404 status code
      * @throws InvocationResult When receiving a 408 status code
      * @throws InvocationResult When receiving a 409 status code
+     * @throws Problem When receiving a 413 status code
      * @throws InvocationResult When receiving a 422 status code
      * @throws InvocationResult When receiving a 503 status code
      */
@@ -76,6 +78,7 @@ public class InvokeRequestBuilder extends BaseRequestBuilder {
         errorMapping.put("404", InvocationResult::createFromDiscriminatorValue);
         errorMapping.put("408", InvocationResult::createFromDiscriminatorValue);
         errorMapping.put("409", InvocationResult::createFromDiscriminatorValue);
+        errorMapping.put("413", Problem::createFromDiscriminatorValue);
         errorMapping.put("422", InvocationResult::createFromDiscriminatorValue);
         errorMapping.put("503", InvocationResult::createFromDiscriminatorValue);
         return this.requestAdapter.send(requestInfo, errorMapping, InvocationResult::createFromDiscriminatorValue);

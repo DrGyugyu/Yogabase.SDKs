@@ -1,6 +1,7 @@
 // ignore_for_file: type=lint
 import 'package:microsoft_kiota_abstractions/microsoft_kiota_abstractions.dart';
 import './clientConfig/client_config_request_builder.dart';
+import './data/data_request_builder.dart';
 import './projects/projects_request_builder.dart';
 import './servers/servers_request_builder.dart';
 import './storage/storage_request_builder.dart';
@@ -11,6 +12,10 @@ class V1RequestBuilder extends BaseRequestBuilder<V1RequestBuilder> {
     ///  The clientConfig property
     ClientConfigRequestBuilder get clientConfig {
         return ClientConfigRequestBuilder(pathParameters, requestAdapter);
+    }
+    ///  The data property
+    DataRequestBuilder get data {
+        return DataRequestBuilder(pathParameters, requestAdapter);
     }
     ///  The projects property
     ProjectsRequestBuilder get projects {

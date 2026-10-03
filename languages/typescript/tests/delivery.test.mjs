@@ -151,3 +151,18 @@ test("SSE operation events reject a successful response with the wrong content t
         for await (const _event of client.streamOperationEvents("p")) { /* validate response before reading */ }
     }, error => error instanceof YogabaseDeliveryError && error.status === 200);
 });
+
+test("a release preview carries the longest job run and does not invent one", async () => {
+    const preview = { previewId: "p", previewDigest: "sha256:p", action: "create", expectedRevision: 0, approvalRequired: false, expiresAt: "2026-09-01T00:00:00Z" };
+    const fake = fakeFetch([jsonResponse(preview), jsonResponse(preview)]);
+    const client = new YogabaseDeliveryClient({ deliveryHost: "https://delivery.example.test", accessToken: "token", fetch: fake.fetcher });
+    const base = { artifactAdmissionIds: ["a"], migrationEvidenceDigest: "sha256:m" };
+
+    await client.previewRelease("p", "e", { ...base, configuration: { statelessFunctions: true, scheduler: false, jobs: true, jobsMaxRunSeconds: 120 } }, { ifMatch: 'W/"1"' });
+    await client.previewRelease("p", "e", { ...base, configuration: { statelessFunctions: true, scheduler: false, jobs: true } }, { ifMatch: 'W/"1"' });
+
+    // A release carries the whole configuration: the client sends what it was given and nothing else, so
+    // omitting the field is the caller returning the environment to the 30-second default.
+    assert.equal(JSON.parse(fake.calls[0].init.body).configuration.jobsMaxRunSeconds, 120);
+    assert.equal("jobsMaxRunSeconds" in JSON.parse(fake.calls[1].init.body).configuration, false);
+});

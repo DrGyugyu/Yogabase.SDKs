@@ -17,6 +17,10 @@ public class DeliveryReleaseConfiguration implements Parsable {
      */
     private Boolean jobs;
     /**
+     * The longest a durable job&apos;s function may run, in seconds. Valid only with jobs. Omitting it, or sending 30, is the default.
+     */
+    private Integer jobsMaxRunSeconds;
+    /**
      * The maxCatchUp property
      */
     private Integer maxCatchUp;
@@ -36,6 +40,7 @@ public class DeliveryReleaseConfiguration implements Parsable {
      * Instantiates a new {@link DeliveryReleaseConfiguration} and sets the default values.
      */
     public DeliveryReleaseConfiguration() {
+        this.setJobsMaxRunSeconds(30);
         this.setMaxCatchUp(1);
         this.setMaxConcurrentExecutions(1);
     }
@@ -63,9 +68,10 @@ public class DeliveryReleaseConfiguration implements Parsable {
      */
     @jakarta.annotation.Nonnull
     public Map<String, java.util.function.Consumer<ParseNode>> getFieldDeserializers() {
-        final HashMap<String, java.util.function.Consumer<ParseNode>> deserializerMap = new HashMap<String, java.util.function.Consumer<ParseNode>>(6);
+        final HashMap<String, java.util.function.Consumer<ParseNode>> deserializerMap = new HashMap<String, java.util.function.Consumer<ParseNode>>(7);
         deserializerMap.put("allowedTimeZones", (n) -> { this.setAllowedTimeZones(n.getCollectionOfPrimitiveValues(String.class)); });
         deserializerMap.put("jobs", (n) -> { this.setJobs(n.getBooleanValue()); });
+        deserializerMap.put("jobsMaxRunSeconds", (n) -> { this.setJobsMaxRunSeconds(n.getIntegerValue()); });
         deserializerMap.put("maxCatchUp", (n) -> { this.setMaxCatchUp(n.getIntegerValue()); });
         deserializerMap.put("maxConcurrentExecutions", (n) -> { this.setMaxConcurrentExecutions(n.getIntegerValue()); });
         deserializerMap.put("scheduler", (n) -> { this.setScheduler(n.getBooleanValue()); });
@@ -79,6 +85,14 @@ public class DeliveryReleaseConfiguration implements Parsable {
     @jakarta.annotation.Nullable
     public Boolean getJobs() {
         return this.jobs;
+    }
+    /**
+     * Gets the jobsMaxRunSeconds property value. The longest a durable job&apos;s function may run, in seconds. Valid only with jobs. Omitting it, or sending 30, is the default.
+     * @return a {@link Integer}
+     */
+    @jakarta.annotation.Nullable
+    public Integer getJobsMaxRunSeconds() {
+        return this.jobsMaxRunSeconds;
     }
     /**
      * Gets the maxCatchUp property value. The maxCatchUp property
@@ -120,6 +134,7 @@ public class DeliveryReleaseConfiguration implements Parsable {
         Objects.requireNonNull(writer);
         writer.writeCollectionOfPrimitiveValues("allowedTimeZones", this.getAllowedTimeZones());
         writer.writeBooleanValue("jobs", this.getJobs());
+        writer.writeIntegerValue("jobsMaxRunSeconds", this.getJobsMaxRunSeconds());
         writer.writeIntegerValue("maxCatchUp", this.getMaxCatchUp());
         writer.writeIntegerValue("maxConcurrentExecutions", this.getMaxConcurrentExecutions());
         writer.writeBooleanValue("scheduler", this.getScheduler());
@@ -138,6 +153,13 @@ public class DeliveryReleaseConfiguration implements Parsable {
      */
     public void setJobs(@jakarta.annotation.Nullable final Boolean value) {
         this.jobs = value;
+    }
+    /**
+     * Sets the jobsMaxRunSeconds property value. The longest a durable job&apos;s function may run, in seconds. Valid only with jobs. Omitting it, or sending 30, is the default.
+     * @param value Value to set for the jobsMaxRunSeconds property.
+     */
+    public void setJobsMaxRunSeconds(@jakarta.annotation.Nullable final Integer value) {
+        this.jobsMaxRunSeconds = value;
     }
     /**
      * Sets the maxCatchUp property value. The maxCatchUp property

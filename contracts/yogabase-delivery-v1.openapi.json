@@ -540,7 +540,7 @@
       },
       "DeliveryReleaseConfiguration": {
         "type": "object", "additionalProperties": false, "required": ["statelessFunctions", "scheduler", "jobs"],
-        "properties": { "statelessFunctions": { "type": "boolean" }, "scheduler": { "type": "boolean" }, "jobs": { "type": "boolean" }, "maxConcurrentExecutions": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 }, "maxCatchUp": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 }, "allowedTimeZones": { "type": "array", "maxItems": 128, "items": { "type": "string", "maxLength": 128 } } }
+        "properties": { "statelessFunctions": { "type": "boolean" }, "scheduler": { "type": "boolean" }, "jobs": { "type": "boolean" }, "maxConcurrentExecutions": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 }, "maxCatchUp": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 }, "jobsMaxRunSeconds": { "type": "integer", "minimum": 1, "maximum": 900, "default": 30, "description": "The longest a durable job's function may run, in seconds. Valid only with jobs. Omitting it, or sending 30, is the default." }, "allowedTimeZones": { "type": "array", "maxItems": 128, "items": { "type": "string", "maxLength": 128 } } }
       },
       "DeliveryReleasePreviewRequest": {
         "type": "object", "additionalProperties": false, "required": ["artifactAdmissionIds", "configuration", "migrationEvidenceDigest"],

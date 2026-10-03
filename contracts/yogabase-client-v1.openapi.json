@@ -3,7 +3,114 @@
   "info": {
     "title": "Yogabase Yogabase Application API",
     "version": "v1-preview",
-    "description": "Target-local Yogabase application-plane API. This contract excludes Yogabase management, delivery, provisioning, CRDs, raw SQL, provider coordinates, and GameSessions. The client-facing Data API was withdrawn on 2026-09-08: the /v1/data/{resource}/* operations and the data-rest capability id are gone, and a client reaches data through a Lambda, Auth, Storage or Realtime instead. A server that still serves them is older than this document."
+    "description": "Target-local Yogabase application-plane API. This contract excludes Yogabase management, delivery, provisioning, CRDs, raw SQL, provider coordinates, and GameSessions. The client-facing Data API, withdrawn on 2026-09-08, was restored by the owner decision of 2026-09-17 in a new shape: /v1/data/{table}/select|insert|upsert|update|delete, served only where the bootstrap document's requested-only data-rest row says so, running under row-level security as the signed-in user. The 2026-09-08 /v1/data/{resource}/* shape with typed value objects does not return."
+  },
+  "x-yogabase-data-api": {
+    "capability": "data-rest",
+    "identity": "Every request runs in one transaction that switches to the NOLOGIN role yogabase_authenticated (never BYPASSRLS) and sets app.project_id and app.subject_id transaction-locally; policies read current_setting('app.subject_id', true). A table is reachable only when the developer granted it to yogabase_authenticated and it has row-level security enabled; Yogabase's own tables are never reachable.",
+    "values": "Request values are plain JSON. Each travels as an untyped parameter the database parses with the target column's own input function: numbers and strings as written, booleans as true/false, objects and arrays as JSON text for json/jsonb columns, and arrays as array literals for array columns. Rows come back as the database renders them with to_json, timestamps in UTC.",
+    "limits": {
+      "defaultLimit": 100,
+      "maximumLimit": 1000,
+      "maximumOffset": 100000,
+      "maximumColumns": 128,
+      "maximumFilters": 32,
+      "maximumInValues": 100,
+      "maximumOrderTerms": 8,
+      "maximumWriteRows": 500,
+      "maximumConflictColumns": 16,
+      "maximumReturnedRows": 1000,
+      "maximumResultBytes": 4194304,
+      "maximumValueBytes": 1048576,
+      "statementTimeoutSeconds": 5
+    },
+    "filterOperators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "like", "ilike", "isNull", "notNull"],
+    "refusalCodes": [
+      "canonical_subject_required",
+      "project_binding_required",
+      "project_binding_mismatch",
+      "data_request_invalid",
+      "data_operation_unknown",
+      "data_table_not_exposed",
+      "data_column_not_exposed",
+      "data_operation_not_permitted",
+      "data_filter_invalid",
+      "data_filter_required",
+      "data_value_invalid",
+      "data_limit_exceeded",
+      "data_row_not_permitted",
+      "data_constraint_violated",
+      "data_unique_violation",
+      "data_foreign_key_violation",
+      "data_not_null_violation",
+      "data_check_violation",
+      "data_upsert_target_invalid",
+      "data_result_too_large",
+      "data_transaction_conflict",
+      "data_statement_timeout",
+      "data_api_identity_unavailable",
+      "data_api_unavailable"
+    ]
+  },
+  "x-yogabase-storage": {
+    "capability": "storage",
+    "refusals": "Every refusal from /v1/storage/objects/{key} is application/problem+json with a stable code and a fixed detail sentence naming the cause; the detail never quotes the key, the object, or provider output. The caller, key and namespace checks run before the object is looked up, so those refusals are identical whether or not the object exists; only object_not_found (404) and object_conflict (409) depend on it, and their status already says so. A request the gateway cannot authenticate at all is answered 401 before any storage check runs.",
+    "refusalCodes": {
+      "put": {
+        "storage_unavailable": 503,
+        "authentication_required": 401,
+        "canonical_subject_required": 401,
+        "project_binding_required": 401,
+        "project_binding_mismatch": 401,
+        "key_required": 403,
+        "key_too_long": 403,
+        "key_absolute": 403,
+        "key_backslash": 403,
+        "key_percent_encoded": 403,
+        "key_control_character": 403,
+        "key_empty_segment": 403,
+        "key_traversal_segment": 403,
+        "key_must_be_logical": 403,
+        "key_reserved_prefix": 403,
+        "tenant_required": 403,
+        "subject_required": 403,
+        "bucket_required": 403,
+        "key_outside_tenant_prefix": 403,
+        "operation_not_supported": 403,
+        "content_type_not_allowed": 403,
+        "size_limit_invalid": 403,
+        "content_digest_invalid": 403,
+        "idempotency_key_invalid": 403,
+        "object_conflict": 409,
+        "storage_provider_receipt_invalid": 403,
+        "storage_provider_unavailable": 503
+      },
+      "get": {
+        "storage_unavailable": 503,
+        "authentication_required": 401,
+        "canonical_subject_required": 401,
+        "project_binding_required": 401,
+        "project_binding_mismatch": 401,
+        "key_required": 403,
+        "key_too_long": 403,
+        "key_absolute": 403,
+        "key_backslash": 403,
+        "key_percent_encoded": 403,
+        "key_control_character": 403,
+        "key_empty_segment": 403,
+        "key_traversal_segment": 403,
+        "key_must_be_logical": 403,
+        "key_reserved_prefix": 403,
+        "tenant_required": 403,
+        "subject_required": 403,
+        "bucket_required": 403,
+        "key_outside_tenant_prefix": 403,
+        "operation_not_supported": 403,
+        "object_not_found": 404,
+        "object_metadata_invalid": 403,
+        "storage_provider_unavailable": 503
+      }
+    }
   },
   "servers": [
     {
@@ -47,6 +154,22 @@
       "errors": ["presence_unavailable", "presence_topic_invalid", "presence_topic_limit", "presence_store_unavailable"]
     },
     "status": "available-when-runtime-projection-ready"
+  },
+  "x-yogabase-inline-payload": {
+    "scope": "The function invoke route, POST /v1/projects/{projectId}/functions/{functionId}/versions/{functionVersion}/invoke.",
+    "limits": {
+      "maximumPayloadBytes": 1048576,
+      "maximumPayloadBase64Characters": 1398104,
+      "maximumRequestBodyBytes": 8392166
+    },
+    "payload": "A request's payload may be at most maximumPayloadBytes before base64 encoding, sent inline as inlinePayloadBase64 or as the object an objectReference names; the object is held to the same limit, so a payload larger than that is accepted on neither.",
+    "requestBody": "The whole request body may be at most maximumRequestBodyBytes. That is the largest compact JSON document the request can be with its payload at the limit, taking each character of a string as the longest escape a JSON writer may use (six bytes), because a payload's bytes decide what its base64 weighs once written: System.Text.Json's default encoder writes a base64 plus sign that way, a random payload gains about 8%, and a payload of nothing but plus signs weighs six times its text. A request at the payload limit is therefore accepted however its bytes encode and whichever JSON writer wrote it.",
+    "refusal": {
+      "status": 413,
+      "code": "payload_too_large",
+      "members": ["limitBytes", "maxBodyBytes"],
+      "description": "A payload over the limit, or a body over the largest the route takes, is refused with a problem that names the limits. The status is the same whichever of the two the gateway finds first."
+    }
   },
   "paths": {
     "/v1/client-config/{publishableKey}": {
@@ -278,6 +401,111 @@
         }
       }
     },
+    "/v1/data/{table}/select": {
+      "post": {
+        "operationId": "selectYogabaseData",
+        "description": "Reads rows of one exposed table under row-level security as the signed-in user. An absent or [\"*\"] column list means every column the caller may read. One more row than the limit is fetched to set hasMore.",
+        "x-yogabase-capability": "data-rest",
+        "parameters": [{ "$ref": "#/components/parameters/Table" }],
+        "requestBody": {
+          "required": false,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DataSelectRequest" } } }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/DataResult" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "413": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/data/{table}/insert": {
+      "post": {
+        "operationId": "insertYogabaseData",
+        "description": "Inserts one to 500 rows. The column list is the union of the rows' keys; a row that leaves a column out takes its default. A policy's WITH CHECK refusal is 403 data_row_not_permitted.",
+        "x-yogabase-capability": "data-rest",
+        "parameters": [{ "$ref": "#/components/parameters/Table" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DataInsertRequest" } } }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/DataResult" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "413": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/data/{table}/upsert": {
+      "post": {
+        "operationId": "upsertYogabaseData",
+        "description": "Inserts rows; a conflict on onConflict (the columns of a primary key or unique index) updates every other supplied column, or does nothing with ignoreDuplicates.",
+        "x-yogabase-capability": "data-rest",
+        "parameters": [{ "$ref": "#/components/parameters/Table" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DataUpsertRequest" } } }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/DataResult" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "413": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/data/{table}/update": {
+      "post": {
+        "operationId": "updateYogabaseData",
+        "description": "Updates the rows the filters and the caller's policies select. At least one filter is required.",
+        "x-yogabase-capability": "data-rest",
+        "parameters": [{ "$ref": "#/components/parameters/Table" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DataUpdateRequest" } } }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/DataResult" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "413": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/data/{table}/delete": {
+      "post": {
+        "operationId": "deleteYogabaseData",
+        "description": "Deletes the rows the filters and the caller's policies select. At least one filter is required.",
+        "x-yogabase-capability": "data-rest",
+        "parameters": [{ "$ref": "#/components/parameters/Table" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DataDeleteRequest" } } }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/DataResult" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "413": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
     "/v1/storage/objects/{key}": {
       "put": {
         "operationId": "putYogabaseObject",
@@ -349,6 +577,7 @@
           "404": { "$ref": "#/components/responses/InvocationResult" },
           "408": { "$ref": "#/components/responses/InvocationResult" },
           "409": { "$ref": "#/components/responses/InvocationResult" },
+          "413": { "$ref": "#/components/responses/PayloadTooLarge" },
           "422": { "$ref": "#/components/responses/InvocationResult" },
           "503": { "$ref": "#/components/responses/InvocationResult" }
         }
@@ -540,8 +769,15 @@
         "name": "X-Yogabase-Accept-Capabilities",
         "in": "header",
         "required": false,
-        "description": "Comma-separated requested-only capability ids this client can read, today only realtime-presence. Each id the gateway knows adds its row after the four core rows, available or not; core and unknown ids are ignored, and a value longer than 512 characters is ignored as a whole. A client sends an id only once its own validation accepts that row. A gateway that predates a row ignores the header, which a client reads as that capability being unavailable.",
+        "description": "Comma-separated requested-only capability ids this client can read, today realtime-presence and data-rest. Each id the gateway knows adds its row after the four core rows, available or not; core and unknown ids are ignored, and a value longer than 512 characters is ignored as a whole. A client sends an id only once its own validation accepts that row. A gateway that predates a row ignores the header, which a client reads as that capability being unavailable.",
         "schema": { "type": "string", "maxLength": 512 }
+      },
+      "Table": {
+        "name": "table",
+        "in": "path",
+        "required": true,
+        "description": "A table in the project's public schema, exactly as the database names it. A name that is not exposed to the caller, and a name that does not exist, are the same 403 data_table_not_exposed.",
+        "schema": { "type": "string", "minLength": 1, "maxLength": 63, "pattern": "^[A-Za-z_][A-Za-z0-9_$]{0,62}$" }
       },
       "ServerId": {
         "name": "serverId",
@@ -634,6 +870,12 @@
           "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } }
         }
       },
+      "DataResult": {
+        "description": "The rows (each as the database rendered it) and how many rows the statement touched.",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/DataResult" } }
+        }
+      },
       "ObjectWrite": {
         "description": "Integrity-bound storage receipt.",
         "content": {
@@ -667,6 +909,12 @@
       "NoContent": { "description": "Request accepted without secret-bearing output." },
       "Unauthorized": {
         "description": "A valid canonical project bearer subject is required.",
+        "content": {
+          "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "The request payload is over the inline limit, or the request body is over the largest the route takes. The problem's code is payload_too_large, and it names both limits in bytes: limitBytes for the payload and maxBodyBytes for the whole body.",
         "content": {
           "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } }
         }
@@ -773,9 +1021,9 @@
           "capabilities": {
             "type": "array",
             "minItems": 4,
-            "maxItems": 5,
+            "maxItems": 6,
             "description": "The four core rows (auth, storage, functions-rest, realtime-subscribe) in that order, then one row for each requested-only id the client named in X-Yogabase-Accept-Capabilities, in x-yogabase-requested-only order. A client that names nothing receives exactly the four core rows.",
-            "x-yogabase-requested-only": ["realtime-presence"],
+            "x-yogabase-requested-only": ["realtime-presence", "data-rest"],
             "items": { "$ref": "#/components/schemas/Capability" }
           },
           "issuedAt": { "type": "string", "format": "date-time" }
@@ -788,11 +1036,110 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "realtime-presence appears only when requested; it is available exactly when realtime-subscribe is and the runtime's realtime projection enables presence.",
-            "enum": ["auth", "storage", "functions-rest", "realtime-subscribe", "realtime-presence"]
+            "description": "realtime-presence appears only when requested; it is available exactly when realtime-subscribe is and the runtime's realtime projection enables presence. data-rest appears only when requested; it is available exactly when the runtime enables the Data API, which requires auth.",
+            "enum": ["auth", "storage", "functions-rest", "realtime-subscribe", "realtime-presence", "data-rest"]
           },
           "available": { "type": "boolean" },
           "unavailableReason": { "type": ["string", "null"], "maxLength": 256 }
+        }
+      },
+      "DataColumnName": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 63,
+        "pattern": "^[A-Za-z_][A-Za-z0-9_$]{0,62}$"
+      },
+      "DataColumnList": {
+        "type": "array",
+        "maxItems": 128,
+        "uniqueItems": true,
+        "description": "Column names, or [\"*\"] for every column the caller may read.",
+        "items": { "type": "string", "maxLength": 63 }
+      },
+      "DataFilter": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["column", "op"],
+        "properties": {
+          "column": { "$ref": "#/components/schemas/DataColumnName" },
+          "op": { "type": "string", "enum": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "like", "ilike", "isNull", "notNull"] },
+          "value": { "description": "Absent for isNull and notNull; an array of 1-100 non-null values for in; a string pattern for like and ilike; otherwise one non-null JSON value." }
+        }
+      },
+      "DataOrder": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["column"],
+        "properties": {
+          "column": { "$ref": "#/components/schemas/DataColumnName" },
+          "descending": { "type": "boolean", "default": false },
+          "nullsFirst": { "type": ["boolean", "null"] }
+        }
+      },
+      "DataSelectRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "columns": { "$ref": "#/components/schemas/DataColumnList" },
+          "filters": { "type": "array", "maxItems": 32, "items": { "$ref": "#/components/schemas/DataFilter" } },
+          "order": { "type": "array", "maxItems": 8, "items": { "$ref": "#/components/schemas/DataOrder" } },
+          "limit": { "type": "integer", "format": "int32", "minimum": 1, "maximum": 1000, "default": 100 },
+          "offset": { "type": "integer", "format": "int32", "minimum": 0, "maximum": 100000, "default": 0 }
+        }
+      },
+      "DataRow": {
+        "type": "object",
+        "maxProperties": 128,
+        "description": "Column name to plain JSON value.",
+        "additionalProperties": true
+      },
+      "DataInsertRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rows"],
+        "properties": {
+          "rows": { "type": "array", "minItems": 1, "maxItems": 500, "items": { "$ref": "#/components/schemas/DataRow" } },
+          "returning": { "$ref": "#/components/schemas/DataColumnList" }
+        }
+      },
+      "DataUpsertRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rows", "onConflict"],
+        "properties": {
+          "rows": { "type": "array", "minItems": 1, "maxItems": 500, "items": { "$ref": "#/components/schemas/DataRow" } },
+          "onConflict": { "type": "array", "minItems": 1, "maxItems": 16, "uniqueItems": true, "items": { "$ref": "#/components/schemas/DataColumnName" } },
+          "ignoreDuplicates": { "type": "boolean", "default": false },
+          "returning": { "$ref": "#/components/schemas/DataColumnList" }
+        }
+      },
+      "DataUpdateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["values", "filters"],
+        "properties": {
+          "values": { "$ref": "#/components/schemas/DataRow" },
+          "filters": { "type": "array", "minItems": 1, "maxItems": 32, "items": { "$ref": "#/components/schemas/DataFilter" } },
+          "returning": { "$ref": "#/components/schemas/DataColumnList" }
+        }
+      },
+      "DataDeleteRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["filters"],
+        "properties": {
+          "filters": { "type": "array", "minItems": 1, "maxItems": 32, "items": { "$ref": "#/components/schemas/DataFilter" } },
+          "returning": { "$ref": "#/components/schemas/DataColumnList" }
+        }
+      },
+      "DataResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rows", "affectedRows", "hasMore"],
+        "properties": {
+          "rows": { "type": "array", "maxItems": 1000, "items": {} },
+          "affectedRows": { "type": "integer", "format": "int32", "minimum": 0 },
+          "hasMore": { "type": "boolean", "description": "For a select, true when another page exists past this one." }
         }
       },
       "SignUpRequest": {

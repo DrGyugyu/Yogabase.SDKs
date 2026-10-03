@@ -190,5 +190,26 @@ class DeliveryClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([event["data"]["state"] for event in events], ["Running", "Succeeded"])
 
 
+    async def test_release_preview_carries_the_longest_job_run_and_does_not_invent_one(self) -> None:
+        bodies: list[dict] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            import json
+            bodies.append(json.loads(request.content))
+            return httpx.Response(200, json={
+                "previewId": "preview-1", "previewDigest": "sha256:preview", "action": "create",
+                "expectedRevision": 0, "approvalRequired": False, "expiresAt": "2026-09-01T00:00:00Z",
+            }, request=request)
+
+        base = {"artifactAdmissionIds": ["a"], "migrationEvidenceDigest": "sha256:m"}
+        async with AsyncDeliveryClient(delivery_host="https://delivery.example.test", access_token="token", http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))) as client:
+            await client.preview_release("project", "environment", {**base, "configuration": {"statelessFunctions": True, "scheduler": False, "jobs": True, "jobsMaxRunSeconds": 120}}, if_match='W/"1"')
+            await client.preview_release("project", "environment", {**base, "configuration": {"statelessFunctions": True, "scheduler": False, "jobs": True}}, if_match='W/"1"')
+        # A release carries the whole configuration: the client sends what it was given and nothing
+        # else, so omitting the field is the caller returning the environment to the 30-second default.
+        self.assertEqual(bodies[0]["configuration"]["jobsMaxRunSeconds"], 120)
+        self.assertNotIn("jobsMaxRunSeconds", bodies[1]["configuration"])
+
+
 if __name__ == "__main__":
     unittest.main()
