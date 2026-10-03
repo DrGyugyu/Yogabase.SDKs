@@ -38,6 +38,7 @@ public sealed class YogabaseClient : IDisposable, IAsyncDisposable
         Actors = new YogabaseActorsClient(Configuration, transport);
         Workflows = new YogabaseWorkflowsClient(Configuration, transport);
         Jobs = new YogabaseJobsClient(Configuration, transport);
+        Schedules = new YogabaseSchedulesClient(Configuration, transport);
         realtime = new YogabaseRealtimeClient(Configuration, auth.GetValidAccessTokenAsync);
         Realtime = realtime;
     }
@@ -57,6 +58,15 @@ public sealed class YogabaseClient : IDisposable, IAsyncDisposable
     /// serves it; an installation without it answers the gateway's own <c>not_found</c>.
     /// </summary>
     public IYogabaseJobs Jobs { get; }
+
+    /// <summary>
+    /// The signed-in user's own schedules: create, change, read, delete and run once a recurring or
+    /// one-shot schedule of a deployed stateless function, each write conditional on the schedule's ETag.
+    /// The bootstrap document carries no capability identifier for this surface, so the client does not
+    /// pretend to know whether the installation serves it; an installation without the Scheduler answers
+    /// the gateway's own bodiless <c>not_found</c>.
+    /// </summary>
+    public IYogabaseSchedules Schedules { get; }
 
     /// <summary>
     /// Game-server allocation for the signed-in player: start, list, inspect, and stop instances of

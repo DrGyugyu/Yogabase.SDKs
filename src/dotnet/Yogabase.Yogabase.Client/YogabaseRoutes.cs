@@ -105,6 +105,15 @@ public static class YogabaseRoutes
     /// <inheritdoc cref="JobsTemplate"/>
     public const string JobResultTemplate = "v1/projects/{projectId}/jobs/{jobId}/result";
 
+    /// <summary>
+    /// Schedules: <c>PUT</c> creates or changes one schedule, <c>GET</c> reads it and <c>DELETE</c> removes it,
+    /// and <c>POST</c> on the trigger route runs it once now. The gateway serves them behind the project
+    /// token's <c>lambda.invoke</c> scope, and only on an installation that has the Scheduler turned on.
+    /// </summary>
+    public const string ScheduleTemplate = "v1/projects/{projectId}/schedules/{scheduleId}";
+    /// <inheritdoc cref="ScheduleTemplate"/>
+    public const string ScheduleTriggerTemplate = "v1/projects/{projectId}/schedules/{scheduleId}/trigger";
+
     /// <summary>SignalR realtime hub path, carried verbatim in the bootstrap document.</summary>
     public const string RealtimePath = "/v1/realtime";
 
@@ -231,6 +240,14 @@ public static class YogabaseRoutes
 
     /// <summary>Result route of one job.</summary>
     public static string JobResult(Guid projectId, Guid jobId) => Job(projectId, jobId) + "/result";
+
+    /// <summary>Route of one schedule, by its already-escaped id.</summary>
+    public static string Schedule(Guid projectId, string escapedScheduleId) =>
+        "v1/projects/" + Id(projectId) + "/schedules/" + escapedScheduleId;
+
+    /// <summary>Manual-run route of one schedule, by its already-escaped id.</summary>
+    public static string ScheduleTrigger(Guid projectId, string escapedScheduleId) =>
+        Schedule(projectId, escapedScheduleId) + "/trigger";
 
     /// <summary>Route of one allocated game-server instance.</summary>
     public static string Server(string escapedServerId) => "v1/servers/" + escapedServerId;

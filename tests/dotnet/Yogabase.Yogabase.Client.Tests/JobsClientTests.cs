@@ -8,12 +8,13 @@ using Yogabase.Yogabase;
 namespace Yogabase.Tests;
 
 /// <summary>
-/// Wire-shape coverage for the durable Jobs surface and for the function invoke route's 413, asserted
-/// against a fake handler: these tests pin the exact request the SDK emits and how it reads and refuses
-/// what the gateway answers, and say nothing about the server's behaviour. The shapes are the ones the
-/// product's gateway writes (<c>DurableJobsGateway</c>) and its developer documentation states; the
-/// product's client OpenAPI document does not describe the Jobs routes, which is why they are pinned
-/// here rather than by the contract (see <c>ContractDigestTests</c>).
+/// Wire-shape coverage for the durable Jobs surface and for the 413 of the function invoke, actor invoke
+/// and workflow routes, asserted against a fake handler: these tests pin the exact request the SDK emits
+/// and how it reads and refuses what the gateway answers, and say nothing about the server's behaviour.
+/// The shapes are the ones the mirrored client OpenAPI document declares for the Jobs routes
+/// (<c>x-yogabase-jobs</c>) and the product's gateway writes (<c>DurableJobsGateway</c>);
+/// <see cref="ContractOperationParityTests"/> holds the operations to the document and
+/// <see cref="ContractLimitsAndCodesTests"/> its limits and codes.
 /// </summary>
 public sealed class JobsClientTests
 {
@@ -836,6 +837,67 @@ public sealed class JobsClientTests
         Assert.Equal(YogabaseInvocationErrors.PayloadTooLarge, exception.Code);
         Assert.Null(exception.LimitBytes);
         Assert.Null(exception.MaxBodyBytes);
+    }
+
+    [Fact]
+    public async Task AnActorOrWorkflowCallTheGatewayRefusesAsTooLargeIsA413PayloadTooLargeThatNamesBothLimits()
+    {
+        // The contract's x-yogabase-orleans-payload: 480 KiB of payload, and a body limit for each route.
+        var calls = new (string Route, long MaxBodyBytes, Func<YogabaseClient, Task> Call)[]
+        {
+            (
+                "actor invoke",
+                3_935_575,
+                client => client.Actors.InvokeAsync(
+                    "counter",
+                    "1",
+                    "customer",
+                    new YogabaseActorInvocationRequest
+                    {
+                        IdempotencyKey = "actor-request-1",
+                        CorrelationId = "actor-correlation",
+                        Deadline = DateTimeOffset.UtcNow.AddSeconds(20),
+                        InlinePayload = [1, 2, 3],
+                    },
+                    TestContext.Current.CancellationToken)
+            ),
+            (
+                "workflow start",
+                3_934_405,
+                client => client.Workflows.StartAsync(
+                    "onboard",
+                    "1",
+                    new YogabaseWorkflowStartRequest { IdempotencyKey = "start-1", InlineInput = [1] },
+                    TestContext.Current.CancellationToken)
+            ),
+            (
+                "workflow cancel",
+                3_934_417,
+                client => client.Workflows.CancelAsync(
+                    JobId,
+                    new YogabaseWorkflowCancelRequest { IdempotencyKey = "cancel-1", InlinePayload = [] },
+                    TestContext.Current.CancellationToken)
+            ),
+        };
+
+        foreach (var (route, maxBodyBytes, call) in calls)
+        {
+            var handler = new ScriptedHandler((_, _) => Task.FromResult(Problem(
+                HttpStatusCode.RequestEntityTooLarge,
+                "Payload too large.",
+                YogabaseInvocationErrors.PayloadTooLarge,
+                detail: "The request is larger than this route accepts.",
+                limitBytes: 491_520,
+                maxBodyBytes: maxBodyBytes)));
+            await using var client = await ClientAsync(handler);
+
+            var exception = await Assert.ThrowsAsync<YogabaseApiException>(() => call(client));
+
+            Assert.Equal(413, exception.StatusCode);
+            Assert.Equal("payload_too_large", exception.Code);
+            Assert.True(exception.LimitBytes == 491_520, route);
+            Assert.True(exception.MaxBodyBytes == maxBodyBytes, route);
+        }
     }
 
     // ---------------------------------------------------------------------------------------

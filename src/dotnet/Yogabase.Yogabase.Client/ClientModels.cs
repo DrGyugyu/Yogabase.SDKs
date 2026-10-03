@@ -206,9 +206,11 @@ public sealed class YogabaseApiException : Exception
 
     /// <summary>
     /// The most bytes the refused request's payload may have, before base64 encoding, when the gateway
-    /// named it: a <c>413</c> from the function invoke route (<see cref="YogabaseInvocationErrors.PayloadTooLarge"/>)
-    /// or the Jobs submit route (<see cref="YogabaseJobErrors.PayloadTooLarge"/>) carries it as
-    /// <c>limitBytes</c>. <see langword="null"/> for every other refusal.
+    /// named it: a <c>413</c> from the function invoke route (<see cref="YogabaseInvocationErrors.PayloadTooLarge"/>),
+    /// the actor invoke and workflow routes (the same code, at 480 KiB), the Jobs submit route
+    /// (<see cref="YogabaseJobErrors.PayloadTooLarge"/>) or the schedule write route
+    /// (<see cref="YogabaseScheduleErrors.PayloadTooLarge"/>) carries it as <c>limitBytes</c>.
+    /// <see langword="null"/> for every other refusal.
     /// </summary>
     public long? LimitBytes { get; }
 

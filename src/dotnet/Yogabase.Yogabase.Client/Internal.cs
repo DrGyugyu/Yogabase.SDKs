@@ -152,15 +152,19 @@ internal sealed class YogabaseHttpTransport : IDisposable
     {
         var code = response.StatusCode switch
         {
-            HttpStatusCode.Unauthorized => "authentication_required",
-            HttpStatusCode.Forbidden => "forbidden",
-            HttpStatusCode.NotFound => "not_found",
-            HttpStatusCode.Conflict => "conflict",
+            HttpStatusCode.Unauthorized => YogabaseStatusErrors.AuthenticationRequired,
+            HttpStatusCode.Forbidden => YogabaseStatusErrors.Forbidden,
+            HttpStatusCode.NotFound => YogabaseStatusErrors.NotFound,
+            HttpStatusCode.Conflict => YogabaseStatusErrors.Conflict,
+            // The conditional schedule writes: a stale or unmet ETag, and a write that sent none.
+            HttpStatusCode.PreconditionFailed => YogabaseStatusErrors.PreconditionFailed,
+            (HttpStatusCode)428 => YogabaseStatusErrors.PreconditionRequired,
             // A gateway that predates the named refusal answers a bare 413 for a body over its
             // listener's limit; the status alone says what was too large, so it reads the same.
             HttpStatusCode.RequestEntityTooLarge => YogabaseInvocationErrors.PayloadTooLarge,
-            (HttpStatusCode)429 => "rate_limited",
-            _ => "request_failed",
+            HttpStatusCode.UnsupportedMediaType => YogabaseStatusErrors.UnsupportedMediaType,
+            (HttpStatusCode)429 => YogabaseStatusErrors.RateLimited,
+            _ => YogabaseStatusErrors.RequestFailed,
         };
         long? limitBytes = null;
         long? maxBodyBytes = null;
