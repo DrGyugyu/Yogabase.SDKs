@@ -15,6 +15,8 @@ import io.stackyoga.yogabase.models.ScheduleTriggerRequest;
 import java.lang.reflect.Proxy;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayDeque;
@@ -26,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Protocol;
@@ -66,7 +69,9 @@ public final class YogabaseSchedulesClientTest {
         aPayloadAtExactlyTheInlineLimitIsSentAndOneByteMoreIsRefused();
         aMalformedDefinitionIsRefusedBeforeTheNetwork();
         theLongestAcceptedValuesOfEveryBoundedMemberAreSent();
-        aScheduleIdThatNeedsEscapingTravelsAsOneEscapedPathSegment();
+        aScheduleIdThatFollowsTheRuleIsSentUnchangedInTheBodyAndAsOneSegmentOfThePath();
+        aScheduleWrittenBeforeTheIdRuleIsStillReadRunAndDeletedByItsIdAndNeverWritten();
+        aWriteAcceptsExactlyTheIdsThePatternOfTheContractsScheduleIdMemberAccepts();
         anETagThatIsNotTheGatewaysTokenIsRefusedBeforeTheNetwork();
         theLargestVersionThatFitsA64BitIntegerIsAnAcceptedETag();
         getReadsOneScheduleByItsRouteAndBuildsItsETagFromTheBody();
@@ -192,7 +197,14 @@ public final class YogabaseSchedulesClientTest {
         final Script script = new Script(request -> schedule(request, 201, scheduleJson(Map.of()), null));
         final YogabaseSchedulesClient schedules = script.client();
         final List<Map<String, Object>> malformed = new ArrayList<>();
-        for (final String id : new String[] {"  ", " nightly", "night\nly", "x".repeat(129), ".", ".."}) {
+        for (final String id : new String[] {
+            "  ", " nightly", "night\nly", "x".repeat(129), ".", "..",
+            "nightly ", "weekly/report", "weekly report", "-nightly", ".nightly", "_nightly", "~nightly", ":nightly",
+            "weekly%2Freport", "nightly?", "night#ly", "nightl\u00e9",
+            // ARABIC-INDIC DIGIT THREE: a digit to Character.isDigit, but not to the contract's [0-9].
+            "night\u0663",
+            // Java's $ would let this through; the contract's pattern does not.
+            "nightly\n"}) {
             malformed.add(Map.of("scheduleId", id));
         }
         malformed.add(mapOf("scheduleId", null));
@@ -239,17 +251,116 @@ public final class YogabaseSchedulesClientTest {
         assertEquals(86_400, body.get("deadlineSeconds").getAsInt());
     }
 
-    private static void aScheduleIdThatNeedsEscapingTravelsAsOneEscapedPathSegment() {
+    private static void aScheduleIdThatFollowsTheRuleIsSentUnchangedInTheBodyAndAsOneSegmentOfThePath() {
+        // Each id with the path segment the generated builder writes for it: the builder keeps letters, digits and - . _
+        // and percent-encodes the rest, so : is %3A and ~ is %7E (the same URL as one that keeps the tilde, since RFC 3986
+        // makes a percent-encoded unreserved character equivalent to it, and the gateway decodes the segment).
+        final Map<String, String> segments = new LinkedHashMap<>();
+        segments.put("a", "a");
+        segments.put("Z", "Z");
+        segments.put("0", "0");
+        segments.put("nightly", "nightly");
+        segments.put("a.b_c~d:e-f", "a.b_c%7Ed%3Ae-f");
+        segments.put("orders-nightly.v2:eu~west_1", "orders-nightly.v2%3Aeu%7Ewest_1");
+        for (final Map.Entry<String, String> entry : segments.entrySet()) {
+            final String id = entry.getKey();
+            final Script script = new Script(request -> schedule(request, 200, scheduleJson(Map.of("scheduleId", id)), null));
+            final YogabaseSchedulesClient schedules = script.client();
+            schedules.create(definition(Map.of("scheduleId", id)));
+            schedules.get(id);
+            final String route = GATEWAY + "/v1/projects/" + PROJECT + "/schedules/" + entry.getValue();
+            assertEquals(route, script.requests.get(0).url().toString());
+            assertEquals(route, script.requests.get(1).url().toString());
+            // The id in the body is the id in the path, as it was written.
+            assertEquals(id, JsonParser.parseString(script.bodyText(0)).getAsJsonObject().get("scheduleId").getAsString());
+        }
+    }
+
+    private static void aScheduleWrittenBeforeTheIdRuleIsStillReadRunAndDeletedByItsIdAndNeverWritten() {
+        // An id the contract keeps addressable by a read, a run and a delete, percent-encoded as any path segment is,
+        // though a write of it is refused: the schedule was written before the pattern was enforced.
         final String id = "weekly report/é?#";
-        final Script script = new Script(request -> schedule(request, 200, scheduleJson(Map.of("scheduleId", id)), null));
+        final Script script = new Script(
+            request -> schedule(request, 200, scheduleJson(Map.of("scheduleId", id)), null),
+            request -> json(request, 202, "{\"outcome\":0,\"invocationId\":\"" + INVOCATION + "\"}"),
+            request -> empty(request, 204));
         final YogabaseSchedulesClient schedules = script.client();
-        schedules.create(definition(Map.of("scheduleId", id)));
-        schedules.get(id);
+
+        assertEquals(id, schedules.get(id).scheduleId());
+        schedules.trigger(id, ETAG3, new YogabaseScheduleTriggerRequest("run-1", OffsetDateTime.now().plusMinutes(10)));
+        schedules.delete(id, ETAG3);
+
         final String escaped = GATEWAY + "/v1/projects/" + PROJECT + "/schedules/weekly%20report%2F%C3%A9%3F%23";
         assertEquals(escaped, script.requests.get(0).url().toString());
-        assertEquals(escaped, script.requests.get(1).url().toString());
-        // The id in the body is the id in the path, unescaped.
-        assertEquals(id, JsonParser.parseString(script.bodyText(0)).getAsJsonObject().get("scheduleId").getAsString());
+        assertEquals(escaped + "/trigger", script.requests.get(1).url().toString());
+        assertEquals(escaped, script.requests.get(2).url().toString());
+
+        // A write of it is refused before the network: delete it and create it again under an id that follows the rule.
+        assertThrows(IllegalArgumentException.class, () -> schedules.create(definition(Map.of("scheduleId", id))));
+        assertThrows(IllegalArgumentException.class, () -> schedules.update(definition(Map.of("scheduleId", id)), ETAG3));
+        assertEquals(3, script.requests.size());
+    }
+
+    // The contract's pattern is JSON Schema's (ECMA-262): its $ matches only at the end of the input, where Java's also
+    // matches before a final line terminator, so the oracle swaps in \z. Every character of Latin-1 alone, after a
+    // letter and before one, a few characters beyond it that look like letters or digits, and the lengths at the edge
+    // go through both the oracle and a write.
+    private static void aWriteAcceptsExactlyTheIdsThePatternOfTheContractsScheduleIdMemberAccepts() throws Exception {
+        final JsonObject member = JsonParser.parseString(Files.readString(contractPath(), StandardCharsets.UTF_8)).getAsJsonObject()
+            .getAsJsonObject("components").getAsJsonObject("schemas").getAsJsonObject("ScheduleDefinitionRequest")
+            .getAsJsonObject("properties").getAsJsonObject("scheduleId");
+        final String pattern = member.get("pattern").getAsString();
+        assertTrue(pattern.startsWith("^") && pattern.endsWith("$"));
+        final Pattern oracle = Pattern.compile(pattern.substring(0, pattern.length() - 1) + "\\z");
+        assertEquals(1, member.get("minLength").getAsInt());
+        assertEquals(YogabaseSchedulesClient.MAXIMUM_SCHEDULE_ID_LENGTH, member.get("maxLength").getAsInt());
+
+        final List<String> candidates = new ArrayList<>(List.of(
+            "", " ", "\u0663", "a\u0663", "\u212a", "a\u212a", "\uff10", "a\uff10", "\ud83d\ude00", "a\ud83d\ude00"));
+        for (int code = 0; code <= 0xff; code++) {
+            final String character = String.valueOf((char) code);
+            candidates.add(character);
+            candidates.add("a" + character);
+            candidates.add(character + "a");
+        }
+        for (final int length : new int[] {127, 128, 129}) {
+            candidates.add("a".repeat(length));
+            candidates.add("a" + ".".repeat(length - 1));
+            candidates.add("a" + ":".repeat(length - 1));
+        }
+
+        final String[] current = {""};
+        final Script script = new Script(request -> schedule(request, 201, scheduleJson(Map.of("scheduleId", current[0])), null));
+        final YogabaseSchedulesClient schedules = script.client();
+        int accepted = 0;
+        for (final String id : candidates) {
+            current[0] = id;
+            final int before = script.requests.size();
+            final String shown = id.codePoints().mapToObj(
+                point -> point >= ' ' && point <= '~' ? String.valueOf((char) point) : String.format("\\u%04x", point))
+                .collect(java.util.stream.Collectors.joining());
+            if (oracle.matcher(id).matches()) {
+                accepted++;
+                schedules.create(definition(Map.of("scheduleId", id)));
+                assertTrue(script.requests.size() == before + 1, "The contract's pattern accepts \"" + shown + "\" and the client refused it");
+            } else {
+                assertThrows(IllegalArgumentException.class, () -> schedules.create(definition(Map.of("scheduleId", id))));
+                assertTrue(script.requests.size() == before, "The contract's pattern refuses \"" + shown + "\" and the client sent it");
+            }
+        }
+        // The corpus holds both kinds, so the comparison is not vacuous.
+        assertTrue(accepted > 60 && accepted < candidates.size() - 60, accepted + " of " + candidates.size());
+    }
+
+    /** The mirrored client contract, found by walking up from the working folder: the checks run from languages/java. */
+    private static Path contractPath() {
+        for (Path directory = Path.of("").toAbsolutePath(); directory != null; directory = directory.getParent()) {
+            final Path candidate = directory.resolve("contracts").resolve("yogabase-client-v1.openapi.json");
+            if (Files.isRegularFile(candidate)) {
+                return candidate;
+            }
+        }
+        throw new AssertionError("The mirrored client contract was not found above " + Path.of("").toAbsolutePath());
     }
 
     // ---------------------------------------------------------------------------------------
@@ -617,6 +728,14 @@ public final class YogabaseSchedulesClientTest {
             sentBy(client -> client.get("nightly")),
             builtBy(api -> api.v1().projects().byProjectId(PROJECT).schedules().byScheduleId("nightly").get()),
             null, null);
+        // An id of every allowed character, and an older one that a read, a run and a delete still address, are addressed
+        // as the generated builder addresses them.
+        for (final String id : new String[] {"a.b_c~d:e-f", "weekly report/é?#"}) {
+            assertSameRequest(
+                sentBy(client -> client.get(id)),
+                builtBy(api -> api.v1().projects().byProjectId(PROJECT).schedules().byScheduleId(id).get()),
+                null, null);
+        }
         assertSameRequest(
             sentBy(client -> client.delete("nightly", ETAG3)),
             builtBy(api -> api.v1().projects().byProjectId(PROJECT).schedules().byScheduleId("nightly").delete(
@@ -845,9 +964,13 @@ public final class YogabaseSchedulesClientTest {
     }
 
     private static void assertTrue(boolean value) {
+        assertTrue(value, "Expected true");
+    }
+
+    private static void assertTrue(boolean value, String message) {
         cases++;
         if (!value) {
-            throw new AssertionError("Expected true");
+            throw new AssertionError(message);
         }
     }
 

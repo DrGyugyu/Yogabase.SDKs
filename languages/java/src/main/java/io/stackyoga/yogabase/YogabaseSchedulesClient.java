@@ -87,6 +87,11 @@ public final class YogabaseSchedulesClient {
 
     private static final Pattern ETAG = Pattern.compile("\"schedule-v([1-9][0-9]*)-([0-9a-f]{32})\"");
     private static final Pattern VERSION = Pattern.compile("[1-9][0-9]*");
+    // The pattern of the contract's definition member scheduleId, which holds a write to what one segment of a URL
+    // path carries without being escaped. It is matched whole (matches(), as $ would also accept a final line
+    // terminator). A read, a run and a delete accept more (requireScheduleId), because a schedule written before
+    // the rule is still found by its id.
+    private static final Pattern WRITABLE_SCHEDULE_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._~:-]{0,127}");
     private static final BigInteger MAXIMUM_INT64 = BigInteger.valueOf(Long.MAX_VALUE);
 
     private final RequestAdapter requestAdapter;
@@ -132,7 +137,9 @@ public final class YogabaseSchedulesClient {
 
     /**
      * Changes the schedule the {@code eTag} names (200) and answers it with its new ETag. The definition names
-     * the same schedule id and keeps the schedule's kind: recurring or one-shot.
+     * the same schedule id and keeps the schedule's kind: recurring or one-shot. A schedule written before the id
+     * rule under an id that does not follow it cannot be changed: delete it and create it again under an id that
+     * does.
      *
      * @throws YogabaseSchedulesException {@link YogabaseStatusErrorCodes#PRECONDITION_FAILED} (412) when the ETag
      *     is stale or the schedule does not exist, {@link YogabaseStatusErrorCodes#FORBIDDEN} (403) for another
@@ -173,12 +180,14 @@ public final class YogabaseSchedulesClient {
      * Runs the schedule the {@code eTag} names once now, outside its cadence: it enqueues one invocation of the
      * schedule's function with the schedule's payload, as the schedule's owner (202). The same idempotency key
      * against the same version answers the same invocation, with {@link YogabaseScheduleTriggerOutcome#REPLAYED}
-     * where the first said {@link YogabaseScheduleTriggerOutcome#ENQUEUED}.
+     * where the first said {@link YogabaseScheduleTriggerOutcome#ENQUEUED}. A manual run is not an occurrence of the
+     * schedule: its {@link YogabaseScheduleConcurrencyPolicy} neither holds it back nor is held back by it.
      *
      * @throws YogabaseSchedulesException {@link YogabaseStatusErrorCodes#PRECONDITION_FAILED} (412) when the ETag
      *     is stale, {@link YogabaseStatusErrorCodes#NOT_FOUND} (404), {@link YogabaseStatusErrorCodes#CONFLICT}
-     *     (409) when the queue holds the key for a different request, a 400 for a deadline that is not after now
-     *     or is more than an hour away, and a 503 for a schedule whose function version is no longer admitted
+     *     (409) when the queue holds the key for a different request or the schedule's function version is no
+     *     longer an admitted Stateless one of the project (as for a write of it), and a 400 for a deadline that is
+     *     not after now or is more than an hour away
      */
     public YogabaseScheduleTriggerResult trigger(String scheduleId, String eTag, YogabaseScheduleTriggerRequest request) {
         final String id = requireScheduleId(scheduleId);
@@ -227,18 +236,18 @@ public final class YogabaseSchedulesClient {
     }
 
     private static ScheduleDefinitionRequest toRequest(YogabaseScheduleDefinition definition) {
-        requireScheduleId(definition.scheduleId());
+        requireWritableScheduleId(definition.scheduleId());
         requireBounded(definition.functionId(), MAXIMUM_FUNCTION_ID_LENGTH, "a function id");
         requireBounded(definition.functionVersion(), MAXIMUM_FUNCTION_VERSION_LENGTH, "a function version");
         requireBounded(definition.cron(), MAXIMUM_CRON_LENGTH, "a cron expression");
         requireBounded(definition.timeZone(), MAXIMUM_TIME_ZONE_ID_LENGTH, "a time zone id");
         if (definition.misfirePolicy() == null) {
             throw new IllegalArgumentException(
-                "a misfire policy is required: the gateway reads a missing one as RunImmediately, which its contract does not promise");
+                "a misfire policy is required: RunImmediately, SkipToNextOccurrence or RunAllMissed");
         }
         if (definition.concurrencyPolicy() == null) {
             throw new IllegalArgumentException(
-                "a concurrency policy is required: the gateway reads a missing one as Allow, which its contract does not promise");
+                "a concurrency policy is required: Allow, Forbid or Replace");
         }
         if (definition.maxCatchUp() < 1 || definition.maxCatchUp() > MAXIMUM_CATCH_UP) {
             throw new IllegalArgumentException("a schedule catches up between 1 and 128 missed occurrences");
@@ -271,6 +280,14 @@ public final class YogabaseSchedulesClient {
             body.setOneShotAtUtc(definition.oneShotAtUtc().withOffsetSameInstant(ZoneOffset.UTC));
         }
         return body;
+    }
+
+    private static String requireWritableScheduleId(String value) {
+        if (value == null || !WRITABLE_SCHEDULE_ID.matcher(value).matches()) {
+            throw new IllegalArgumentException(
+                "a schedule id to write is 1 to 128 characters, a letter or a digit first and then letters, digits and . _ ~ : - only");
+        }
+        return value;
     }
 
     private static String requireScheduleId(String value) {

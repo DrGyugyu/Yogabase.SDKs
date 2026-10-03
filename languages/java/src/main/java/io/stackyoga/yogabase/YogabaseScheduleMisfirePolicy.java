@@ -1,8 +1,8 @@
 package io.stackyoga.yogabase;
 
 /**
- * What a schedule does about occurrences it missed while the scheduler was unavailable. The gateway reads a
- * missing policy as the first name, which its contract does not promise, so a definition always names one.
+ * What a schedule does about occurrences it missed while the scheduler was unavailable. A definition always
+ * names one: a request that leaves it out is a 400 whose problem names the member.
  */
 public enum YogabaseScheduleMisfirePolicy {
     /** Runs once, now, however many occurrences were missed, and resumes the cadence. */

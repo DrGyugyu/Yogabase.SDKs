@@ -1,17 +1,27 @@
 package io.stackyoga.yogabase;
 
 /**
- * What a schedule asks for when an occurrence is due while the one before it is still running. The gateway
- * checks and stores the choice, but its scheduler does not yet look for a running occurrence, so every
- * occurrence starts whichever is chosen; a definition still names one, because the gateway reads a missing
- * policy as the first name, which its contract does not promise.
+ * What a schedule does when an occurrence is due while an earlier occurrence of the same schedule has not
+ * finished: its invocation is queued (waiting to start, or to be retried) or running, and its deadline has not
+ * passed. A skipped occurrence is consumed, not deferred: the schedule moves on to its next occurrence. A manual
+ * run is not an occurrence, so the policy neither holds it back nor is held back by it, and a one-shot has no
+ * earlier occurrence, so the policy does not apply to it. A definition always names one: a request that leaves
+ * it out is a 400 whose problem names the member.
  */
 public enum YogabaseScheduleConcurrencyPolicy {
-    /** Starts the occurrence alongside the running one. */
+    /** Starts the new occurrence alongside the earlier one. */
     ALLOW("Allow"),
-    /** Skips the occurrence. */
+    /**
+     * Skips the new occurrence. When several are due at once ({@link YogabaseScheduleMisfirePolicy#RUN_ALL_MISSED}
+     * after an outage), only the oldest starts.
+     */
     FORBID("Forbid"),
-    /** Stops the running occurrence and starts this one. */
+    /**
+     * Ends an earlier occurrence that is still queued, with the failure code {@code schedule_occurrence_replaced},
+     * and starts the new one. An occurrence that is already running cannot be stopped, because nothing can
+     * interrupt a Lambda that is executing, so while one is running this skips the new occurrence, as
+     * {@link #FORBID} does. When several are due at once, only the newest starts.
+     */
     REPLACE("Replace");
 
     private final String wireName;

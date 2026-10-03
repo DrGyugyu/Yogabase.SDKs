@@ -8,11 +8,16 @@ import java.util.Objects;
  * What a client asks the schedule write route to hold: a recurring schedule ({@code cron} evaluated in
  * {@code timeZone}) or a one-shot ({@code oneShotAtUtc}) of one deployed stateless function version. The project
  * and the owner are never fields: the project is the client's own and the owner is the signed-in user. Every
- * member but {@code payload} and {@code oneShotAtUtc} is required; the two policies in particular are always
- * sent, because the gateway reads a missing one as the first name, which its contract does not promise.
+ * member but {@code payload} and {@code oneShotAtUtc} is required, the two policies included: a request that
+ * leaves one out is a 400 whose problem names the member, and this client refuses it before sending.
  *
- * @param scheduleId the schedule's id, chosen by the caller: 1 to 128 characters, trimmed, with no control
- *     character; the id belongs to the project, so one that another user holds cannot be created
+ * @param scheduleId the schedule's id, chosen by the caller: 1 to 128 characters, a letter or a digit first and
+ *     then letters, digits and {@code .} {@code _} {@code ~} {@code :} {@code -} only
+ *     ({@code ^[A-Za-z0-9][A-Za-z0-9._~:-]{0,127}$}). The id is one segment of the schedule's URL path, so there
+ *     is nothing to escape, and the console addresses the schedule by the same id. The id belongs to the project,
+ *     so one that another user holds cannot be created. A schedule written before the rule under another id can
+ *     still be read, run and deleted by that id, but a write of it is refused: delete it and create it again
+ *     under an id that follows the rule
  * @param functionId the id of a deployed Stateless Lambda, at most 256 characters
  * @param functionVersion the exact released version of that function which every occurrence runs, at most 64
  *     characters; it must be admitted for the project, and an update checks it again
@@ -23,7 +28,8 @@ import java.util.Objects;
  * @param timeZone the time zone the cron expression is evaluated in, by the id the gateway's system knows it by
  *     ({@code UTC}, {@code Asia/Seoul}), at most 128 characters
  * @param misfirePolicy what to do about occurrences missed while the scheduler was unavailable
- * @param concurrencyPolicy what to do when an occurrence is due while the one before it is running
+ * @param concurrencyPolicy what to do when an occurrence is due while an earlier one has not finished; see
+ *     {@link YogabaseScheduleConcurrencyPolicy}
  * @param maxCatchUp the most missed occurrences {@link YogabaseScheduleMisfirePolicy#RUN_ALL_MISSED} runs after an
  *     outage, 1 to 128; the other policies ignore it but the gateway still requires it
  * @param maxAttempts how many times an occurrence's invocation may be attempted, 1 to 16
