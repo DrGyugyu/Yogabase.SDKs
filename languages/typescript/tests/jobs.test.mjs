@@ -478,6 +478,29 @@ test("a result the gateway refuses surfaces its status and code and no bytes", a
     }
 });
 
+test("an abort or the timeout while the result body is still arriving stops the call", async () => {
+    // A body that has begun and never ends, errored by the call's own signal as a real fetch would.
+    const hanging = (_url, init) => {
+        const stream = new ReadableStream({
+            start(controller) {
+                controller.enqueue(Uint8Array.of(1, 2, 3));
+                init.signal?.addEventListener("abort", () => controller.error(init.signal.reason), { once: true });
+            },
+        });
+        return new Response(stream, { status: 200, headers: { "X-Yogabase-Content-Sha256": sha256(Uint8Array.of(1, 2, 3)) } });
+    };
+
+    const controller = new AbortController();
+    const aborted = client(fakeFetch([hanging])).result(JOB, { signal: controller.signal });
+    setTimeout(() => controller.abort(), 20);
+    await assert.rejects(aborted, error => error.name === "AbortError");
+
+    await assert.rejects(
+        client(fakeFetch([hanging]), { timeoutMs: 30 }).result(JOB),
+        error => /timed out/.test(error.message),
+    );
+});
+
 // ------------------------------------------------------------------------------------------------
 // The gateway host and the project
 // ------------------------------------------------------------------------------------------------

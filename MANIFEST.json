@@ -126,7 +126,7 @@
       "source": "languages/typescript",
       "packageId": "@stackyoga/yogabase-client-preview",
       "version": "0.3.0-preview.1",
-      "qualification": "npm-clean-install-typescript-build-and-13-tests-passed-2026-09-22-dry-run-pack-not-rerun; typescript-build-and-45-tests-passed-2026-10-03-over-a-copied-locked-node_modules-tree-not-a-fresh-npm-ci-including-29-jobs-cases-and-the-regenerated-413-and-data-surface"
+      "qualification": "npm-clean-install-typescript-build-and-13-tests-passed-2026-09-22-dry-run-pack-not-rerun; typescript-build-and-46-tests-passed-2026-10-03-over-a-copied-locked-node_modules-tree-not-a-fresh-npm-ci-including-30-jobs-cases-and-the-regenerated-413-and-data-surface"
     },
     {
       "language": "Python",

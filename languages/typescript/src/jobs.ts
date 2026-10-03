@@ -226,14 +226,22 @@ export class YogabaseJobsClient {
         if (request.maxAttempts !== undefined) {
             body.maxAttempts = request.maxAttempts;
         }
-        const response = await this.send("POST", "", options, JSON.stringify(body));
-        return readJob(await readJsonDocument(response));
+        const { response, dispose } = await this.dispatch("POST", "", options, JSON.stringify(body));
+        try {
+            return readJob(await readJsonDocument(response));
+        } finally {
+            dispose();
+        }
     }
 
     /** Reads the caller's own job. Poll this until its status is terminal. */
     public async get(jobId: Uuid, options: YogabaseJobsRequestOptions = {}): Promise<YogabaseJob> {
-        const response = await this.send("GET", `/${requireUuid(jobId, "jobId")}`, options);
-        return readJob(await readJsonDocument(response));
+        const { response, dispose } = await this.dispatch("GET", `/${requireUuid(jobId, "jobId")}`, options);
+        try {
+            return readJob(await readJsonDocument(response));
+        } finally {
+            dispose();
+        }
     }
 
     /**
@@ -241,8 +249,12 @@ export class YogabaseJobsClient {
      * running one is flagged (`cancellationRequested`) and stopped by its worker, and a settled one is returned as it is.
      */
     public async cancel(jobId: Uuid, options: YogabaseJobsRequestOptions = {}): Promise<YogabaseJob> {
-        const response = await this.send("POST", `/${requireUuid(jobId, "jobId")}/cancel`, options);
-        return readJob(await readJsonDocument(response));
+        const { response, dispose } = await this.dispatch("POST", `/${requireUuid(jobId, "jobId")}/cancel`, options);
+        try {
+            return readJob(await readJsonDocument(response));
+        } finally {
+            dispose();
+        }
     }
 
     /**
@@ -251,34 +263,43 @@ export class YogabaseJobsClient {
      * one well-formed `sha256:` digest, is refused and never returned.
      */
     public async result(jobId: Uuid, options: YogabaseJobsRequestOptions = {}): Promise<YogabaseJobResult> {
-        const response = await this.send("GET", `/${requireUuid(jobId, "jobId")}/result`, options, undefined, "application/octet-stream, application/problem+json");
-        const declared = response.headers.get(RESULT_DIGEST_HEADER);
-        // A Headers object joins a repeated header with ", ", so exactly one well-formed digest is the whole value.
-        if (response.status !== 200 || declared === null || !RESULT_DIGEST.test(declared)) {
-            await response.body?.cancel().catch(() => undefined);
-            throw invalid("Yogabase returned an invalid job result.", response);
+        const { response, dispose } = await this.dispatch("GET", `/${requireUuid(jobId, "jobId")}/result`, options, undefined, "application/octet-stream, application/problem+json");
+        // The call's timeout and abort signal stay in force until the whole body has been read and hashed.
+        try {
+            const declared = response.headers.get(RESULT_DIGEST_HEADER);
+            // A Headers object joins a repeated header with ", ", so exactly one well-formed digest is the whole value.
+            if (response.status !== 200 || declared === null || !RESULT_DIGEST.test(declared)) {
+                await response.body?.cancel().catch(() => undefined);
+                throw invalid("Yogabase returned an invalid job result.", response);
+            }
+            const content = await readBounded(response, YOGABASE_JOBS_LIMITS.maximumResultBytes);
+            const computed = `sha256:${toHex(new Uint8Array(await sha256(content)))}`;
+            if (computed !== declared) {
+                throw new YogabaseJobsError(
+                    "The job result does not match the digest Yogabase sent with it, so none of it was returned.",
+                    502,
+                    YOGABASE_JOB_ERROR_CODES.resultDigestMismatch,
+                    undefined,
+                    response.headers.get("X-Correlation-ID") ?? undefined,
+                );
+            }
+            return { content, digest: declared };
+        } finally {
+            dispose();
         }
-        const content = await readBounded(response, YOGABASE_JOBS_LIMITS.maximumResultBytes);
-        const computed = `sha256:${toHex(new Uint8Array(await sha256(content)))}`;
-        if (computed !== declared) {
-            throw new YogabaseJobsError(
-                "The job result does not match the digest Yogabase sent with it, so none of it was returned.",
-                502,
-                YOGABASE_JOB_ERROR_CODES.resultDigestMismatch,
-                undefined,
-                response.headers.get("X-Correlation-ID") ?? undefined,
-            );
-        }
-        return { content, digest: declared };
     }
 
-    private async send(
+    /**
+     * Sends one request and hands back its successful response with the disposer of the call's own timeout and
+     * abort scope, which the caller runs once it has read the body. A refusal is read and thrown inside the scope.
+     */
+    private async dispatch(
         method: string,
         suffix: string,
         options: YogabaseJobsRequestOptions,
         body?: string,
         accept = "application/json, application/problem+json",
-    ): Promise<Response> {
+    ): Promise<{ response: Response; dispose: () => void }> {
         const token = typeof this.token === "function" ? await this.token() : this.token;
         if (!token) {
             throw new TypeError("The jobs access token provider returned an empty token");
@@ -296,9 +317,10 @@ export class YogabaseJobsClient {
             if (!response.ok) {
                 throw await jobsError(response);
             }
-            return response;
-        } finally {
+            return { response, dispose: scoped.dispose };
+        } catch (error) {
             scoped.dispose();
+            throw error;
         }
     }
 }
