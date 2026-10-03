@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Yogabase.Yogabase;
 
 namespace Yogabase.Tests;
@@ -183,6 +184,20 @@ public sealed class SchedulesClientTests
     [InlineData("long-schedule-id")]
     [InlineData("dot-schedule-id")]
     [InlineData("dots-schedule-id")]
+    [InlineData("trailing-space-schedule-id")]
+    [InlineData("slash-schedule-id")]
+    [InlineData("space-schedule-id")]
+    [InlineData("dash-first-schedule-id")]
+    [InlineData("dot-first-schedule-id")]
+    [InlineData("underscore-first-schedule-id")]
+    [InlineData("tilde-first-schedule-id")]
+    [InlineData("colon-first-schedule-id")]
+    [InlineData("percent-schedule-id")]
+    [InlineData("question-schedule-id")]
+    [InlineData("hash-schedule-id")]
+    [InlineData("non-ascii-letter-schedule-id")]
+    [InlineData("non-ascii-digit-schedule-id")]
+    [InlineData("trailing-newline-schedule-id")]
     [InlineData("blank-function-id")]
     [InlineData("long-function-id")]
     [InlineData("blank-function-version")]
@@ -246,8 +261,14 @@ public sealed class SchedulesClientTests
         Assert.Equal(86_400, document.RootElement.GetProperty("deadlineSeconds").GetInt32());
     }
 
-    [Fact]
-    public async Task AScheduleIdThatNeedsEscapingTravelsAsOneEscapedPathSegment()
+    [Theory]
+    [InlineData("a")]
+    [InlineData("Z")]
+    [InlineData("0")]
+    [InlineData("nightly")]
+    [InlineData("a.b_c~d:e-f")]
+    [InlineData("orders-nightly.v2:eu~west_1")]
+    public async Task AScheduleIdThatFollowsTheRuleIsSentUnchangedInTheBodyAndAsOneSegmentOfThePath(string id)
     {
         var uris = new List<string>();
         var bodies = new List<string>();
@@ -255,20 +276,133 @@ public sealed class SchedulesClientTests
         {
             uris.Add(request.RequestUri!.AbsoluteUri);
             bodies.Add(request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken));
-            return Schedule(HttpStatusCode.OK, ScheduleJson(scheduleId: "weekly report/é?#"), null);
+            return Schedule(HttpStatusCode.OK, ScheduleJson(scheduleId: id), null);
         });
         await using var client = await ClientAsync(handler);
         var definition = Definition();
-        definition.ScheduleId = "weekly report/é?#";
+        definition.ScheduleId = id;
 
         await client.Schedules.CreateAsync(definition, TestContext.Current.CancellationToken);
-        await client.Schedules.GetAsync("weekly report/é?#", TestContext.Current.CancellationToken);
+        await client.Schedules.GetAsync(id, TestContext.Current.CancellationToken);
+
+        var route = "http://localhost/v1/projects/11111111-1111-4111-8111-111111111111/schedules/" + Uri.EscapeDataString(id);
+        Assert.Equal([route, route], uris);
+        // The id in the body is the id in the path, as it was written.
+        using var document = JsonDocument.Parse(bodies[0]);
+        Assert.Equal(id, document.RootElement.GetProperty("scheduleId").GetString());
+    }
+
+    [Fact]
+    public async Task AScheduleWrittenBeforeTheIdRuleIsStillReadRunAndDeletedByItsIdAndNeverWritten()
+    {
+        // An id the contract keeps addressable by a read, a run and a delete, percent-encoded as any path segment is,
+        // though a write of it is refused: the schedule was written before the pattern was enforced.
+        const string legacy = "weekly report/é?#";
+        var uris = new List<string>();
+        var handler = new ScriptedHandler((request, _) =>
+        {
+            uris.Add(request.RequestUri!.AbsoluteUri);
+            return Task.FromResult(
+                request.Method == HttpMethod.Get ? Schedule(HttpStatusCode.OK, ScheduleJson(scheduleId: legacy), null)
+                : request.Method == HttpMethod.Delete ? new HttpResponseMessage(HttpStatusCode.NoContent)
+                : Json(HttpStatusCode.Accepted, "{\"outcome\":0,\"invocationId\":\"9b9e2f3a-0d6e-4e6c-a4f1-2c6a7a5f0b11\"}"));
+        });
+        await using var client = await ClientAsync(handler);
+
+        var read = await client.Schedules.GetAsync(legacy, TestContext.Current.CancellationToken);
+        await client.Schedules.TriggerAsync(legacy, ETag3, Run(), TestContext.Current.CancellationToken);
+        await client.Schedules.DeleteAsync(legacy, ETag3, TestContext.Current.CancellationToken);
 
         const string escaped = "http://localhost/v1/projects/11111111-1111-4111-8111-111111111111/schedules/weekly%20report%2F%C3%A9%3F%23";
-        Assert.Equal([escaped, escaped], uris);
-        // The id in the body is the id in the path, unescaped.
-        using var document = JsonDocument.Parse(bodies[0]);
-        Assert.Equal("weekly report/é?#", document.RootElement.GetProperty("scheduleId").GetString());
+        Assert.Equal(legacy, read.ScheduleId);
+        Assert.Equal([escaped, escaped + "/trigger", escaped], uris);
+
+        // A write of it is refused before transport: delete it and create it again under an id that follows the rule.
+        var definition = Definition();
+        definition.ScheduleId = legacy;
+        await Assert.ThrowsAsync<ArgumentException>(() => client.Schedules.CreateAsync(definition, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentException>(() => client.Schedules.UpdateAsync(definition, ETag3, TestContext.Current.CancellationToken));
+        Assert.Equal(3, uris.Count);
+    }
+
+    // The contract's pattern is JSON Schema's (ECMA-262): its $ matches only at the end of the input, where .NET's
+    // also matches before a final newline, so the oracle swaps in \z. Every character of Latin-1 alone, after a letter
+    // and before one, a few characters beyond it that look like letters or digits, and the lengths at the edge go
+    // through both the oracle and a write.
+    [Fact]
+    public async Task AWriteAcceptsExactlyTheIdsThePatternOfTheContractsScheduleIdMemberAccepts()
+    {
+        var pattern = await ReadContractScheduleIdPatternAsync();
+        Assert.StartsWith("^", pattern, StringComparison.Ordinal);
+        Assert.EndsWith("$", pattern, StringComparison.Ordinal);
+        var oracle = new Regex(pattern[..^1] + "\\z", RegexOptions.CultureInvariant);
+
+        var candidates = new List<string> { string.Empty, " ", "٣", "a٣", "K", "aK", "０", "a０", "\U0001F600", "a\U0001F600" };
+        for (var code = 0; code <= 0xFF; code++)
+        {
+            var character = ((char)code).ToString();
+            candidates.Add(character);
+            candidates.Add("a" + character);
+            candidates.Add(character + "a");
+        }
+
+        foreach (var length in new[] { 127, 128, 129 })
+        {
+            candidates.Add(new string('a', length));
+            candidates.Add("a" + new string('.', length - 1));
+            candidates.Add("a" + new string(':', length - 1));
+        }
+
+        var current = string.Empty;
+        var reached = 0;
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            reached++;
+            return Task.FromResult(Schedule(HttpStatusCode.Created, ScheduleJson(scheduleId: current), null));
+        });
+        await using var client = await ClientAsync(handler);
+
+        var accepted = 0;
+        foreach (var id in candidates)
+        {
+            current = id;
+            var before = reached;
+            var definition = Definition();
+            definition.ScheduleId = id;
+            if (oracle.IsMatch(id))
+            {
+                accepted++;
+                await client.Schedules.CreateAsync(definition, TestContext.Current.CancellationToken);
+                Assert.True(reached == before + 1, $"The contract's pattern accepts the id {Describe(id)} and the client refused it.");
+            }
+            else
+            {
+                await Assert.ThrowsAsync<ArgumentException>(() => client.Schedules.CreateAsync(definition, TestContext.Current.CancellationToken));
+                Assert.True(reached == before, $"The contract's pattern refuses the id {Describe(id)} and the client sent it.");
+            }
+        }
+
+        // The corpus holds both kinds, so the comparison is not vacuous.
+        Assert.InRange(accepted, 60, candidates.Count - 60);
+    }
+
+    private static string Describe(string id) =>
+        "\"" + string.Concat(id.Select(static character => character is >= ' ' and <= '~' ? character.ToString() : "\\u" + ((int)character).ToString("x4", CultureInfo.InvariantCulture))) + "\"";
+
+    private static async Task<string> ReadContractScheduleIdPatternAsync()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Yogabase.SDKs.slnx")))
+        {
+            directory = directory.Parent;
+        }
+
+        Assert.NotNull(directory);
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(
+            Path.Combine(directory.FullName, "contracts", "yogabase-client-v1.openapi.json"),
+            TestContext.Current.CancellationToken));
+        return document.RootElement.GetProperty("components").GetProperty("schemas").GetProperty("ScheduleDefinitionRequest")
+            .GetProperty("properties").GetProperty("scheduleId").GetProperty("pattern").GetString()!;
     }
 
     [Fact]
@@ -857,6 +991,22 @@ public sealed class SchedulesClientTests
             case "long-schedule-id": definition.ScheduleId = new string('s', 129); break;
             case "dot-schedule-id": definition.ScheduleId = "."; break;
             case "dots-schedule-id": definition.ScheduleId = ".."; break;
+            case "trailing-space-schedule-id": definition.ScheduleId = "nightly "; break;
+            case "slash-schedule-id": definition.ScheduleId = "weekly/report"; break;
+            case "space-schedule-id": definition.ScheduleId = "weekly report"; break;
+            case "dash-first-schedule-id": definition.ScheduleId = "-nightly"; break;
+            case "dot-first-schedule-id": definition.ScheduleId = ".nightly"; break;
+            case "underscore-first-schedule-id": definition.ScheduleId = "_nightly"; break;
+            case "tilde-first-schedule-id": definition.ScheduleId = "~nightly"; break;
+            case "colon-first-schedule-id": definition.ScheduleId = ":nightly"; break;
+            case "percent-schedule-id": definition.ScheduleId = "weekly%2Freport"; break;
+            case "question-schedule-id": definition.ScheduleId = "nightly?"; break;
+            case "hash-schedule-id": definition.ScheduleId = "night#ly"; break;
+            case "non-ascii-letter-schedule-id": definition.ScheduleId = "nightlé"; break;
+            // ARABIC-INDIC DIGIT THREE: a digit to char.IsDigit, but not to the contract's [0-9].
+            case "non-ascii-digit-schedule-id": definition.ScheduleId = "night٣"; break;
+            // .NET's $ would let this through; the contract's pattern does not.
+            case "trailing-newline-schedule-id": definition.ScheduleId = "nightly\n"; break;
             case "blank-function-id": definition.FunctionId = " "; break;
             case "long-function-id": definition.FunctionId = new string('f', 257); break;
             case "blank-function-version": definition.FunctionVersion = string.Empty; break;

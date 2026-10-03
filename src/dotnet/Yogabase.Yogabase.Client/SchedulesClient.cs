@@ -9,9 +9,8 @@ using System.Threading.Tasks;
 namespace Yogabase.Yogabase;
 
 /// <summary>
-/// What a schedule does about occurrences it missed while the scheduler was unavailable. The gateway
-/// reads a missing policy as the first name, which its contract does not promise, so a definition
-/// always names one.
+/// What a schedule does about occurrences it missed while the scheduler was unavailable. A definition
+/// always names one: a request that leaves it out is a 400 whose problem names the member.
 /// </summary>
 public enum YogabaseScheduleMisfirePolicy
 {
@@ -28,20 +27,31 @@ public enum YogabaseScheduleMisfirePolicy
 }
 
 /// <summary>
-/// What a schedule asks for when an occurrence is due while the one before it is still running. The
-/// gateway checks and stores the choice, but its scheduler does not yet look for a running occurrence,
-/// so every occurrence starts whichever is chosen; a definition still names one, because the gateway
-/// reads a missing policy as the first name, which its contract does not promise.
+/// What a schedule does when an occurrence is due while an earlier occurrence of the same schedule has not
+/// finished: its invocation is queued (waiting to start, or to be retried) or running, and its deadline has
+/// not passed. A skipped occurrence is consumed, not deferred: the schedule moves on to its next occurrence.
+/// A manual run is not an occurrence, so the policy neither holds it back nor is held back by it, and a
+/// one-shot has no earlier occurrence, so the policy does not apply to it. A definition always names one: a
+/// request that leaves it out is a 400 whose problem names the member.
 /// </summary>
 public enum YogabaseScheduleConcurrencyPolicy
 {
-    /// <summary>Starts the occurrence alongside the running one.</summary>
+    /// <summary>Starts the new occurrence alongside the earlier one.</summary>
     Allow = 0,
 
-    /// <summary>Skips the occurrence.</summary>
+    /// <summary>
+    /// Skips the new occurrence. When several are due at once
+    /// (<see cref="YogabaseScheduleMisfirePolicy.RunAllMissed"/> after an outage), only the oldest starts.
+    /// </summary>
     Forbid = 1,
 
-    /// <summary>Stops the running occurrence and starts this one.</summary>
+    /// <summary>
+    /// Ends an earlier occurrence that is still queued, with the failure code
+    /// <c>schedule_occurrence_replaced</c>, and starts the new one. An occurrence that is already running
+    /// cannot be stopped, because nothing can interrupt a Lambda that is executing, so while one is running
+    /// this skips the new occurrence, as <see cref="Forbid"/> does. When several are due at once, only the
+    /// newest starts.
+    /// </summary>
     Replace = 2,
 }
 
@@ -64,8 +74,13 @@ public enum YogabaseScheduleTriggerOutcome
 public sealed class YogabaseScheduleDefinition
 {
     /// <summary>
-    /// The schedule's id, chosen by the caller: 1 to 128 characters, trimmed, with no control character.
-    /// The id belongs to the project, so one that another user holds cannot be created.
+    /// The schedule's id, chosen by the caller: 1 to 128 characters, a letter or a digit first and then
+    /// letters, digits and <c>.</c> <c>_</c> <c>~</c> <c>:</c> <c>-</c> only
+    /// (<c>^[A-Za-z0-9][A-Za-z0-9._~:-]{0,127}$</c>). The id is one segment of the schedule's URL path, so
+    /// there is nothing to escape, and the console addresses the schedule by the same id. The id belongs to
+    /// the project, so one that another user holds cannot be created. A schedule written before the rule
+    /// under another id can still be read, run and deleted by that id, but a write of it is refused: delete
+    /// it and create it again under an id that follows the rule.
     /// </summary>
     public string ScheduleId { get; set; } = string.Empty;
 
@@ -96,7 +111,10 @@ public sealed class YogabaseScheduleDefinition
     /// <summary>What to do about occurrences missed while the scheduler was unavailable. Required.</summary>
     public YogabaseScheduleMisfirePolicy? MisfirePolicy { get; set; }
 
-    /// <summary>What to do when an occurrence is due while the one before it is running. Required.</summary>
+    /// <summary>
+    /// What to do when an occurrence is due while an earlier one has not finished; see
+    /// <see cref="YogabaseScheduleConcurrencyPolicy"/>. Required.
+    /// </summary>
     public YogabaseScheduleConcurrencyPolicy? ConcurrencyPolicy { get; set; }
 
     /// <summary>
@@ -316,7 +334,8 @@ public interface IYogabaseSchedules
     /// <summary>
     /// Changes the schedule the <paramref name="eTag"/> names (200) and answers it with its new ETag. The
     /// definition names the same <see cref="YogabaseScheduleDefinition.ScheduleId"/> and keeps the schedule's
-    /// kind: recurring or one-shot.
+    /// kind: recurring or one-shot. A schedule written before the id rule under an id that does not follow it
+    /// cannot be changed: delete it and create it again under an id that does.
     /// </summary>
     /// <exception cref="YogabaseApiException">
     /// <see cref="YogabaseStatusErrors.PreconditionFailed"/> (412) when the ETag is stale or the schedule does
@@ -347,13 +366,15 @@ public interface IYogabaseSchedules
     /// invocation of the schedule's function with the schedule's payload, as the schedule's owner (202). The
     /// same idempotency key against the same version answers the same invocation, with
     /// <see cref="YogabaseScheduleTriggerOutcome.Replayed"/> where the first said
-    /// <see cref="YogabaseScheduleTriggerOutcome.Enqueued"/>.
+    /// <see cref="YogabaseScheduleTriggerOutcome.Enqueued"/>. A manual run is not an occurrence of the
+    /// schedule: its <see cref="YogabaseScheduleConcurrencyPolicy"/> neither holds it back nor is held back by it.
     /// </summary>
     /// <exception cref="YogabaseApiException">
     /// <see cref="YogabaseStatusErrors.PreconditionFailed"/> (412) when the ETag is stale,
     /// <see cref="YogabaseStatusErrors.NotFound"/> (404), <see cref="YogabaseStatusErrors.Conflict"/> (409) when
-    /// the queue holds the key for a different request, a 400 for a deadline that is not after now or is more
-    /// than an hour away, and a 503 for a schedule whose function version is no longer admitted.
+    /// the queue holds the key for a different request or the schedule's function version is no longer an
+    /// admitted Stateless one of the project (as for a write of it), and a 400 for a deadline that is not
+    /// after now or is more than an hour away.
     /// </exception>
     Task<YogabaseScheduleTriggerResult> TriggerAsync(
         string scheduleId,
@@ -369,6 +390,15 @@ internal sealed class YogabaseSchedulesClient : IYogabaseSchedules
         RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture);
 
     private static readonly Regex VersionPattern = new("^[1-9][0-9]*$", RegexOptions.CultureInvariant);
+
+    // A write holds the id to the contract's one rule, the pattern of the definition's scheduleId member: the
+    // id is one segment of the URL path, so it is made of what a segment carries without being escaped. The
+    // anchor is \z, not $: in .NET $ also matches before a final newline, which the contract's pattern does
+    // not. A read, a run and a delete accept more (ValidateScheduleId), because a schedule written before
+    // the rule is still found by its id.
+    private static readonly Regex WritableScheduleIdPattern = new(
+        "^[A-Za-z0-9][A-Za-z0-9._~:-]{0,127}\\z",
+        RegexOptions.CultureInvariant);
 
     private readonly YogabaseClientConfiguration configuration;
     private readonly YogabaseHttpTransport transport;
@@ -567,7 +597,7 @@ internal sealed class YogabaseSchedulesClient : IYogabaseSchedules
 
     private static DefinitionBody ValidateDefinition(YogabaseScheduleDefinition definition)
     {
-        ValidateScheduleId(definition.ScheduleId, nameof(definition));
+        ValidateWritableScheduleId(definition.ScheduleId, nameof(definition));
         RequireBounded(definition.FunctionId, YogabaseSchedulesLimits.MaximumFunctionIdLength, "A function id", nameof(definition));
         RequireBounded(definition.FunctionVersion, YogabaseSchedulesLimits.MaximumFunctionVersionLength, "A function version", nameof(definition));
         RequireBounded(definition.Cron, YogabaseSchedulesLimits.MaximumCronLength, "A cron expression", nameof(definition));
@@ -575,7 +605,7 @@ internal sealed class YogabaseSchedulesClient : IYogabaseSchedules
         if (definition.MisfirePolicy is not { } misfire || !Enum.IsDefined(typeof(YogabaseScheduleMisfirePolicy), misfire))
         {
             throw new ArgumentException(
-                "A misfire policy is required: the gateway reads a missing one as RunImmediately, which its contract does not promise.",
+                "A misfire policy is required: RunImmediately, SkipToNextOccurrence or RunAllMissed.",
                 nameof(definition));
         }
 
@@ -583,7 +613,7 @@ internal sealed class YogabaseSchedulesClient : IYogabaseSchedules
             || !Enum.IsDefined(typeof(YogabaseScheduleConcurrencyPolicy), concurrency))
         {
             throw new ArgumentException(
-                "A concurrency policy is required: the gateway reads a missing one as Allow, which its contract does not promise.",
+                "A concurrency policy is required: Allow, Forbid or Replace.",
                 nameof(definition));
         }
 
@@ -628,6 +658,16 @@ internal sealed class YogabaseSchedulesClient : IYogabaseSchedules
             PayloadBase64 = definition.Payload is { Length: > 0 } ? Convert.ToBase64String(definition.Payload) : null,
             OneShotAtUtc = definition.OneShotAtUtc?.ToUniversalTime(),
         };
+    }
+
+    private static void ValidateWritableScheduleId(string? scheduleId, string parameterName)
+    {
+        if (scheduleId is null || !WritableScheduleIdPattern.IsMatch(scheduleId))
+        {
+            throw new ArgumentException(
+                "A schedule id to write is 1 to 128 characters, a letter or a digit first and then letters, digits and . _ ~ : - only.",
+                parameterName);
+        }
     }
 
     private static void ValidateScheduleId(string? scheduleId, string parameterName)
