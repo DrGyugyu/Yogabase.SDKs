@@ -158,8 +158,8 @@ var schedule = await schedules.create(const YogabaseScheduleDefinition(   // If-
   functionId: 'orders-nightly',             // a deployed Stateless Lambda
   functionVersion: '1',                     // an admitted version
   cron: '0 3 * * *', timeZone: 'Asia/Seoul', // five fields; or set oneShotAtUtc for a one-shot
-  misfirePolicy: YogabaseScheduleMisfirePolicy.skipToNextOccurrence, // always sent: the gateway's default is not a promise
-  concurrencyPolicy: YogabaseScheduleConcurrencyPolicy.allow,        // stored, but not yet enforced by the scheduler
+  misfirePolicy: YogabaseScheduleMisfirePolicy.skipToNextOccurrence, // required: a missing one is a 400 naming the member
+  concurrencyPolicy: YogabaseScheduleConcurrencyPolicy.allow,        // required too: allow, forbid or replace (see below)
   maxCatchUp: 1, maxAttempts: 3, deadlineSeconds: 300,
 ));
 schedule = await schedules.update(definition, schedule.eTag);             // If-Match (200)
@@ -178,23 +178,39 @@ await schedules.delete('nightly', schedule.eTag);                         // If-
   one does not check the `ETag` header against the body, because a typed Kiota call does not hand a Dart caller
   the response headers.
 - **Checked before anything is sent**, with the gateway's bounds, as `ArgumentError`s (the `maximum*` constants
-  of `YogabaseSchedulesClient`): a schedule id of 1 to 128 trimmed characters with no control character (and
-  not `.` or `..`, which a URL parser would collapse), a function id of at most 256 and a version of at most 64
-  characters, a cron expression and a time zone of at most 128, `maxCatchUp` 1 to 128, `maxAttempts` 1 to 16, a
-  deadline of 1 to 86,400 seconds, a payload of at most 1,048,576 bytes, and an ETag in the gateway's form. A
-  one-shot instant and a run's deadline are sent as UTC instants.
+  of `YogabaseSchedulesClient`): for a write, a schedule id of 1 to 128 characters, a letter or a digit first
+  and then letters, digits and `.` `_` `~` `:` `-` only (the contract's pattern; see the next note), a function
+  id of at most 256 and a version of at most 64 characters, a cron expression and a time zone of at most 128,
+  `maxCatchUp` 1 to 128, `maxAttempts` 1 to 16, a deadline of 1 to 86,400 seconds, a payload of at most
+  1,048,576 bytes, and an ETag in the gateway's form; for a read, a run and a delete, a schedule id of 1 to 128
+  trimmed characters with no control character (and not `.` or `..`, which a URL parser would collapse). Both
+  policies are required constructor arguments, so a definition cannot leave one out. A one-shot instant and a
+  run's deadline are sent as UTC instants.
 - **Refusals** are `YogabaseSchedulesException`s carrying the gateway's `status` and `code`. Only the 413 names
   a code, `schedule_payload_too_large` (`YogabaseScheduleErrorCodes`), with `limitBytes` and `maxBodyBytes`;
   every other refusal is a status with a fixed title or no body, and reads as `YogabaseStatusErrorCodes`
   names it: `precondition_failed` (412), `precondition_required` (428), `not_found` (404; also an installation
-  without the Scheduler), `conflict` (409: a function version that is not admitted, a write that would turn a
-  recurring schedule into a one-shot or the reverse, or a run key the queue holds for another request),
-  `forbidden` (403), `unsupported_media_type` (415) and `request_failed` (a 400 for a member the gateway
-  refuses, such as a cron expression that does not parse; a 503, which is also a run of a schedule whose
-  function version is no longer admitted, where a write answers 409).
-- **An id with a slash cannot be written.** The contract allows any 1 to 128 characters, but the real gateway
-  does not decode `%2F` in the route and answers such a write 400 (checked against product `main` `92ac1ced`);
-  choose ids without `/`.
+  without the Scheduler), `conflict` (409: a function version that is not an admitted Stateless one of the
+  project, on a write or on a run, a write that would turn a recurring schedule into a one-shot or the
+  reverse, or a run key the queue holds for another request; a run of a withdrawn version answered 503 before
+  product `main` `f9d57e29`), `forbidden` (403), `unsupported_media_type` (415) and `request_failed` (a 400
+  for a member the gateway refuses, such as a cron expression that does not parse or an id that breaks the
+  rule, which names the member in the problem's `detail`; a 503).
+- **A write holds the id to one rule; an older id is still addressed.** The id is one segment of the URL path,
+  so a create and an update are held to the contract's pattern, `^[A-Za-z0-9][A-Za-z0-9._~:-]{0,127}$`, before
+  anything is sent, and the gateway refuses an id that breaks it with a 400 that names the member and the rule.
+  A schedule written before the rule under another id is still found by that id (percent-encoded, as any path
+  segment is) by `get`, `trigger` and `delete`, which therefore check only the older bounds; it
+  cannot be changed, so delete it and create it again under an id that follows the rule.
+- **The concurrency policy says what the scheduler does about an earlier occurrence that has not finished**
+  (its invocation is queued, waiting to start or to be retried, or running, and its deadline has not passed):
+  `allow` starts the new occurrence alongside, `forbid` skips it, and `replace` ends an earlier occurrence that
+  is still queued (failure code `schedule_occurrence_replaced`) and starts the new one, but skips it while one
+  is running, because nothing can interrupt a Lambda that is executing. A skipped occurrence is consumed, not
+  deferred. A manual run is not an occurrence, so the policy neither holds it back nor is held back by it, and
+  a one-shot has no earlier occurrence. The contract of product `main` `f9d57e29` describes this; a build of
+  the product from before it starts every occurrence whichever policy is chosen and accepts any id but one with
+  a `/` (a 400).
 
 ## Workload delivery
 
@@ -250,5 +266,8 @@ That run predates the source regenerated on 2026-10-03 (the restored Data API bu
 invoke builder's 413 mapping and `jobsMaxRunSeconds` on the delivery release configuration), the source
 regenerated again that day from the client contract of product `main` `92ac1ced` (the Jobs and schedule
 builders and models, the actor and workflow 413 mappings), and the authored Jobs and schedule clients with
-their standalone programs. No Dart SDK was installed on the machine that made those changes, so none of them
+their standalone programs. After that, on 2026-10-03, the client contract was re-mirrored from product `main`
+`f9d57e29` and the source regenerated again (doc comments only), and the schedule client was changed to hold a
+write's id to the contract's pattern and to describe the policies as the contract now does, with a standalone
+check for each. No Dart SDK was installed on the machine that made those changes, so none of them
 has been through `dart analyze` or `dart run`: the commands above are the check they are waiting for.

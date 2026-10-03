@@ -155,8 +155,8 @@ definition = YogabaseScheduleDefinition(
     function_id="orders-nightly",              # a deployed Stateless Lambda
     function_version="1",                      # an admitted version
     cron="0 3 * * *", time_zone="Asia/Seoul",  # five fields; or set one_shot_at_utc (aware) for a one-shot
-    misfire_policy="SkipToNextOccurrence",     # always sent: the gateway's default is not a promise
-    concurrency_policy="Allow",                # stored, but not yet enforced by the scheduler
+    misfire_policy="SkipToNextOccurrence",     # required: a missing one is a 400 naming the member
+    concurrency_policy="Allow",                # required too: Allow, Forbid or Replace (see below)
     max_catch_up=1, max_attempts=3, deadline_seconds=300,
     payload=b"{}",                             # optional, at most 1 MiB before base64
 )
@@ -177,27 +177,44 @@ async with AsyncSchedulesClient(gateway_host=host, project_id=project_id, access
   (`precondition_failed`) that changes nothing; the scheduler advances a recurring schedule's version as it
   runs, so an ETag held for long is stale: `get` it again. A strong `ETag` header that disagrees with the body
   is refused; a weak or repeated one (a proxy that compresses a response may weaken it) is ignored.
-- **Checked before anything is sent**, with the gateway's bounds (the `YOGABASE_SCHEDULES_*` constants): a
-  schedule id of 1 to 128 trimmed characters with no control character (and not `.` or `..`, which a URL
-  parser would collapse), a function id of at most 256 and a version of at most 64 characters, a cron
-  expression and a time zone of at most 128, both policies, `max_catch_up` 1 through 128, `max_attempts` 1
-  through 16, a deadline of 1 through 86,400 seconds, a payload of at most 1,048,576 bytes, and an ETag in the
-  gateway's form. A one-shot instant and a run's deadline must be timezone-aware and are sent as UTC.
+- **Checked before anything is sent**, with the gateway's bounds (the `YOGABASE_SCHEDULES_*` constants): for a
+  write, a schedule id of 1 to 128 characters, a letter or a digit first and then letters, digits and `.` `_`
+  `~` `:` `-` only (the contract's pattern; see the next note), a function id of at most 256 and a version of
+  at most 64 characters, a cron expression and a time zone of at most 128, both policies, `max_catch_up` 1
+  through 128, `max_attempts` 1 through 16, a deadline of 1 through 86,400 seconds, a payload of at most
+  1,048,576 bytes, and an ETag in the gateway's form; for a read, a run and a delete, a schedule id of 1 to 128
+  trimmed characters with no control character (and not `.` or `..`, which a URL parser would collapse). A
+  one-shot instant and a run's deadline must be timezone-aware and are sent as UTC.
 - **Refusals** are `YogabaseSchedulesError`s with the gateway's `status` and `code`. Only the 413 names a code,
   `schedule_payload_too_large`, with `limit_bytes` and `max_body_bytes`; every other refusal is a status with a
   fixed title or no body, and reads as the `STATUS_*` constants name it: `precondition_failed` (412),
   `precondition_required` (428), `not_found` (404; also an installation without the Scheduler), `conflict`
-  (409: a function version that is not admitted, a write that would turn a recurring schedule into a one-shot
-  or the reverse, or a run key the queue holds for another request), `forbidden` (403),
-  `unsupported_media_type` (415) and `request_failed` (a 400 for a member the gateway refuses, such as a cron
-  expression that does not parse; a 503, which is also a run of a schedule whose function version is no longer
-  admitted, where a write answers 409).
-- **An id with a slash cannot be written.** The contract allows any 1 to 128 characters, but the real gateway
-  does not decode `%2F` in the route and answers such a write 400 (checked against product `main` `92ac1ced`);
-  choose ids without `/`.
+  (409: a function version that is not an admitted Stateless one of the project, on a write or on a run, a
+  write that would turn a recurring schedule into a one-shot or the reverse, or a run key the queue holds for
+  another request; a run of a withdrawn version answered 503 before product `main` `f9d57e29`), `forbidden`
+  (403), `unsupported_media_type` (415) and `request_failed` (a 400 for a member the gateway refuses, such as
+  a cron expression that does not parse, a policy left out or an id that breaks the rule, the last two naming
+  the member in the problem's `detail`; a 503).
+- **A write holds the id to one rule; an older id is still addressed.** The id is one segment of the URL path,
+  so a create and an update are held to the contract's pattern, `^[A-Za-z0-9][A-Za-z0-9._~:-]{0,127}$`, before
+  anything is sent, and the gateway refuses an id that breaks it with a 400 that names the member and the rule.
+  A schedule written before the rule under another id is still found by that id (percent-encoded, as any path
+  segment is) by `get`, `trigger` and `delete`, which therefore check only the older bounds; it
+  cannot be changed, so delete it and create it again under an id that follows the rule.
+- **The concurrency policy says what the scheduler does about an earlier occurrence that has not finished**
+  (its invocation is queued, waiting to start or to be retried, or running, and its deadline has not passed):
+  `Allow` starts the new occurrence alongside, `Forbid` skips it, and `Replace` ends an earlier occurrence that
+  is still queued (failure code `schedule_occurrence_replaced`) and starts the new one, but skips it while one
+  is running, because nothing can interrupt a Lambda that is executing. A skipped occurrence is consumed, not
+  deferred. A manual run is not an occurrence, so the policy neither holds it back nor is held back by it, and
+  a one-shot has no earlier occurrence. The contract of product `main` `f9d57e29` describes this; a build of
+  the product from before it starts every occurrence whichever policy is chosen and accepts any id but one with
+  a `/` (a 400).
 
 Run end to end on 2026-10-03 against the product's real schedule routes, built from product `main` `92ac1ced`
-(36 checks, on CPython 3.13.12 and 3.12.13).
+(36 checks, on CPython 3.13.12 and 3.12.13). That run predates the id rule, the concurrency enforcement and the
+409 of a manual run, and was not repeated against product `main` `f9d57e29`; its harness is in the product
+repository.
 
 ## Workload delivery
 
@@ -311,3 +328,10 @@ client's requests to the generated builders', and two generated-surface cases fo
 routes' and the Data API's 413 problems, after the client contract was re-mirrored from product `main`
 `92ac1ced` and the generated tree regenerated from it. The wheel and sdist were not rebuilt and the
 installed-wheel run was not repeated, so the wheel evidence above predates `jobs.py` and `schedules.py`.
+
+Run once more on 2026-10-03 in the same way, after the client contract was re-mirrored from product `main`
+`f9d57e29` and the generated tree regenerated from it: 101 tests passed on both interpreters, the 98 above
+with the schedule escaping case split into one for an id that follows the rule and one for an older id that a
+read, a run and a delete still address, and two cases added (every Latin-1 character and the edge lengths held
+to the pattern read from the mirrored contract, and an id's URL held to the generated builder's). The wheel
+was not rebuilt.

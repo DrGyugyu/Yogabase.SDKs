@@ -67,18 +67,18 @@
   },
   "schedulesSurface": {
     "declaredInContract": true,
-    "declaredBy": "x-yogabase-schedules in contracts/yogabase-client-v1.openapi.json (product commit 552fdb4f, 2026-10-03; the routes had been served and acceptance-tested before the document described them); Kiota generates the request builders and models (Schedule, ScheduleDefinitionRequest, ScheduleTriggerRequest, ScheduleTriggerResult, MisfirePolicy, ConcurrencyPolicy) for TypeScript, Python, Java and Dart.",
+    "declaredBy": "x-yogabase-schedules in contracts/yogabase-client-v1.openapi.json (product commit 552fdb4f, 2026-10-03; the routes had been served and acceptance-tested before the document described them; three later commits the same day, 195b9845, 15ecb4ce and a95d2347, tightened it, and the mirrored document is the one at main f9d57e29); Kiota generates the request builders and models (Schedule, ScheduleDefinitionRequest, ScheduleTriggerRequest, ScheduleTriggerResult, MisfirePolicy, ConcurrencyPolicy) for TypeScript, Python, Java and Dart.",
     "routes": [
       "PUT /v1/projects/{projectId}/schedules/{scheduleId}",
       "GET /v1/projects/{projectId}/schedules/{scheduleId}",
       "DELETE /v1/projects/{projectId}/schedules/{scheduleId}",
       "POST /v1/projects/{projectId}/schedules/{scheduleId}/trigger"
     ],
-    "authoredFrom": "Yogabase product repository at main 92ac1ced: src/Yogabase.Tasks/AppPlatform/Gateway/Functions/ScheduledLambdaGateway.cs, src/Yogabase.Core/Lambda/LambdaScheduleConsoleContracts.cs, tests/Yogabase.AppPlatform.Tests/YogabaseClientSchedulesContractTests.cs, docs/CLIENT_SDKS.md and docs/DEVELOPER_WORKFLOW.md",
+    "authoredFrom": "Yogabase product repository at main 92ac1ced: src/Yogabase.Tasks/AppPlatform/Gateway/Functions/ScheduledLambdaGateway.cs, src/Yogabase.Core/Lambda/LambdaScheduleConsoleContracts.cs, tests/Yogabase.AppPlatform.Tests/YogabaseClientSchedulesContractTests.cs, docs/CLIENT_SDKS.md and docs/DEVELOPER_WORKFLOW.md. The schedule id rule, the policy descriptions and the 409 of a manual run of a withdrawn function version were taken from the mirrored contract at main f9d57e29 alone, not from the gateway's source.",
     "preconditions": "A create sends If-None-Match: * (201), an update sends If-Match with the ETag last read (200), and a delete (204) and a manual run (POST .../trigger, 202) send If-Match; a stale or unmet precondition is 412, a missing one 428, and both at once or a malformed ETag 400.",
     "eTag": "\"schedule-v<version>-<instance as 32 lowercase hex>\"; the version is decimal text, a 64-bit number a JSON number cannot carry, that the scheduler also advances as it runs, so an ETag held for long is stale. Every client reads it from the response header and checks it against the body, except Dart, whose typed send cannot read headers and derives it from the body.",
     "namedRefusal": "413 schedule_payload_too_large (limitBytes 1,048,576 and maxBodyBytes 8,394,167); every other refusal is a status with a fixed title and no code, or no body, which the clients name by status (precondition_failed, precondition_required, not_found, conflict, forbidden, unsupported_media_type, request_failed).",
-    "knownGatewayLimits": "concurrencyPolicy is accepted and stored but the scheduler does not enforce it; a schedule id that contains a slash cannot be written through the real route (400) although the contract allows one.",
+    "knownGatewayLimits": "None is recorded against the contract at product main f9d57e29. A product build from before the three commits of 2026-10-03 behaves as the earlier contract said: the scheduler stores concurrencyPolicy but starts every occurrence whichever is chosen, a manual run of a schedule whose function version is no longer admitted answers 503, a schedule id that contains a slash cannot be written (400) and any other id of 1 to 128 trimmed characters is accepted. The clients follow the later contract; the end-to-end evidence below was taken against the earlier build and was not repeated against f9d57e29.",
     "clients": {
       "dotnet": "YogabaseClient.Schedules (src/dotnet/Yogabase.Yogabase.Client/SchedulesClient.cs), carried into the Unity build",
       "typescript": "YogabaseSchedulesClient (languages/typescript/src/schedules.ts)",
@@ -93,6 +93,7 @@
       "checksPassed": { "dotnet": 36, "typescript": 41, "python": 36, "java": 36 },
       "python": "both CPython 3.13.12 and 3.12.13",
       "dart": "not run",
+      "notRepeatedAgainst": "Product main f9d57e29: the id rule (^[A-Za-z0-9][A-Za-z0-9._~:-]{0,127}$), the concurrency enforcement and the 409 of a manual run of a schedule whose function version is withdrawn postdate this run, whose covered list below records what the product at 92ac1ced did, among it a 503 on that run and a slash refused as a limit of the gateway. The harness is in the product repository and was not run for them.",
       "covered": "create with a well-formed ETag whose version is decimal text past 2^53, get, update answering a new ETag for the same instance, a stale ETag or a held id as 412 that changes nothing, another user's schedule (bare 404 on read, delete and run, 403 on update, 412 on create), 403 for a token without the scope, a function that is not admitted (409 on a write, 503 on a run), 409 for turning a recurring schedule into a one-shot, 400 for a cron expression that does not parse, an unknown time zone, a deadline in the past or more than an hour away, both preconditions at once and a malformed ETag, 428 for a write or delete with no precondition, 415 for a non-JSON write, a manual run and its replay by key, another key as another invocation, a key the queue holds for another request as 409, the scheduler's checkpoint changing the version and so the ETag, an unreachable store as 503, a payload of exactly 1 MiB, the real 413 problem, an id with reserved characters and one of 128 characters, an id with a slash refused with 400 (recorded as a limit of the gateway), delete and a second delete as 404"
     }
   },
@@ -162,35 +163,35 @@
         "path": "artifacts/local/Yogabase.Yogabase.Client.0.3.0-preview.1.nupkg",
         "sha256": "038ccd2d935cc56a6ed1d6d0f2b259d22f665fdee576c3fd0c02299f0b8d8bbd"
       },
-      "qualification": "locked-restore-release-dual-target-build-and-422-client-tests-and-711-tests-across-the-solution-passed-2026-10-03-including-the-jobs-and-schedule-surfaces-the-operation-parity-gate-over-the-mirrored-application-contract-the-413-limits-the-delivery-jobsMaxRunSeconds-and-the-cross-language-parity-pins-pack-not-rerun-since-2026-09-09; clean-package-consumer-not-rerun; wire-shapes-pinned-against-the-mirrored-contracts-by-fake-transport-tests-and-realtime-presence-against-a-loopback-signalr-hub; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-main-92ac1ced-route-code-25-and-36-checks-no-live-installation"
+      "qualification": "locked-restore-release-dual-target-build-and-448-client-tests-and-737-tests-across-the-solution-passed-2026-10-03-including-the-jobs-and-schedule-surfaces-the-operation-parity-gate-over-the-mirrored-application-contract-the-413-limits-the-schedule-id-rule-held-to-the-contract-pattern-in-every-language-the-delivery-jobsMaxRunSeconds-and-the-cross-language-parity-pins-pack-not-rerun-since-2026-09-09; clean-package-consumer-not-rerun; wire-shapes-pinned-against-the-mirrored-contracts-by-fake-transport-tests-and-realtime-presence-against-a-loopback-signalr-hub; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-main-92ac1ced-route-code-25-and-36-checks-no-live-installation"
     },
     {
       "language": "TypeScript",
       "source": "languages/typescript",
       "packageId": "@stackyoga/yogabase-client-preview",
       "version": "0.3.0-preview.1",
-      "qualification": "npm-clean-install-typescript-build-and-13-tests-passed-2026-09-22-dry-run-pack-not-rerun; typescript-build-and-85-tests-passed-2026-10-03-over-a-copied-locked-node_modules-tree-not-a-fresh-npm-ci-including-the-jobs-and-schedule-clients-with-their-generated-builder-equivalence-cases-and-the-regenerated-413-and-data-surface; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-main-92ac1ced-route-code-26-and-41-checks"
+      "qualification": "npm-clean-install-typescript-build-and-13-tests-passed-2026-09-22-dry-run-pack-not-rerun; typescript-build-and-88-tests-passed-2026-10-03-over-a-copied-locked-node_modules-tree-not-a-fresh-npm-ci-including-the-jobs-and-schedule-clients-with-their-generated-builder-equivalence-cases-the-regenerated-413-and-data-surface-and-the-schedule-id-rule-held-to-the-pattern-read-from-the-mirrored-contract; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-main-92ac1ced-route-code-26-and-41-checks"
     },
     {
       "language": "Python",
       "source": "languages/python",
       "packageId": "stackyoga-yogabase-client-preview",
       "version": "0.3.0.dev1",
-      "qualification": "hash-locked-install-and-23-tests-from-source-under-dev-mode-passed-2026-09-22-on-cpython-3.13.12-and-3.12.13; build-no-isolation-wheel-and-sdist-built-with-the-exactly-pinned-setuptools-84.0.0-backend; fresh-venv-offline-wheel-install-pip-check-clean-and-the-same-23-tests-passed-against-the-installed-wheel; 98-tests-passed-from-source-2026-10-03-on-cpython-3.13.12-and-3.12.13-under--X-dev-with-ResourceWarning-as-an-error-including-the-jobs-and-schedule-cases-with-their-generated-builder-equivalence-cases-and-the-wheel-not-rebuilt-since-2026-09-22; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-main-92ac1ced-route-code-24-and-36-checks-on-both-interpreters; python-3.10-and-3.11-not-run; own-clients-trust-the-platform-store-but-certifi-stays-in-the-closure-because-httpx-and-httpcore-require-it; no-live-gateway-and-no-published-index"
+      "qualification": "hash-locked-install-and-23-tests-from-source-under-dev-mode-passed-2026-09-22-on-cpython-3.13.12-and-3.12.13; build-no-isolation-wheel-and-sdist-built-with-the-exactly-pinned-setuptools-84.0.0-backend; fresh-venv-offline-wheel-install-pip-check-clean-and-the-same-23-tests-passed-against-the-installed-wheel; 101-tests-passed-from-source-2026-10-03-on-cpython-3.13.12-and-3.12.13-under--X-dev-with-ResourceWarning-as-an-error-including-the-jobs-and-schedule-cases-with-their-generated-builder-equivalence-cases-and-the-schedule-id-rule-held-to-the-pattern-read-from-the-mirrored-contract-and-the-wheel-not-rebuilt-since-2026-09-22; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-main-92ac1ced-route-code-24-and-36-checks-on-both-interpreters; python-3.10-and-3.11-not-run; own-clients-trust-the-platform-store-but-certifi-stays-in-the-closure-because-httpx-and-httpcore-require-it; no-live-gateway-and-no-published-index"
     },
     {
       "language": "Java",
       "source": "languages/java",
       "packageId": "io.stackyoga:yogabase-client-preview",
       "version": "0.3.0-preview.1",
-      "qualification": "jdk-21-release-17-full-source-compile-and-two-executable-conformance-tests-passed-2026-09-09-maven-unavailable; full-source-compile-at-release-17-and-five-executable-conformance-programs-passed-2026-10-03-against-the-local-maven-repository-jars-including-the-336-check-jobs-program-the-547-check-schedules-program-and-the-26-check-generated-surface-program-maven-still-unavailable; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-main-92ac1ced-route-code-24-and-36-checks"
+      "qualification": "jdk-21-release-17-full-source-compile-and-two-executable-conformance-tests-passed-2026-09-09-maven-unavailable; full-source-compile-at-release-17-and-five-executable-conformance-programs-passed-2026-10-03-against-the-local-maven-repository-jars-including-the-336-check-jobs-program-the-1988-check-schedules-program-including-the-schedule-id-rule-held-to-the-pattern-read-from-the-mirrored-contract-and-the-26-check-generated-surface-program-maven-still-unavailable; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-main-92ac1ced-route-code-24-and-36-checks"
     },
     {
       "language": "Dart",
       "source": "languages/dart",
       "packageId": "stackyoga_yogabase_client_preview",
       "version": "0.3.0-dev.1",
-      "qualification": "checksum-verified-dart-3.13.2-pub-get-enforce-lockfile-analyze-with-fatal-infos-and-the-standalone-authored-source-program-passed-2026-09-17-on-the-2026-09-09-regenerated-source; the-2026-10-03-regenerated-source-the-jobs-client-rebuilt-over-the-generated-builders-the-new-schedules-client-and-their-standalone-programs-were-NOT-analyzed-or-run-no-dart-sdk-on-the-machine; dart-test-runner-not-wired; flutter-streaming-adapter-and-live-gateway-unqualified"
+      "qualification": "checksum-verified-dart-3.13.2-pub-get-enforce-lockfile-analyze-with-fatal-infos-and-the-standalone-authored-source-program-passed-2026-09-17-on-the-2026-09-09-regenerated-source; the-2026-10-03-regenerated-source-twice-the-jobs-client-rebuilt-over-the-generated-builders-the-new-schedules-client-with-its-schedule-id-rule-added-the-same-day-and-their-standalone-programs-were-NOT-analyzed-or-run-no-dart-sdk-on-the-machine; dart-test-runner-not-wired; flutter-streaming-adapter-and-live-gateway-unqualified"
     },
     {
       "language": "CSharp",
