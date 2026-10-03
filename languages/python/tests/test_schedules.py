@@ -6,8 +6,11 @@ request the authored client sends to the request the generated Kiota builder bui
 """
 
 import json
+import re
 import unittest
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from urllib.parse import quote
 
 import httpx
 from kiota_abstractions.authentication.anonymous_authentication_provider import AnonymousAuthenticationProvider
@@ -29,6 +32,7 @@ from stackyoga_yogabase import (
     STATUS_REQUEST_FAILED,
     STATUS_UNSUPPORTED_MEDIA_TYPE,
     YOGABASE_SCHEDULES_MAXIMUM_PAYLOAD_BYTES,
+    YOGABASE_SCHEDULES_MAXIMUM_SCHEDULE_ID_LENGTH,
     AsyncSchedulesClient,
     SchedulesClientOptions,
     YogabaseApiClient,
@@ -44,6 +48,8 @@ GATEWAY = "https://apps.example.test"
 ITEM = f"{GATEWAY}/v1/projects/{PROJECT}/schedules/nightly"
 RUN = f"{ITEM}/trigger"
 INVOCATION = "9b9e2f3a-0d6e-4e6c-a4f1-2c6a7a5f0b11"
+# The mirrored client contract, two folders above languages/python.
+CONTRACT = Path(__file__).resolve().parents[3] / "contracts" / "yogabase-client-v1.openapi.json"
 
 
 def definition(**overrides: object) -> YogabaseScheduleDefinition:
@@ -212,6 +218,21 @@ class ScheduleCreateAndUpdateTests(unittest.IsolatedAsyncioTestCase):
             "a schedule id over 128 characters": {"schedule_id": "x" * 129},
             "a schedule id of one dot": {"schedule_id": "."},
             "a schedule id of two dots": {"schedule_id": ".."},
+            "a schedule id with trailing white space": {"schedule_id": "nightly "},
+            "a schedule id with a slash": {"schedule_id": "weekly/report"},
+            "a schedule id with a space inside": {"schedule_id": "weekly report"},
+            "a schedule id that starts with a dash": {"schedule_id": "-nightly"},
+            "a schedule id that starts with a dot": {"schedule_id": ".nightly"},
+            "a schedule id that starts with an underscore": {"schedule_id": "_nightly"},
+            "a schedule id that starts with a tilde": {"schedule_id": "~nightly"},
+            "a schedule id that starts with a colon": {"schedule_id": ":nightly"},
+            "a schedule id with a percent sign": {"schedule_id": "weekly%2Freport"},
+            "a schedule id with a question mark": {"schedule_id": "nightly?"},
+            "a schedule id with a hash": {"schedule_id": "night#ly"},
+            "a schedule id with a non-ASCII letter": {"schedule_id": "nightlé"},
+            "a schedule id with a non-ASCII digit": {"schedule_id": "night٣"},
+            "a schedule id with a trailing newline": {"schedule_id": "nightly\n"},
+            "a schedule id that is not text": {"schedule_id": 7},
             "a blank function id": {"function_id": " "},
             "a function id over 256 characters": {"function_id": "x" * 257},
             "a missing function version": {"function_version": None},
@@ -262,16 +283,83 @@ class ScheduleCreateAndUpdateTests(unittest.IsolatedAsyncioTestCase):
         body = json.loads(recorder.bodies[0])
         self.assertEqual((len(body["scheduleId"]), len(body["functionId"]), body["deadlineSeconds"]), (128, 256, 86_400))
 
-    async def test_a_schedule_id_that_needs_escaping_travels_as_one_escaped_path_segment(self) -> None:
+    async def test_a_schedule_id_that_follows_the_rule_is_sent_unchanged_in_the_body_and_as_one_segment_of_the_path(self) -> None:
+        for identifier in ("a", "Z", "0", "nightly", "a.b_c~d:e-f", "orders-nightly.v2:eu~west_1"):
+            with self.subTest(identifier=identifier):
+                recorder = Recorder(lambda request, identifier=identifier: schedule_response(request, schedule_document(scheduleId=identifier)))
+                async with recorder.client() as schedules:
+                    await schedules.create(definition(schedule_id=identifier))
+                    await schedules.get(identifier)
+                route = f"{GATEWAY}/v1/projects/{PROJECT}/schedules/{quote(identifier, safe='')}"
+                self.assertEqual([str(request.url) for request in recorder.requests], [route, route])
+                # The id in the body is the id in the path, as it was written.
+                self.assertEqual(json.loads(recorder.bodies[0])["scheduleId"], identifier)
+
+    async def test_a_schedule_written_before_the_id_rule_is_still_read_run_and_deleted_by_its_id_and_never_written(self) -> None:
+        # An id the contract keeps addressable by a read, a run and a delete, percent-encoded as any path segment is, though
+        # a write of it is refused: the schedule was written before the pattern was enforced.
         identifier = "weekly report/é?#"
-        recorder = Recorder(lambda request: schedule_response(request, schedule_document(scheduleId=identifier)))
+
+        def respond(request: httpx.Request) -> httpx.Response:
+            if request.method == "GET":
+                return schedule_response(request, schedule_document(scheduleId=identifier))
+            if request.method == "DELETE":
+                return httpx.Response(204, request=request)
+            return json_response(request, {"outcome": 0, "invocationId": INVOCATION}, 202)
+
+        recorder = Recorder(respond)
         async with recorder.client() as schedules:
-            await schedules.create(definition(schedule_id=identifier))
-            await schedules.get(identifier)
-        escaped = f"{GATEWAY}/v1/projects/{PROJECT}/schedules/weekly%20report%2F%C3%A9%3F%23"
-        self.assertEqual([str(request.url) for request in recorder.requests], [escaped, escaped])
-        # The id in the body is the id in the path, unescaped.
-        self.assertEqual(json.loads(recorder.bodies[0])["scheduleId"], identifier)
+            read = await schedules.get(identifier)
+            await schedules.trigger(identifier, ETAG3, idempotency_key="run-1", deadline=run_deadline())
+            await schedules.delete(identifier, ETAG3)
+
+            escaped = f"{GATEWAY}/v1/projects/{PROJECT}/schedules/weekly%20report%2F%C3%A9%3F%23"
+            self.assertEqual(read.schedule_id, identifier)
+            self.assertEqual([str(request.url) for request in recorder.requests], [escaped, f"{escaped}/trigger", escaped])
+
+            # A write of it is refused before the network: delete it and create it again under an id that follows the rule.
+            with self.assertRaises(ValueError):
+                await schedules.create(definition(schedule_id=identifier))
+            with self.assertRaises(ValueError):
+                await schedules.update(definition(schedule_id=identifier), ETAG3)
+        self.assertEqual(len(recorder.requests), 3)
+
+    async def test_a_write_accepts_exactly_the_ids_the_pattern_of_the_contracts_schedule_id_member_accepts(self) -> None:
+        contract = json.loads(CONTRACT.read_text(encoding="utf-8"))
+        member = contract["components"]["schemas"]["ScheduleDefinitionRequest"]["properties"]["scheduleId"]
+        # The contract's pattern is ECMA-262's: its $ matches only at the end of the input, where Python's also matches
+        # before a final newline, so the oracle swaps in \Z.
+        self.assertTrue(member["pattern"].startswith("^") and member["pattern"].endswith("$"))
+        oracle = re.compile(member["pattern"][:-1] + r"\Z")
+        self.assertEqual(member["minLength"], 1)
+        self.assertEqual(member["maxLength"], YOGABASE_SCHEDULES_MAXIMUM_SCHEDULE_ID_LENGTH)
+
+        # Every character of Latin-1 alone, after a letter and before one, a few characters beyond it that look like letters
+        # or digits, and the lengths at the edge.
+        candidates = ["", " ", "٣", "a٣", "K", "aK", "０", "a０", "\U0001f600", "a\U0001f600"]
+        for code in range(0x100):
+            character = chr(code)
+            candidates += [character, f"a{character}", f"{character}a"]
+        for length in (127, 128, 129):
+            candidates += ["a" * length, "a" + "." * (length - 1), "a" + ":" * (length - 1)]
+
+        current = {"id": ""}
+        recorder = Recorder(lambda request: schedule_response(request, schedule_document(scheduleId=current["id"]), 201))
+        accepted = 0
+        async with recorder.client() as schedules:
+            for identifier in candidates:
+                current["id"] = identifier
+                before = len(recorder.requests)
+                if oracle.match(identifier):
+                    accepted += 1
+                    await schedules.create(definition(schedule_id=identifier))
+                    self.assertEqual(len(recorder.requests), before + 1, f"the contract's pattern accepts {identifier!r} and the client refused it")
+                else:
+                    with self.assertRaises(ValueError, msg=f"the contract's pattern refuses {identifier!r} and the client sent it"):
+                        await schedules.create(definition(schedule_id=identifier))
+                    self.assertEqual(len(recorder.requests), before, repr(identifier))
+        # The corpus holds both kinds, so the comparison is not vacuous.
+        self.assertTrue(60 < accepted < len(candidates) - 60, f"{accepted} of {len(candidates)}")
 
 
 class ScheduleEtagTests(unittest.IsolatedAsyncioTestCase):
@@ -751,6 +839,13 @@ class ScheduleGeneratedBuilderEquivalenceTests(unittest.IsolatedAsyncioTestCase)
         built = await self.generated(lambda api: self.item(api).trigger.post(body, self.configuration(If_Match=ETAG3)))
         sent = await self.authored(lambda schedules: schedules.trigger("nightly", ETAG3, idempotency_key="run-1", deadline=deadline))
         self.assert_same(sent, built, {"if-match": ETAG3})
+
+    async def test_the_authored_client_addresses_a_schedule_id_the_way_the_generated_builder_does(self) -> None:
+        # A rule-following id and an older one, which a read, a run and a delete still address.
+        for identifier in ("a.b_c~d:e-f", "weekly report/é?#"):
+            built = await self.generated(lambda api: api.v1.projects.by_project_id(PROJECT).schedules.by_schedule_id(identifier).get())
+            sent = await self.authored(lambda schedules: schedules.get(identifier))
+            self.assertEqual(sent["url"], built["url"], identifier)
 
     async def test_the_generated_builder_and_the_authored_client_name_the_same_members(self) -> None:
         instant = datetime(2026, 10, 3, 3, 0, tzinfo=timezone.utc)

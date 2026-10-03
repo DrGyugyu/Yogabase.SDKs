@@ -46,9 +46,16 @@ from ._gateway import (
 
 #: What a schedule does about occurrences it missed while the scheduler was unavailable.
 YOGABASE_SCHEDULE_MISFIRE_POLICIES = ("RunImmediately", "SkipToNextOccurrence", "RunAllMissed")
-#: What a schedule asks for when an occurrence is due while the one before it is still running. The gateway
-#: checks and stores the choice, but its scheduler does not yet look for a running occurrence, so every
-#: occurrence starts whichever is chosen.
+#: What a schedule does when an occurrence is due while an earlier occurrence of the same schedule has not
+#: finished: its invocation is queued (waiting to start, or to be retried) or running, and its deadline has not
+#: passed. ``Allow`` starts the new occurrence alongside the earlier one. ``Forbid`` skips the new occurrence;
+#: when several are due at once (``RunAllMissed`` after an outage), only the oldest starts. ``Replace`` ends an
+#: earlier occurrence that is still queued, with the failure code ``schedule_occurrence_replaced``, and starts the
+#: new one; an occurrence that is already running cannot be stopped, because nothing can interrupt a Lambda that
+#: is executing, so while one is running ``Replace`` skips the new occurrence, as ``Forbid`` does, and when
+#: several are due at once only the newest starts. A skipped occurrence is consumed, not deferred: the schedule
+#: moves on to its next occurrence. A manual run is not an occurrence, so the policy neither holds it back nor is
+#: held back by it, and a one-shot has no earlier occurrence, so the policy does not apply to it.
 YOGABASE_SCHEDULE_CONCURRENCY_POLICIES = ("Allow", "Forbid", "Replace")
 #: Whether a manual run enqueued a new invocation (``Enqueued``) or found the one its key had already made (``Replayed``).
 YOGABASE_SCHEDULE_TRIGGER_OUTCOMES = ("Enqueued", "Replayed")
@@ -81,6 +88,11 @@ SCHEDULE_RESPONSE_INVALID = "schedule_response_invalid"
 
 _ETAG = re.compile(r'"schedule-v([1-9][0-9]*)-([0-9a-f]{32})"')
 _VERSION = re.compile(r"[1-9][0-9]*")
+# The pattern of the contract's definition member scheduleId, which holds a write to what one segment of a URL path
+# carries without being escaped. It is matched whole (``fullmatch``, as ``$`` would also accept a final newline). A
+# read, a run and a delete accept more (``_require_schedule_id``), because a schedule written before the rule is
+# still found by its id.
+_WRITABLE_SCHEDULE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._~:-]{0,127}")
 _MAXIMUM_INT64 = 9_223_372_036_854_775_807
 
 SchedulesAccessToken = GatewayAccessToken
@@ -93,11 +105,17 @@ class YogabaseScheduleDefinition:
     A recurring schedule (``cron`` evaluated in ``time_zone``) or a one-shot (``one_shot_at_utc``) of one
     deployed stateless function version. The project and the owner are never fields: the project is the
     client's own and the owner is the signed-in user. Every member but ``payload`` and ``one_shot_at_utc`` is
-    required; the two policies in particular are always sent, because the gateway reads a missing one as the
-    first name, which its contract does not promise.
+    required, the two policies included: a request that leaves one out is a 400 whose problem names the member,
+    and this client refuses it before sending.
     """
 
-    #: The schedule's id, chosen by the caller: 1 to 128 characters, trimmed, with no control character.
+    #: The schedule's id, chosen by the caller: 1 to 128 characters, a letter or a digit first and then letters,
+    #: digits and ``.`` ``_`` ``~`` ``:`` ``-`` only (``^[A-Za-z0-9][A-Za-z0-9._~:-]{0,127}$``). The id is one
+    #: segment of the schedule's URL path, so there is nothing to escape, and the console addresses the schedule
+    #: by the same id. The id belongs to the project, so one that another user holds cannot be created. A schedule
+    #: written before the rule under another id can still be read, run and deleted by that id (``get``,
+    #: ``trigger``, ``delete``), but a write of it is refused: delete it and create it again under an id that
+    #: follows the rule.
     schedule_id: str
     #: The id of a deployed Stateless Lambda, at most 256 characters.
     function_id: str
@@ -268,7 +286,9 @@ class AsyncSchedulesClient:
     async def update(self, definition: YogabaseScheduleDefinition, etag: str) -> YogabaseSchedule:
         """Changes the schedule the ``etag`` names (200) and answers it with its new ETag.
 
-        The definition names the same ``schedule_id`` and keeps the schedule's kind: recurring or one-shot.
+        The definition names the same ``schedule_id`` and keeps the schedule's kind: recurring or one-shot. A
+        schedule written before the id rule under an id that does not follow it cannot be changed: delete it and
+        create it again under an id that does.
         """
         return await self._write(definition, _require_etag(etag))
 
@@ -297,7 +317,9 @@ class AsyncSchedulesClient:
         owner (202). The same ``idempotency_key`` against the same version answers the same invocation, with
         outcome ``Replayed`` where the first said ``Enqueued``. ``idempotency_key`` is 1 to 256 characters with
         no leading or trailing white space; ``deadline`` is a timezone-aware instant later than now and at most
-        3600 seconds from now, else the gateway refuses it.
+        3600 seconds from now, else the gateway refuses it. A schedule whose function version is no longer an
+        admitted Stateless one of the project is refused with a 409, as a write of it is. A manual run is not an
+        occurrence of the schedule: its ``concurrency_policy`` neither holds it back nor is held back by it.
         """
         identifier = _require_schedule_id(schedule_id)
         token = _require_etag(etag)
@@ -326,6 +348,12 @@ class AsyncSchedulesClient:
     def _path(self, schedule_id: str) -> str:
         # The id is one escaped path segment, here and nowhere else.
         return f"/v1/projects/{self.project_id}/schedules/{quote(schedule_id, safe='')}"
+
+
+def _require_writable_schedule_id(value: str) -> str:
+    if not isinstance(value, str) or _WRITABLE_SCHEDULE_ID.fullmatch(value) is None:
+        raise ValueError("a schedule id to write is 1 to 128 characters, a letter or a digit first and then letters, digits and . _ ~ : - only")
+    return value
 
 
 def _require_schedule_id(value: str) -> str:
@@ -376,7 +404,7 @@ def _bounded_integer(value: object, name: str, minimum: int, maximum: int) -> in
 def _definition_body(definition: YogabaseScheduleDefinition) -> dict[str, Any]:
     if not isinstance(definition, YogabaseScheduleDefinition):
         raise TypeError("a YogabaseScheduleDefinition is required")
-    _require_schedule_id(definition.schedule_id)
+    _require_writable_schedule_id(definition.schedule_id)
     body: dict[str, Any] = {
         "scheduleId": definition.schedule_id,
         "functionId": _bounded_text(definition.function_id, "function_id", YOGABASE_SCHEDULES_MAXIMUM_FUNCTION_ID_LENGTH),
@@ -385,9 +413,9 @@ def _definition_body(definition: YogabaseScheduleDefinition) -> dict[str, Any]:
         "timeZone": _bounded_text(definition.time_zone, "time_zone", YOGABASE_SCHEDULES_MAXIMUM_TIME_ZONE_ID_LENGTH),
     }
     if definition.misfire_policy not in YOGABASE_SCHEDULE_MISFIRE_POLICIES:
-        raise ValueError("a misfire policy is required: the gateway reads a missing one as RunImmediately, which its contract does not promise")
+        raise ValueError("a misfire policy is required: RunImmediately, SkipToNextOccurrence or RunAllMissed")
     if definition.concurrency_policy not in YOGABASE_SCHEDULE_CONCURRENCY_POLICIES:
-        raise ValueError("a concurrency policy is required: the gateway reads a missing one as Allow, which its contract does not promise")
+        raise ValueError("a concurrency policy is required: Allow, Forbid or Replace")
     body["misfirePolicy"] = definition.misfire_policy
     body["concurrencyPolicy"] = definition.concurrency_policy
     body["maxCatchUp"] = _bounded_integer(definition.max_catch_up, "max_catch_up", 1, YOGABASE_SCHEDULES_MAXIMUM_CATCH_UP)
