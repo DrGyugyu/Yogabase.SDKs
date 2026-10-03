@@ -4,11 +4,14 @@ The context a Yogabase Lambda runs with: the project database, mediated object s
 application-user directory, realtime publication, actors, workflows, reminders, direct Valkey,
 authenticated messaging, who called, and which invocation this is.
 
-**This is where a Yogabase application reads and writes data today.** The client-facing Data API was
-withdrawn on 2026-09-08, and on 2026-09-17 the owner decided to restore it alongside a Lambda-side
-typed data API and Entity Framework Core — neither is implemented in this package yet. Today a
-client reaches data only through a Lambda, Auth, Storage and Realtime, so the database handle below
-is the data path: `DbDataSource`, not a bounded typed query surface or a `DbContext` layered over it.
+**This is where a Yogabase application reads and writes data from a .NET Lambda today.** The
+client-facing Data API was withdrawn on 2026-09-08. On 2026-09-17 the owner decided to restore it
+alongside a Lambda-side typed data API and Entity Framework Core, and the product implemented all
+three on 2026-09-23 (the restored client Data API is in the mirrored contract and the generated
+TypeScript, Python, Java and Dart clients carry it) — none of them is wrapped by this package yet.
+A .NET client reaches data through a Lambda, Auth, Storage and Realtime, so the database handle
+below is this package's data path: `DbDataSource`, not a bounded typed query surface or a
+`DbContext` layered over it.
 
 The package targets .NET Standard 2.1 and .NET 10. It references
 `Microsoft.Extensions.Logging.Abstractions` and `StackExchange.Redis`, which the sandbox host
@@ -348,6 +351,7 @@ secrets: this package never logs them, and neither should the Lambda.
 - `Database` is the only data path this package exposes today. A typed data API (select with
   filters/ordering/paging, insert, update, upsert, delete, and calling database functions), Entity
   Framework Core support, and an explicitly caller-scoped connection that applies row-level security
-  as the invoking user were decided on 2026-09-17 but are not implemented in this package.
+  as the invoking user were decided on 2026-09-17 and implemented in the product's runtime context on
+  2026-09-23, but this package does not wrap them.
 
 Third-party notice: `THIRD-PARTY-NOTICES.md` and `licenses/Apache-2.0-Nakama.txt`.

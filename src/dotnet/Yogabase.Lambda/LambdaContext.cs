@@ -21,8 +21,10 @@ namespace Yogabase.Lambda;
 /// </para>
 /// <para>
 /// <b>The Lambda is where a Yogabase application reads and writes data.</b> The client-facing Data
-/// API module is withdrawn, so the project database under its full-access
-/// <c>yogabase_lambda</c> identity is the data path — not a bounded typed query surface. That is a
+/// API module was withdrawn on 2026-09-08 and has since been restored in the product, alongside a
+/// Lambda-side typed data API and Entity Framework Core, but this package wraps none of them, so the
+/// project database under its full-access
+/// <c>yogabase_lambda</c> identity is this package's data path — not a bounded typed query surface. That is a
 /// deliberate trust change: the sandbox's process, filesystem, and network isolation, the admission
 /// scan, and the per-invocation token are what separate one project's code from the installation.
 /// Egress opens only to the project's own database, gateway and bound Valkey service, and no cloud, Kubernetes, fleet, or
