@@ -73,11 +73,14 @@ A **job type is the id of a deployed stateless function**; its highest released 
 job belongs to the user who submitted it, and another user's job is answered exactly as one that does not
 exist.
 
-Nothing is generated for it: the product serves these routes (owner decision, 2026-10-03) but its client
-OpenAPI document does not describe them yet, so the client is written from the gateway's source and
-developer documentation and pinned by `tests/test_jobs.py`. Like the delivery client it takes its own
-gateway host and access token rather than a Kiota adapter, because the result route's digest is a response
-header the adapter would hide, and it uses the same platform trust store.
+The product's client OpenAPI document describes the Jobs routes, so Kiota also generates their request
+builders (`client.v1.projects.by_project_id(project_id).jobs`, with `Job`, `JobStatus` and `JobSubmitRequest`
+among the models). This client sits **beside** those builders, not on top of them: the result route's digest
+is a response header a generated builder cannot hand back, each call is checked before it is sent, and every
+refusal is named by its code. Like the delivery client it takes its own gateway host and access token rather
+than a Kiota adapter, and it uses the same platform trust store. `tests/test_jobs.py` pins every shape and
+holds each request it sends to the request the generated builder builds for the same operation, so a
+contract change that moves a route or a member fails there.
 
 ```python
 from stackyoga_yogabase import AsyncJobsClient
@@ -113,7 +116,9 @@ async with AsyncJobsClient(
   (413, with `limit_bytes` and `max_body_bytes` naming the payload and body limits), `job_request_invalid`
   (400), `job_access_denied` (403), `job_unavailable` (503) and `job_not_found` (404, for no such job and for
   another user's, never told apart). A plain `not_found` is an installation that does not serve Jobs at
-  all; no capability row says whether one does.
+  all; no capability row says whether one does. A status the gateway names no code for reads as the
+  `STATUS_*` constants name it (`unsupported_media_type` for a submit that is not JSON, `payload_too_large`
+  for a bare 413 from a gateway that predates the named one).
 - **A result is read separately.** `result_reference` is a name, not a capability; `result()` returns
   `YogabaseJobResult(content, digest)` after hashing the bytes and comparing them with the
   `X-Yogabase-Content-Sha256` header. A result that does not match (`job_result_digest_mismatch`), arrives
@@ -126,7 +131,73 @@ async with AsyncJobsClient(
   clients keep unknown members aside; a job that breaks a bound it does know (an unknown status,
   `maxAttempts` outside 1 through 10) is refused.
 
-It was also run end to end on 2026-10-03 against the product's real Jobs routes (24 checks; see the root README for what that host was and was not).
+It was also run end to end on 2026-10-03 against the product's real Jobs routes, built from product `main`
+`92ac1ced` (24 checks; see the root README for what that host was and was not).
+
+## Schedules
+
+`AsyncSchedulesClient`, authored and exported from the package root, creates, changes, reads, deletes and runs
+once the signed-in user's own **recurring or one-shot schedules** of a deployed stateless function, against
+`/v1/projects/{projectId}/schedules/{scheduleId}` on the application gateway and behind the same project token
+(the `lambda.invoke` scope) as invoking a function. A schedule belongs to the user who created it, and only
+that user reads, changes, deletes or runs it: another user's schedule is a bare 404, updating it is a 403 and
+creating a schedule under its id is a 412. Like the Jobs client it sits beside the generated builders
+(`client.v1.projects.by_project_id(project_id).schedules.by_schedule_id(id)`), because a write is conditional
+on the schedule's **ETag**, which a generated builder neither reads from a response nor sends unless it is
+added by hand; `tests/test_schedules.py` pins every shape and holds each request to the generated builder's.
+
+```python
+from datetime import datetime, timedelta, timezone
+from stackyoga_yogabase import AsyncSchedulesClient, YogabaseScheduleDefinition
+
+definition = YogabaseScheduleDefinition(
+    schedule_id="nightly",
+    function_id="orders-nightly",              # a deployed Stateless Lambda
+    function_version="1",                      # an admitted version
+    cron="0 3 * * *", time_zone="Asia/Seoul",  # five fields; or set one_shot_at_utc (aware) for a one-shot
+    misfire_policy="SkipToNextOccurrence",     # always sent: the gateway's default is not a promise
+    concurrency_policy="Allow",                # stored, but not yet enforced by the scheduler
+    max_catch_up=1, max_attempts=3, deadline_seconds=300,
+    payload=b"{}",                             # optional, at most 1 MiB before base64
+)
+async with AsyncSchedulesClient(gateway_host=host, project_id=project_id, access_token=lambda: session.access_token) as schedules:
+    schedule = await schedules.create(definition)                          # If-None-Match: *  (201)
+    schedule = await schedules.update(definition, schedule.etag)           # If-Match (200)
+    run = await schedules.trigger(                                         # If-Match; runs it once now (202)
+        "nightly", schedule.etag,
+        idempotency_key="run-1",               # the same key against the same version is the same run
+        deadline=datetime.now(timezone.utc) + timedelta(minutes=10),   # after now, at most an hour from now
+    )                                          # run.outcome is "Enqueued", or "Replayed" for a repeat
+    await schedules.delete("nightly", schedule.etag)                       # If-Match (204)
+```
+
+- **Every write names the ETag it read.** `etag` is built from the schedule's `version` (decimal text, a 64-bit
+  number a JSON number cannot carry) and `instance_id`: `"schedule-v<version>-<instance>"`. A stale ETag,
+  creating an id that is already held and updating one that does not exist are each a 412
+  (`precondition_failed`) that changes nothing; the scheduler advances a recurring schedule's version as it
+  runs, so an ETag held for long is stale: `get` it again. A strong `ETag` header that disagrees with the body
+  is refused; a weak or repeated one (a proxy that compresses a response may weaken it) is ignored.
+- **Checked before anything is sent**, with the gateway's bounds (the `YOGABASE_SCHEDULES_*` constants): a
+  schedule id of 1 to 128 trimmed characters with no control character (and not `.` or `..`, which a URL
+  parser would collapse), a function id of at most 256 and a version of at most 64 characters, a cron
+  expression and a time zone of at most 128, both policies, `max_catch_up` 1 through 128, `max_attempts` 1
+  through 16, a deadline of 1 through 86,400 seconds, a payload of at most 1,048,576 bytes, and an ETag in the
+  gateway's form. A one-shot instant and a run's deadline must be timezone-aware and are sent as UTC.
+- **Refusals** are `YogabaseSchedulesError`s with the gateway's `status` and `code`. Only the 413 names a code,
+  `schedule_payload_too_large`, with `limit_bytes` and `max_body_bytes`; every other refusal is a status with a
+  fixed title or no body, and reads as the `STATUS_*` constants name it: `precondition_failed` (412),
+  `precondition_required` (428), `not_found` (404; also an installation without the Scheduler), `conflict`
+  (409: a function version that is not admitted, a write that would turn a recurring schedule into a one-shot
+  or the reverse, or a run key the queue holds for another request), `forbidden` (403),
+  `unsupported_media_type` (415) and `request_failed` (a 400 for a member the gateway refuses, such as a cron
+  expression that does not parse; a 503, which is also a run of a schedule whose function version is no longer
+  admitted, where a write answers 409).
+- **An id with a slash cannot be written.** The contract allows any 1 to 128 characters, but the real gateway
+  does not decode `%2F` in the route and answers such a write 400 (checked against product `main` `92ac1ced`);
+  choose ids without `/`.
+
+Run end to end on 2026-10-03 against the product's real schedule routes, built from product `main` `92ac1ced`
+(36 checks, on CPython 3.13.12 and 3.12.13).
 
 ## Workload delivery
 
@@ -232,7 +303,11 @@ requirements, and the same 23 tests passed against the installed wheel. Python 3
 live gateway, and a published index were not exercised.
 
 Run again on 2026-10-03, on CPython 3.13.12 and 3.12.13, from source under `-X dev` with
-`ResourceWarning` as an error, against the packages of the locked environment above: 58 tests passed (the
-23, a delivery `jobsMaxRunSeconds` case, the 32 cases of `test_jobs.py`, and two generated-surface cases
-for the invoke route's 413 problem and the restored Data select). The wheel and sdist were not rebuilt and
-the installed-wheel run was not repeated, so the wheel evidence above predates `jobs.py`.
+`ResourceWarning` as an error, against the packages of the locked environment above (the interpreters'
+own site-packages did not hold them, so the main checkout's `.venv` packages were put on the path): 98 tests
+passed. They are the 58 of the run before (the 23, a delivery `jobsMaxRunSeconds` case, the 32 cases of
+`test_jobs.py` and two generated-surface cases), the 36 of `test_schedules.py`, two cases that hold the Jobs
+client's requests to the generated builders', and two generated-surface cases for the actor and workflow
+routes' and the Data API's 413 problems, after the client contract was re-mirrored from product `main`
+`92ac1ced` and the generated tree regenerated from it. The wheel and sdist were not rebuilt and the
+installed-wheel run was not repeated, so the wheel evidence above predates `jobs.py` and `schedules.py`.

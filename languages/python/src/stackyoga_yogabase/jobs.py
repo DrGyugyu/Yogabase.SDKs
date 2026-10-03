@@ -1,10 +1,12 @@
 """Authored async facade for the Yogabase application gateway's durable Jobs routes.
 
-Jobs are served by the product (owner decision, 2026-10-03) but its client OpenAPI document does not
-describe the routes yet, so Kiota generates nothing for them and this module is written from the
-gateway's source and developer documentation instead; ``tests/test_jobs.py`` pins every shape. It is
-deliberately separate from the generated application client: like :class:`AsyncDeliveryClient` it takes
-its own gateway host and access token, and it reads the response headers the result route needs.
+The product's client OpenAPI document describes the Jobs routes, so Kiota also generates request builders for
+them (``client.v1.projects.by_project_id(id).jobs``). This client sits beside those builders, not on top of
+them: a generated builder cannot hand back a response header, and the result route's integrity check is one
+(the bytes are verified here against ``X-Yogabase-Content-Sha256``), and each call is validated before it is
+sent and every refusal is named by its code. It is deliberately separate from the generated application
+client: like :class:`AsyncDeliveryClient` it takes its own gateway host and access token.
+``tests/test_jobs.py`` pins every shape and holds each request to the one the generated builder builds.
 
 A job belongs to the signed-in user who submitted it. Every call is authenticated with that user's
 access token against ``/v1/projects/{projectId}/jobs``, behind the project token's ``lambda.invoke`` scope.
@@ -14,17 +16,23 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import inspect
 import json
 import re
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
-from .delivery import platform_ssl_context
+from ._gateway import (
+    CONTROL_CHARACTER,
+    TIMESTAMP,
+    GatewayAccessToken,
+    GatewayChannel,
+    is_non_zero_uuid,
+    read_problem,
+    require_uuid,
+)
 
 #: The statuses a job settles in: it will not change again. ``Failed`` is a checkpoint on the way to a
 #: retry (``Queued`` again) or to ``DeadLettered``; a job never rests in it, so it is not terminal.
@@ -56,16 +64,12 @@ JOB_RESPONSE_INVALID = "job_response_invalid"
 JOB_RESULT_DIGEST_MISMATCH = "job_result_digest_mismatch"
 
 _RESULT_DIGEST_HEADER = "X-Yogabase-Content-Sha256"
-_CANONICAL_UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 _JOB_TYPE = re.compile(r"[A-Za-z0-9._:-]{1,128}")
 _FAILURE_CODE = re.compile(r"[a-z0-9_]{1,128}")
 _RESULT_DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
-_TIMESTAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})")
-_CONTROL_CHARACTER = re.compile(r"[\u0000-\u001f\u007f-\u009f]")
 _REFERENCE_FORBIDDEN = re.compile(r"[\s\u0000-\u001f\u007f-\u009f]")
-_LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "::1")
 
-JobsAccessToken = str | Callable[[], str | Awaitable[str]]
+JobsAccessToken = GatewayAccessToken
 
 
 @dataclass(frozen=True)
@@ -175,15 +179,19 @@ class AsyncJobsClient:
             if gateway_host is None or project_id is None or access_token is None:
                 raise TypeError("gateway_host, project_id and access_token are required")
             options = JobsClientOptions(gateway_host, project_id, access_token, timeout, headers, allow_insecure_loopback)
-        self.gateway_host = _normalize_host(options.gateway_host, options.allow_insecure_loopback)
-        self.project_id = _require_uuid(options.project_id, "project_id")
-        if not options.access_token:
-            raise TypeError("access_token is required for the jobs API")
-        self._token = options.access_token
-        self._timeout = _bounded_timeout(options.timeout)
-        self._headers = dict(options.headers or {})
-        self._http = http_client or httpx.AsyncClient(verify=platform_ssl_context())
-        self._owns_http = http_client is None
+        self._channel = GatewayChannel(
+            "jobs",
+            gateway_host=options.gateway_host,
+            project_id=options.project_id,
+            access_token=options.access_token,
+            timeout=options.timeout,
+            headers=options.headers,
+            allow_insecure_loopback=options.allow_insecure_loopback,
+            http_client=http_client,
+            refuse=_jobs_error,
+        )
+        self.gateway_host = self._channel.gateway_host
+        self.project_id = self._channel.project_id
 
     async def __aenter__(self) -> "AsyncJobsClient":
         return self
@@ -192,8 +200,7 @@ class AsyncJobsClient:
         await self.aclose()
 
     async def aclose(self) -> None:
-        if self._owns_http:
-            await self._http.aclose()
+        await self._channel.aclose()
 
     async def submit(
         self,
@@ -226,7 +233,7 @@ class AsyncJobsClient:
 
     async def get(self, job_id: str) -> YogabaseJob:
         """Reads the caller's own job. Poll this until it ``is_terminal``."""
-        return _read_job(await self._send("GET", f"/{_require_uuid(job_id, 'job_id')}"))
+        return _read_job(await self._send("GET", f"/{require_uuid(job_id, 'job_id')}"))
 
     async def cancel(self, job_id: str) -> YogabaseJob:
         """Asks for the caller's own job to stop, idempotently, and returns it.
@@ -234,7 +241,7 @@ class AsyncJobsClient:
         A queued job is cancelled at once, a running one is flagged (``cancellation_requested``) and stopped
         by its worker, and a settled one is returned as it is.
         """
-        return _read_job(await self._send("POST", f"/{_require_uuid(job_id, 'job_id')}/cancel"))
+        return _read_job(await self._send("POST", f"/{require_uuid(job_id, 'job_id')}/cancel"))
 
     async def result(self, job_id: str) -> YogabaseJobResult:
         """Reads the result of the caller's own job.
@@ -243,7 +250,7 @@ class AsyncJobsClient:
         result that does not match, or that arrives without exactly one well-formed ``sha256:`` digest, is
         refused and never returned.
         """
-        path = f"/{_require_uuid(job_id, 'job_id')}/result"
+        path = f"/{require_uuid(job_id, 'job_id')}/result"
         response = await self._send("GET", path, accept="application/octet-stream, application/problem+json", stream=True)
         try:
             declared_values = response.headers.get_list(_RESULT_DIGEST_HEADER)
@@ -283,37 +290,13 @@ class AsyncJobsClient:
         accept: str = "application/json, application/problem+json",
         stream: bool = False,
     ) -> httpx.Response:
-        token = await _resolve_token(self._token)
-        if not token:
-            raise TypeError("The jobs access token provider returned an empty token")
-        headers = {**self._headers, "Accept": accept, "Authorization": f"Bearer {token}"}
-        if body is not None:
-            headers["Content-Type"] = "application/json"
-        request = self._http.build_request(
+        return await self._channel.send(
             method,
-            f"{self.gateway_host}/v1/projects/{self.project_id}/jobs{suffix}",
-            headers=headers,
-            content=body,
-            timeout=self._timeout,
+            f"/v1/projects/{self.project_id}/jobs{suffix}",
+            body,
+            accept=accept,
+            stream=stream,
         )
-        response = await self._http.send(request, stream=stream, follow_redirects=False)
-        if not 200 <= response.status_code < 300:
-            try:
-                if stream:
-                    await response.aread()
-                raise _jobs_error(response)
-            finally:
-                await response.aclose()
-        return response
-
-
-async def _resolve_token(token: JobsAccessToken) -> str:
-    value = token() if callable(token) else token
-    if inspect.isawaitable(value):
-        value = await value
-    if not isinstance(value, str):
-        raise TypeError("The jobs access token provider must return a string")
-    return value
 
 
 def _validate_submit(job_type: str, idempotency_key: str, payload: bytes | None, max_attempts: int | None) -> None:
@@ -324,7 +307,7 @@ def _validate_submit(job_type: str, idempotency_key: str, payload: bytes | None,
         or not idempotency_key.strip()
         or len(idempotency_key) > YOGABASE_JOBS_MAXIMUM_IDEMPOTENCY_KEY_LENGTH
         or idempotency_key != idempotency_key.strip()
-        or _CONTROL_CHARACTER.search(idempotency_key)
+        or CONTROL_CHARACTER.search(idempotency_key)
     ):
         raise ValueError("an idempotency key is 1 to 256 characters, trimmed, with no control character")
     if payload is not None:
@@ -340,67 +323,20 @@ def _validate_submit(job_type: str, idempotency_key: str, payload: bytes | None,
         raise ValueError("a job allows between 1 and 10 attempts")
 
 
-def _normalize_host(value: str, allow_insecure_loopback: bool) -> str:
-    if not value:
-        raise TypeError("gateway_host is required")
-    parsed = urlsplit(value)
-    loopback = parsed.hostname in _LOOPBACK_HOSTS
-    secure = parsed.scheme == "https" or (allow_insecure_loopback and loopback and parsed.scheme == "http")
-    if not secure or not parsed.netloc or parsed.username or parsed.password or parsed.query or parsed.fragment or parsed.path not in ("", "/"):
-        raise ValueError("gateway_host must be an origin-only HTTPS URL (plain http only for a loopback host with allow_insecure_loopback)")
-    return urlunsplit((parsed.scheme, parsed.netloc, "", "", ""))
-
-
-def _require_uuid(value: str, name: str) -> str:
-    if not isinstance(value, str) or not _CANONICAL_UUID.fullmatch(value) or not value.replace("-", "").strip("0"):
-        raise ValueError(f"{name} must be a non-empty canonical UUID")
-    return value
-
-
-def _bounded_timeout(value: float) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 < value <= 900:
-        raise ValueError("timeout must be greater than 0 and no more than 900 seconds")
-    return float(value)
-
-
 def _invalid(message: str, response: httpx.Response) -> YogabaseJobsError:
     return YogabaseJobsError(message, 502, JOB_RESPONSE_INVALID, None, response.headers.get("X-Correlation-ID"))
 
 
 def _jobs_error(response: httpx.Response) -> YogabaseJobsError:
-    problem: dict[str, Any] | None = None
-    try:
-        parsed = response.json()
-        if isinstance(parsed, dict):
-            problem = parsed
-    except (ValueError, json.JSONDecodeError):
-        pass
-    from_status = {
-        401: "authentication_required",
-        403: "forbidden",
-        404: "not_found",
-        409: "conflict",
-        # A gateway that predates the named refusal answers a bare 413 for a body over its listener's limit.
-        413: "payload_too_large",
-        429: "rate_limited",
-    }.get(response.status_code, "request_failed")
-
-    def named(name: str) -> int | None:
-        value = (problem or {}).get(name)
-        return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else None
-
-    detail = (problem or {}).get("detail")
-    title = (problem or {}).get("title")
-    code = (problem or {}).get("code")
-    trace = (problem or {}).get("traceId")
+    refusal = read_problem(response)
     return YogabaseJobsError(
-        detail if isinstance(detail, str) else title if isinstance(title, str) else f"Yogabase returned HTTP {response.status_code}.",
-        response.status_code,
-        code if isinstance(code, str) else from_status,
-        problem,
-        response.headers.get("X-Correlation-ID") or (trace if isinstance(trace, str) else None),
-        named("limitBytes"),
-        named("maxBodyBytes"),
+        refusal.message,
+        refusal.status,
+        refusal.code,
+        refusal.problem,
+        refusal.correlation_id,
+        refusal.limit_bytes,
+        refusal.max_body_bytes,
     )
 
 
@@ -444,7 +380,7 @@ def _read_job(response: httpx.Response) -> YogabaseJob:
     updated_at = text("updatedAt")
     completed_at = nullable_text("completedAt")
     if (
-        job_id is None or not _CANONICAL_UUID.fullmatch(job_id) or not job_id.replace("-", "").strip("0")
+        job_id is None or not is_non_zero_uuid(job_id)
         or job_type is None or not _JOB_TYPE.fullmatch(job_type)
         or status is None or status not in YOGABASE_JOB_STATUSES
         or attempt is None or attempt < 0
@@ -455,10 +391,10 @@ def _read_job(response: httpx.Response) -> YogabaseJob:
         or (isinstance(result_reference, str) and not _is_result_reference(result_reference))
         or failure_code is False
         or (isinstance(failure_code, str) and not _FAILURE_CODE.fullmatch(failure_code))
-        or created_at is None or not _TIMESTAMP.fullmatch(created_at)
-        or updated_at is None or not _TIMESTAMP.fullmatch(updated_at)
+        or created_at is None or not TIMESTAMP.fullmatch(created_at)
+        or updated_at is None or not TIMESTAMP.fullmatch(updated_at)
         or completed_at is False
-        or (isinstance(completed_at, str) and not _TIMESTAMP.fullmatch(completed_at))
+        or (isinstance(completed_at, str) and not TIMESTAMP.fullmatch(completed_at))
     ):
         raise bad()
     return YogabaseJob(

@@ -150,6 +150,75 @@ class GeneratedSurfaceTests(unittest.IsolatedAsyncioTestCase):
             request = item.to_get_request_information()
         self.assertEqual(request.url, f"{GATEWAY}/v1/storage/objects/avatars/user%201/photo.png")
 
+    async def test_generated_actor_and_workflow_413_are_payload_too_large_problems_that_name_both_limits(self) -> None:
+        from uuid import UUID
+
+        from stackyoga_yogabase.models.actor_invocation_request import ActorInvocationRequest
+        from stackyoga_yogabase.models.workflow_cancel_request import WorkflowCancelRequest
+        from stackyoga_yogabase.models.workflow_start_request import WorkflowStartRequest
+
+        instance = UUID("55555555-5555-4555-8555-555555555555")
+        project = "11111111-1111-4111-8111-111111111111"
+        routes = [
+            (3_935_575, "actors/counter/versions/1/instances/customer/invoke",
+             lambda builder: builder.actors.by_function_id("counter").versions.by_function_version("1").instances.by_instance_key("customer").invoke.post(ActorInvocationRequest())),
+            (3_934_405, "workflows/onboard/versions/1/start",
+             lambda builder: builder.workflows.by_workflow_id("onboard").versions.by_definition_version("1").start.post(WorkflowStartRequest())),
+            (3_934_417, f"workflows/instances/{instance}/cancel",
+             lambda builder: builder.workflows.instances.by_workflow_instance_id(instance).cancel.post(WorkflowCancelRequest())),
+        ]
+        for max_body_bytes, path, send in routes:
+            requests: list[httpx.Request] = []
+            problem = {
+                "type": "https://tools.ietf.org/html/rfc9110#section-15.5.14",
+                "title": "Payload too large.",
+                "status": 413,
+                "code": "payload_too_large",
+                "limitBytes": 491_520,
+                "maxBodyBytes": max_body_bytes,
+            }
+
+            def handler(request: httpx.Request, problem=problem) -> httpx.Response:
+                requests.append(request)
+                return httpx.Response(413, content=json.dumps(problem).encode(), headers={"Content-Type": "application/problem+json"}, request=request)
+
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+                client = _client(http)
+                with self.assertRaises(Problem, msg=path) as raised:
+                    await send(client.v1.projects.by_project_id(project))
+
+            self.assertEqual(str(requests[0].url), f"{GATEWAY}/v1/projects/{project}/{path}")
+            self.assertEqual((raised.exception.code, raised.exception.status), ("payload_too_large", 413))
+            self.assertEqual(raised.exception.additional_data["limitBytes"], 491_520)
+            self.assertEqual(raised.exception.additional_data["maxBodyBytes"], max_body_bytes)
+
+    async def test_generated_data_413_is_a_data_request_too_large_problem_that_names_both_limits(self) -> None:
+        from stackyoga_yogabase.models.data_select_request import DataSelectRequest
+
+        requests: list[httpx.Request] = []
+        problem = {
+            "type": "https://tools.ietf.org/html/rfc9110#section-15.5.14",
+            "title": "Payload too large.",
+            "status": 413,
+            "code": "data_request_too_large",
+            "limitBytes": 1_048_576,
+            "maxBodyBytes": 1_114_112,
+        }
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(413, content=json.dumps(problem).encode(), headers={"Content-Type": "application/problem+json"}, request=request)
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+            client = _client(http)
+            with self.assertRaises(Problem) as raised:
+                await client.v1.data.by_table("notes").select.post(DataSelectRequest())
+
+        self.assertEqual(str(requests[0].url), f"{GATEWAY}/v1/data/notes/select")
+        self.assertEqual((raised.exception.code, raised.exception.status), ("data_request_too_large", 413))
+        self.assertEqual(raised.exception.additional_data["limitBytes"], 1_048_576)
+        self.assertEqual(raised.exception.additional_data["maxBodyBytes"], 1_114_112)
+
 
 def _client(http: httpx.AsyncClient) -> YogabaseApiClient:
     adapter = HttpxRequestAdapter(AnonymousAuthenticationProvider(), http_client=http)
