@@ -35,9 +35,19 @@ import {
 export type YogabaseScheduleMisfirePolicy = "RunImmediately" | "SkipToNextOccurrence" | "RunAllMissed";
 
 /**
- * What a schedule asks for when an occurrence is due while the one before it is still running. The gateway checks
- * and stores the choice, but its scheduler does not yet look for a running occurrence, so every occurrence starts
- * whichever is chosen.
+ * What a schedule does when an occurrence is due while an earlier occurrence of the same schedule has not finished:
+ * its invocation is queued (waiting to start, or to be retried) or running, and its deadline has not passed.
+ *
+ * - `Allow` starts the new occurrence alongside the earlier one.
+ * - `Forbid` skips the new occurrence. When several are due at once (`RunAllMissed` after an outage), only the oldest starts.
+ * - `Replace` ends an earlier occurrence that is still queued, with the failure code `schedule_occurrence_replaced`, and
+ *   starts the new one. An occurrence that is already running cannot be stopped, because nothing can interrupt a Lambda
+ *   that is executing, so while one is running `Replace` skips the new occurrence, as `Forbid` does. When several are
+ *   due at once, only the newest starts.
+ *
+ * A skipped occurrence is consumed, not deferred: the schedule moves on to its next occurrence. A manual run is not an
+ * occurrence, so the policy neither holds it back nor is held back by it, and a one-shot has no earlier occurrence, so
+ * the policy does not apply to it.
  */
 export type YogabaseScheduleConcurrencyPolicy = "Allow" | "Forbid" | "Replace";
 
@@ -80,11 +90,18 @@ export const YOGABASE_SCHEDULE_ERROR_CODES = {
  * What a client asks the schedule write route to hold: a recurring schedule (`cron` evaluated in `timeZone`) or a
  * one-shot (`oneShotAtUtc`) of one deployed stateless function version. The project and the owner are never
  * fields: the project is the client's own and the owner is the signed-in user. Every member but `payload` and
- * `oneShotAtUtc` is required; the two policies in particular are always sent, because the gateway reads a missing
- * one as the first name, which its contract does not promise.
+ * `oneShotAtUtc` is required, the two policies included: a request that leaves one out is a 400 whose problem names
+ * the member, and this client refuses it before sending.
  */
 export interface YogabaseScheduleDefinition {
-    /** The schedule's id, chosen by the caller: 1 to 128 characters, trimmed, with no control character. */
+    /**
+     * The schedule's id, chosen by the caller: 1 to 128 characters, a letter or a digit first and then letters,
+     * digits and `.` `_` `~` `:` `-` only (`^[A-Za-z0-9][A-Za-z0-9._~:-]{0,127}$`). The id is one segment of the schedule's URL
+     * path, so there is nothing to escape, and the console addresses the schedule by the same id. The id belongs to the
+     * project, so one that another user holds cannot be created. A schedule written before the rule under another id can
+     * still be read, run and deleted by that id (`get`, `trigger`, `delete`), but a write of it is refused: delete it and
+     * create it again under an id that follows the rule.
+     */
     scheduleId: string;
     /** The id of a deployed Stateless Lambda, at most 256 characters. */
     functionId: string;
@@ -219,6 +236,10 @@ const MISFIRE_POLICIES: readonly string[] = ["RunImmediately", "SkipToNextOccurr
 const CONCURRENCY_POLICIES: readonly string[] = ["Allow", "Forbid", "Replace"];
 const ETAG = /^"schedule-v([1-9][0-9]*)-([0-9a-f]{32})"$/;
 const VERSION = /^[1-9][0-9]*$/;
+// The pattern of the contract's definition member scheduleId, which holds a write to what one segment of a URL path
+// carries without being escaped. A read, a run and a delete accept more (`requireScheduleId`), because a schedule
+// written before the rule is still found by its id.
+const WRITABLE_SCHEDULE_ID = /^[A-Za-z0-9][A-Za-z0-9._~:-]{0,127}$/;
 const MAXIMUM_INT64 = 9_223_372_036_854_775_807n;
 
 /**
@@ -246,7 +267,8 @@ export class YogabaseSchedulesClient {
 
     /**
      * Changes the schedule the `eTag` names (200) and answers it with its new ETag. The definition names the same
-     * `scheduleId` and keeps the schedule's kind: recurring or one-shot.
+     * `scheduleId` and keeps the schedule's kind: recurring or one-shot. A schedule written before the id rule under an
+     * id that does not follow it cannot be changed: delete it and create it again under an id that does.
      */
     public async update(definition: YogabaseScheduleDefinition, eTag: string, options: YogabaseSchedulesRequestOptions = {}): Promise<YogabaseSchedule> {
         return this.write(definition, requireETag(eTag), options);
@@ -277,7 +299,10 @@ export class YogabaseSchedulesClient {
     /**
      * Runs the schedule the `eTag` names once now, outside its cadence: it enqueues one invocation of the schedule's
      * function with the schedule's payload, as the schedule's owner (202). The same idempotency key against the same
-     * version answers the same invocation, with outcome `Replayed` where the first said `Enqueued`.
+     * version answers the same invocation, with outcome `Replayed` where the first said `Enqueued`. A schedule whose
+     * function version is no longer an admitted Stateless one of the project is refused with a 409, as a write of it
+     * is. A manual run is not an occurrence of the schedule: its `concurrencyPolicy` neither holds it back nor is held
+     * back by it.
      */
     public async trigger(
         scheduleId: string,
@@ -333,6 +358,13 @@ export class YogabaseSchedulesClient {
     }
 }
 
+function requireWritableScheduleId(value: string): string {
+    if (typeof value !== "string" || !WRITABLE_SCHEDULE_ID.test(value)) {
+        throw new RangeError("a schedule id to write is 1 to 128 characters, a letter or a digit first and then letters, digits and . _ ~ : - only");
+    }
+    return value;
+}
+
 function requireScheduleId(value: string): string {
     if (typeof value !== "string" || value.trim() === "" || value.length > YOGABASE_SCHEDULES_LIMITS.maximumScheduleIdLength
         || value !== value.trim() || CONTROL_CHARACTER.test(value)) {
@@ -383,7 +415,7 @@ function definitionBody(definition: YogabaseScheduleDefinition): Record<string, 
         throw new TypeError("a schedule definition is required");
     }
     const limits = YOGABASE_SCHEDULES_LIMITS;
-    requireScheduleId(definition.scheduleId);
+    requireWritableScheduleId(definition.scheduleId);
     const body: Record<string, unknown> = {
         scheduleId: definition.scheduleId,
         functionId: boundedText(definition.functionId, "functionId", limits.maximumFunctionIdLength),
@@ -392,10 +424,10 @@ function definitionBody(definition: YogabaseScheduleDefinition): Record<string, 
         timeZone: boundedText(definition.timeZone, "timeZone", limits.maximumTimeZoneIdLength),
     };
     if (!MISFIRE_POLICIES.includes(definition.misfirePolicy)) {
-        throw new RangeError("a misfire policy is required: the gateway reads a missing one as RunImmediately, which its contract does not promise");
+        throw new RangeError("a misfire policy is required: RunImmediately, SkipToNextOccurrence or RunAllMissed");
     }
     if (!CONCURRENCY_POLICIES.includes(definition.concurrencyPolicy)) {
-        throw new RangeError("a concurrency policy is required: the gateway reads a missing one as Allow, which its contract does not promise");
+        throw new RangeError("a concurrency policy is required: Allow, Forbid or Replace");
     }
     body.misfirePolicy = definition.misfirePolicy;
     body.concurrencyPolicy = definition.concurrencyPolicy;

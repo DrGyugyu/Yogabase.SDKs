@@ -4,6 +4,7 @@
 // (x-yogabase-schedules and the four operations) and the product's gateway writes. The last tests hold each request
 // the authored client sends to the request the generated Kiota builder builds for the same operation.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
     YOGABASE_SCHEDULE_ERROR_CODES,
@@ -186,6 +187,21 @@ test("a malformed definition is refused before the network, on create and on upd
         "a schedule id over 128 characters": { scheduleId: long(129) },
         "a schedule id of one dot": { scheduleId: "." },
         "a schedule id of two dots": { scheduleId: ".." },
+        "a schedule id with trailing white space": { scheduleId: "nightly " },
+        "a schedule id with a slash": { scheduleId: "weekly/report" },
+        "a schedule id with a space inside": { scheduleId: "weekly report" },
+        "a schedule id that starts with a dash": { scheduleId: "-nightly" },
+        "a schedule id that starts with a dot": { scheduleId: ".nightly" },
+        "a schedule id that starts with an underscore": { scheduleId: "_nightly" },
+        "a schedule id that starts with a tilde": { scheduleId: "~nightly" },
+        "a schedule id that starts with a colon": { scheduleId: ":nightly" },
+        "a schedule id with a percent sign": { scheduleId: "weekly%2Freport" },
+        "a schedule id with a question mark": { scheduleId: "nightly?" },
+        "a schedule id with a hash": { scheduleId: "night#ly" },
+        "a schedule id with a non-ASCII letter": { scheduleId: "nightlé" },
+        "a schedule id with a non-ASCII digit": { scheduleId: "night٣" },
+        "a schedule id with a trailing newline": { scheduleId: "nightly\n" },
+        "a schedule id that is not text": { scheduleId: 7 },
         "a blank function id": { functionId: " " },
         "a function id over 256 characters": { functionId: long(257) },
         "a missing function version": { functionVersion: undefined },
@@ -236,16 +252,82 @@ test("the longest accepted values of every bounded member are sent", async () =>
     assert.equal(body.deadlineSeconds, 86_400);
 });
 
-test("a schedule id that needs escaping travels as one escaped path segment", async () => {
-    const id = "weekly report/é?#";
-    const fake = fakeFetch([schedule(scheduleDocument({ scheduleId: id }), 201), schedule(scheduleDocument({ scheduleId: id }))]);
+test("a schedule id that follows the rule is sent unchanged in the body and as one segment of the path", async () => {
+    const ids = ["a", "Z", "0", "nightly", "a.b_c~d:e-f", "orders-nightly.v2:eu~west_1"];
+    const fake = fakeFetch(ids.flatMap(id => [schedule(scheduleDocument({ scheduleId: id }), 201), schedule(scheduleDocument({ scheduleId: id }))]));
     const schedules = client(fake);
-    await schedules.create(definition({ scheduleId: id }));
-    await schedules.get(id);
+    for (const id of ids) {
+        await schedules.create(definition({ scheduleId: id }));
+        await schedules.get(id);
+    }
+    ids.forEach((id, index) => {
+        const route = `https://apps.example.test/v1/projects/${PROJECT}/schedules/${encodeURIComponent(id)}`;
+        assert.deepEqual([fake.calls[2 * index].url, fake.calls[2 * index + 1].url], [route, route], id);
+        // The id in the body is the id in the path, as it was written.
+        assert.equal(JSON.parse(fake.calls[2 * index].init.body).scheduleId, id);
+    });
+});
+
+test("a schedule written before the id rule is still read, run and deleted by its id, and never written", async () => {
+    // An id the contract keeps addressable by a read, a run and a delete, percent-encoded as any path segment is, though a
+    // write of it is refused: the schedule was written before the pattern was enforced.
+    const id = "weekly report/é?#";
     const escaped = `https://apps.example.test/v1/projects/${PROJECT}/schedules/weekly%20report%2F%C3%A9%3F%23`;
-    assert.deepEqual(fake.calls.map(call => call.url), [escaped, escaped]);
-    // The id in the body is the id in the path, unescaped.
-    assert.equal(JSON.parse(fake.calls[0].init.body).scheduleId, id);
+    const fake = fakeFetch([
+        schedule(scheduleDocument({ scheduleId: id })),
+        json({ outcome: 0, invocationId: INVOCATION }, 202),
+        new Response(null, { status: 204 }),
+    ]);
+    const schedules = client(fake);
+
+    const read = await schedules.get(id);
+    await schedules.trigger(id, ETAG3, { idempotencyKey: "run-1", deadline: new Date(Date.now() + 600_000) });
+    await schedules.delete(id, ETAG3);
+
+    assert.equal(read.scheduleId, id);
+    assert.deepEqual(fake.calls.map(call => call.url), [escaped, `${escaped}/trigger`, escaped]);
+
+    // A write of it is refused before the network: delete it and create it again under an id that follows the rule.
+    await assert.rejects(schedules.create(definition({ scheduleId: id })), RangeError);
+    await assert.rejects(schedules.update(definition({ scheduleId: id }), ETAG3), RangeError);
+    assert.equal(fake.calls.length, 3);
+});
+
+test("a write accepts exactly the ids the pattern of the contract's scheduleId member accepts", async () => {
+    const contract = JSON.parse(readFileSync(new URL("../../../contracts/yogabase-client-v1.openapi.json", import.meta.url), "utf8"));
+    const member = contract.components.schemas.ScheduleDefinitionRequest.properties.scheduleId;
+    // The contract's pattern is ECMA-262, which is what JavaScript runs, so it is the oracle itself.
+    const oracle = new RegExp(member.pattern);
+    assert.equal(member.minLength, 1);
+    assert.equal(member.maxLength, YOGABASE_SCHEDULES_LIMITS.maximumScheduleIdLength);
+
+    // Every character of Latin-1 alone, after a letter and before one, a few characters beyond it that look like letters or
+    // digits, and the lengths at the edge.
+    const candidates = ["", " ", "٣", "a٣", "K", "aK", "０", "a０", "\u{1f600}", "a\u{1f600}"];
+    for (let code = 0; code <= 0xff; code++) {
+        const character = String.fromCharCode(code);
+        candidates.push(character, `a${character}`, `${character}a`);
+    }
+    for (const length of [127, 128, 129]) {
+        candidates.push("a".repeat(length), `a${".".repeat(length - 1)}`, `a${":".repeat(length - 1)}`);
+    }
+
+    let accepted = 0;
+    for (const id of candidates) {
+        const fake = fakeFetch([schedule(scheduleDocument({ scheduleId: id }), 201)]);
+        const attempt = client(fake).create(definition({ scheduleId: id }));
+        const shown = JSON.stringify(id);
+        if (oracle.test(id)) {
+            accepted++;
+            await attempt;
+            assert.equal(fake.calls.length, 1, `the contract's pattern accepts ${shown} and the client refused it`);
+        } else {
+            await assert.rejects(attempt, refuses, `the contract's pattern refuses ${shown} and the client sent it`);
+            assert.equal(fake.calls.length, 0, shown);
+        }
+    }
+    // The corpus holds both kinds, so the comparison is not vacuous.
+    assert.ok(accepted > 60 && accepted < candidates.length - 60, `${accepted} of ${candidates.length}`);
 });
 
 // ------------------------------------------------------------------------------------------------
@@ -690,6 +772,13 @@ test("get, delete and trigger send the requests the generated builders build", a
         triggerBuilt,
         { "if-match": ETAG3 },
     );
+});
+
+test("the authored client addresses a schedule id the way the generated builder does, a rule-following one and an older one", async () => {
+    for (const id of ["a.b_c~d:e-f", "weekly report/é?#"]) {
+        const built = await generatedRequest(api => api.v1.projects.byProjectId(PROJECT).schedules.byScheduleId(id).get());
+        assert.equal((await authored(c => c.get(id))).url, built.url, id);
+    }
 });
 
 test("the generated builders and the authored client name the same members and the same bounds", async () => {
