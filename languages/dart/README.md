@@ -66,6 +66,68 @@ For `PUT`, add both required contract headers through the Kiota request configur
 `X-Yogabase-Content-Sha256: sha256:<64 lowercase hex>` and a bounded `Idempotency-Key`. Kiota does
 not emit dedicated Dart method arguments for these headers.
 
+## Durable Jobs
+
+`YogabaseJobsClient`, authored and reached from `YogabaseApplicationClient.jobs(projectId)`, starts,
+reads, cancels and fetches the result of a durable background job as the signed-in user, against
+`/v1/projects/{projectId}/jobs` on the application gateway and behind the same project token (the
+`lambda.invoke` scope) as invoking a function. A **job type is the id of a deployed stateless function**;
+its highest released version runs the job. A job belongs to the user who submitted it, and another user's
+job is answered exactly as one that does not exist.
+
+Nothing is generated for it: the product serves these routes (owner decision, 2026-10-03) but its client
+OpenAPI document does not describe them yet, so the client is written from the gateway's source and
+developer documentation. It shares the Kiota request adapter, and so the authentication and the origin, of
+the generated application client.
+
+**It has not been run or analyzed.** No Dart SDK was available when it was written, so
+`lib/src/yogabase_jobs_client.dart` and `test/yogabase_jobs_source_test.dart` were modelled line by line on
+the generated builders and models and the existing standalone check, and neither the compiler nor the
+analyzer has seen them. Run the commands under "Local verification" before relying on it.
+
+```dart
+final application = YogabaseApplicationClient(requestAdapter, Uri.parse('https://apps.example.test'));
+final jobs = application.jobs(projectId); // projectId is the bootstrap document's projectId
+
+var job = await jobs.submit(
+  jobType: 'orders-create',
+  idempotencyKey: 'order-42',               // keep it across retries of this submit
+  payload: Uint8List.fromList(utf8.encode('hello')), // optional, at most 1 MiB before base64
+  maxAttempts: 3,                           // optional, 1 to 10; the gateway's default is 5
+);
+while (!job.isTerminal) {                   // succeeded, cancelled or deadLettered
+  await Future<void>.delayed(const Duration(seconds: 1));
+  job = await jobs.get(job.jobId);
+}
+if (job.status == YogabaseJobStatus.succeeded && job.resultReference != null) {
+  final result = await jobs.result(job.jobId); // result.content
+}
+await jobs.cancel(job.jobId);               // idempotent; a running job is flagged and stopped by its worker
+```
+
+- **Retrying a submit is safe.** The idempotency key is a member of the request body, not a header (the
+  gateway reads no `Idempotency-Key` header on this route). The same request under the same key answers
+  the job it already made (202 again, whatever the job has become); a different request under that key is
+  refused with `job_idempotency_conflict` (409). The key belongs to the signed-in user.
+- **Checked before anything is sent**, with the gateway's own bounds, as `ArgumentError`s: a job type of 1 to
+  128 ASCII letters, digits, `.`, `-`, `_` or `:`; a trimmed idempotency key of 1 to 256 characters with no
+  control character; a payload of at most 1,048,576 bytes (exactly that is a job); and `maxAttempts` from 1 to 10.
+- **Refusals** are `YogabaseJobsException`s carrying the gateway's `status` and `code`
+  (`YogabaseJobErrorCodes` names them): `job_type_not_registered` (422), `job_idempotency_conflict` (409),
+  `job_payload_too_large` (413, with `limitBytes` and `maxBodyBytes` naming the payload and body limits),
+  `job_request_invalid` (400), `job_access_denied` (403), `job_unavailable` (503) and `job_not_found` (404, for
+  no such job and for another user's, never told apart). A plain `not_found` is an installation that does
+  not serve Jobs at all; no capability row says whether one does.
+- **A result is not checked against its digest here.** `result()` returns the bytes
+  (`job_result_not_ready` is 409 for a job that has not settled; `job_result_not_found` is 404 for another
+  user's job, an unknown one and one that finished without a result, never told apart). The other languages
+  compare the bytes with the `X-Yogabase-Content-Sha256` header; a Kiota Dart adapter does not hand the caller
+  response headers and this package has no hashing dependency, so this client cannot. The gateway has
+  already verified the stored object against the digest the job recorded before it sends a byte, and a
+  result over 16 MiB is refused.
+- A response member this client does not know is ignored, as the generated clients keep unknown members
+  aside; a job that breaks a bound it does know (an unknown status, `maxAttempts` outside 1 to 10) is refused.
+
 ## Workload delivery
 
 The package exports a second generated protocol client under `src/delivery` plus the authored
@@ -97,6 +159,7 @@ cd languages/dart
 dart pub get --enforce-lockfile
 dart analyze --fatal-infos --fatal-warnings
 dart run test/yogabase_delivery_source_test.dart
+dart run test/yogabase_jobs_source_test.dart
 ```
 
 The package declares no `dev_dependencies`, so `dart test` is not wired; the checks are one

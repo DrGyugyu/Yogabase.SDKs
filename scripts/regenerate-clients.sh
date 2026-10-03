@@ -123,6 +123,7 @@ rsync -a --delete \
     --exclude /yogabase_delivery_client.dart \
     --exclude /yogabase_delivery_request_options.dart \
     --exclude /yogabase_delivery_sse.dart \
+    --exclude /yogabase_jobs_client.dart \
     --exclude /yogabase_storage_logical_key.dart \
     "$stage/languages/dart/lib/src/" \
     "$repo_root/languages/dart/lib/src/"
