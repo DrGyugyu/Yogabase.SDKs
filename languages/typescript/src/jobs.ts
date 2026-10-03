@@ -1,17 +1,27 @@
 /**
  * Authored Yogabase durable Jobs facade for the application gateway.
  *
- * Jobs are served by the product (owner decision, 2026-10-03) but its client OpenAPI document does not
- * describe the routes yet, so Kiota generates nothing for them and this module is written from the
- * gateway's source and developer documentation instead; `tests/jobs.test.mjs` pins every shape. It is
- * deliberately separate from the generated application client: it takes its own gateway host and access
- * token, as the authored delivery client does, and reads the response headers the result route needs.
+ * The product's client OpenAPI document describes the Jobs routes, so Kiota also generates request builders
+ * for them (`client.v1.projects.byProjectId(id).jobs`). This client sits beside those builders, not on top
+ * of them: a generated builder cannot hand back a response header, and the result route's integrity check is
+ * one (the bytes are verified here against `X-Yogabase-Content-Sha256`), and each call is validated before it is
+ * sent and every refusal is named by its code. It is deliberately separate from the generated application
+ * client: it takes its own gateway host and access token, as the authored delivery client does.
+ * `tests/jobs.test.mjs` pins every shape and holds each request to the one the generated builder builds.
  *
- * A job belongs to the signed-in user who submitted it. Every call is authenticated with that user's
- * access token against `/v1/projects/{projectId}/jobs`, behind the project token's `lambda.invoke` scope.
+ * A job belongs to the signed-in user who submitted it. Every call is authenticated with that user's access token
+ * against `/v1/projects/{projectId}/jobs`, behind the project token's `lambda.invoke` scope.
  */
 
 import type { Uuid } from "./delivery.js";
+import {
+    CONTROL_CHARACTER,
+    GatewayChannel,
+    isNonZeroCanonicalUuid,
+    readProblem,
+    requireUuid,
+    toBase64,
+} from "./gateway.js";
 
 /**
  * Where a job is in its lifecycle: `Queued`, then `Running`, then it settles as `Succeeded`, `Cancelled`
@@ -169,16 +179,11 @@ export class YogabaseJobsError extends Error {
     }
 }
 
-const DEFAULT_TIMEOUT_MS = 30_000;
-const MAX_TIMEOUT_MS = 15 * 60_000;
 const JOB_STATUSES: readonly string[] = ["Queued", "Running", "Succeeded", "Failed", "Cancelled", "DeadLettered"];
 const RESULT_DIGEST_HEADER = "X-Yogabase-Content-Sha256";
-const CANONICAL_UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const JOB_TYPE = /^[A-Za-z0-9._:-]{1,128}$/;
 const FAILURE_CODE = /^[a-z0-9_]{1,128}$/;
-const CONTROL_CHARACTER = /[\u0000-\u001f\u007f-\u009f]/;
 const RESULT_DIGEST = /^sha256:[0-9a-f]{64}$/;
-const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 /**
  * Client for the application gateway's durable Jobs routes: submit a run of a deployed stateless function,
@@ -191,21 +196,12 @@ const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 export class YogabaseJobsClient {
     public readonly gatewayHost: string;
     public readonly projectId: Uuid;
-    private readonly fetcher: YogabaseJobsFetch;
-    private readonly defaultHeaders: Record<string, string>;
-    private readonly token: YogabaseJobsAccessToken;
-    private readonly timeoutMs: number;
+    private readonly channel: GatewayChannel;
 
     public constructor(options: YogabaseJobsClientOptions) {
-        this.gatewayHost = normalizeHost(options.gatewayHost, options.allowInsecureLoopback === true);
-        this.projectId = requireUuid(options.projectId, "projectId");
-        if (!options.accessToken) {
-            throw new TypeError("accessToken is required for the jobs API");
-        }
-        this.token = options.accessToken;
-        this.fetcher = options.fetch ?? globalThis.fetch.bind(globalThis);
-        this.defaultHeaders = { ...(options.headers ?? {}) };
-        this.timeoutMs = options.timeoutMs === null ? 0 : boundedTimeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+        this.channel = new GatewayChannel(options, "jobs", jobsError);
+        this.gatewayHost = this.channel.gatewayHost;
+        this.projectId = this.channel.projectId;
     }
 
     /**
@@ -293,35 +289,14 @@ export class YogabaseJobsClient {
      * Sends one request and hands back its successful response with the disposer of the call's own timeout and
      * abort scope, which the caller runs once it has read the body. A refusal is read and thrown inside the scope.
      */
-    private async dispatch(
+    private dispatch(
         method: string,
         suffix: string,
         options: YogabaseJobsRequestOptions,
         body?: string,
         accept = "application/json, application/problem+json",
     ): Promise<{ response: Response; dispose: () => void }> {
-        const token = typeof this.token === "function" ? await this.token() : this.token;
-        if (!token) {
-            throw new TypeError("The jobs access token provider returned an empty token");
-        }
-        const url = new URL(`/v1/projects/${this.projectId}/jobs${suffix}`, `${this.gatewayHost}/`);
-        const headers = new Headers(this.defaultHeaders);
-        headers.set("Accept", accept);
-        headers.set("Authorization", `Bearer ${token}`);
-        if (body !== undefined) {
-            headers.set("Content-Type", "application/json");
-        }
-        const scoped = scopedSignal(options.signal, this.timeoutMs === 0 ? undefined : this.timeoutMs);
-        try {
-            const response = await this.fetcher(url, { method, headers, body, signal: scoped.signal, redirect: "error" });
-            if (!response.ok) {
-                throw await jobsError(response);
-            }
-            return { response, dispose: scoped.dispose };
-        } catch (error) {
-            scoped.dispose();
-            throw error;
-        }
+        return this.channel.dispatch(method, `/v1/projects/${this.projectId}/jobs${suffix}`, options.signal, { body, accept });
     }
 }
 
@@ -349,33 +324,6 @@ function validateSubmit(request: YogabaseJobSubmitRequest): void {
         && (!Number.isInteger(request.maxAttempts) || request.maxAttempts < 1 || request.maxAttempts > YOGABASE_JOBS_LIMITS.maximumAttempts)) {
         throw new RangeError("a job allows between 1 and 10 attempts");
     }
-}
-
-function normalizeHost(value: string, allowInsecureLoopback: boolean): string {
-    if (!value) {
-        throw new TypeError("gatewayHost is required");
-    }
-    const url = new URL(value);
-    const loopback = LOOPBACK_HOSTS.has(url.hostname);
-    const secure = url.protocol === "https:" || (allowInsecureLoopback && loopback && url.protocol === "http:");
-    if (!secure || url.username || url.password || url.search || url.hash || url.pathname !== "/") {
-        throw new TypeError("gatewayHost must be an origin-only HTTPS URL (plain http only for a loopback host with allowInsecureLoopback)");
-    }
-    return url.origin;
-}
-
-function requireUuid(value: string, name: string): Uuid {
-    if (typeof value !== "string" || !CANONICAL_UUID.test(value) || /^[0-]+$/.test(value.replaceAll("-", ""))) {
-        throw new TypeError(`${name} must be a non-empty canonical UUID`);
-    }
-    return value;
-}
-
-function boundedTimeout(value: number): number {
-    if (!Number.isFinite(value) || value < 1 || value > MAX_TIMEOUT_MS) {
-        throw new RangeError(`timeoutMs must be between 1 and ${MAX_TIMEOUT_MS}`);
-    }
-    return value;
 }
 
 function invalid(message: string, response: Response): YogabaseJobsError {
@@ -421,7 +369,7 @@ function readJob(value: unknown): YogabaseJob {
     const createdAt = text("createdAt");
     const updatedAt = text("updatedAt");
     const completedAt = nullableText("completedAt");
-    if (jobId === undefined || !CANONICAL_UUID.test(jobId) || /^[0-]+$/.test(jobId.replaceAll("-", ""))
+    if (!isNonZeroCanonicalUuid(jobId)
         || jobType === undefined || !JOB_TYPE.test(jobType)
         || status === undefined || !JOB_STATUSES.includes(status)
         || attempt === undefined || attempt < 0
@@ -458,37 +406,15 @@ function isResultReference(value: string): boolean {
 }
 
 async function jobsError(response: Response): Promise<YogabaseJobsError> {
-    let problem: Record<string, unknown> | undefined;
-    try {
-        const parsed = await response.json() as unknown;
-        if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
-            problem = parsed as Record<string, unknown>;
-        }
-    } catch { /* preserve the status when the body is not a problem document */ }
-    const fromStatus = ({
-        401: "authentication_required",
-        403: "forbidden",
-        404: "not_found",
-        409: "conflict",
-        // A gateway that predates the named refusal answers a bare 413 for a body over its listener's limit.
-        413: "payload_too_large",
-        429: "rate_limited",
-    } as Record<number, string>)[response.status] ?? "request_failed";
-    const named = (name: string): number | undefined => {
-        const value = problem?.[name];
-        return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : undefined;
-    };
-    const detail = typeof problem?.detail === "string" ? problem.detail : undefined;
-    const title = typeof problem?.title === "string" ? problem.title : undefined;
-    const traceId = typeof problem?.traceId === "string" ? problem.traceId : undefined;
+    const refusal = await readProblem(response);
     return new YogabaseJobsError(
-        detail ?? title ?? `Yogabase returned HTTP ${response.status}.`,
-        response.status,
-        typeof problem?.code === "string" ? problem.code : fromStatus,
-        problem,
-        response.headers.get("X-Correlation-ID") ?? traceId,
-        named("limitBytes"),
-        named("maxBodyBytes"),
+        refusal.message,
+        refusal.status,
+        refusal.code,
+        refusal.problem,
+        refusal.correlationId,
+        refusal.limitBytes,
+        refusal.maxBodyBytes,
     );
 }
 
@@ -546,37 +472,4 @@ function toHex(bytes: Uint8Array): string {
         text += byte.toString(16).padStart(2, "0");
     }
     return text;
-}
-
-function toBase64(bytes: Uint8Array): string {
-    let binary = "";
-    for (let offset = 0; offset < bytes.length; offset += 0x8000) {
-        binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
-    }
-    return btoa(binary);
-}
-
-function scopedSignal(parent: AbortSignal | undefined, timeoutMs: number | undefined) {
-    if (timeoutMs === undefined && !parent) {
-        return { signal: undefined, dispose: () => undefined };
-    }
-    const controller = new AbortController();
-    const abort = () => controller.abort(parent?.reason);
-    if (parent) {
-        if (parent.aborted) {
-            abort();
-        } else {
-            parent.addEventListener("abort", abort, { once: true });
-        }
-    }
-    const timer = timeoutMs === undefined ? undefined : setTimeout(() => controller.abort(new Error("Yogabase jobs request timed out")), timeoutMs);
-    return {
-        signal: controller.signal,
-        dispose: () => {
-            if (timer !== undefined) {
-                clearTimeout(timer);
-            }
-            parent?.removeEventListener("abort", abort);
-        },
-    };
 }

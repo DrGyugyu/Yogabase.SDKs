@@ -6,7 +6,8 @@ a Kiota request adapter whose base URL is the validated Yogabase REST gateway an
 authentication provider supplies a project bearer token for protected operations.
 
 The generated REST surface includes bootstrap, signup and interactive auth endpoints,
-Storage, stateless Function invocation, Actor Lambda invocation, and Workflow start/cancel. The
+Storage, stateless Function invocation, Actor Lambda invocation, Workflow start/cancel, and the durable Jobs
+and schedule routes (which authored clients below sit beside). The
 contract returns a separate realtime origin, but this package does not yet include or qualify a
 TypeScript SignalR wrapper. This source preview is unpublished and not production-qualified;
 TypeScript generation and its Kiota runtime are themselves preview dependencies.
@@ -75,11 +76,14 @@ function. A **job type is the id of a deployed stateless function**; its highest
 the job. A job belongs to the user who submitted it, and another user's job is answered exactly as one
 that does not exist.
 
-Nothing is generated for it: the product serves these routes (owner decision, 2026-10-03) but its client
-OpenAPI document does not describe them yet, so the client is written from the gateway's source and
-developer documentation and pinned by `tests/jobs.test.mjs`. Like the delivery client it takes its own
-gateway host and access token rather than a Kiota adapter, because the result route's digest is a response
-header the adapter would hide.
+The product's client OpenAPI document describes the Jobs routes, so Kiota also generates their request
+builders (`client.v1.projects.byProjectId(projectId).jobs`, with `Job`, `JobStatus` and `JobSubmitRequest`
+among the models). This client sits **beside** those builders, not on top of them: the result route's
+digest is a response header a generated builder cannot hand back, each call is checked before it is sent,
+and every refusal is named by its code. Like the delivery client it takes its own gateway host and access
+token rather than a Kiota adapter. `tests/jobs.test.mjs` pins every shape and holds each request it sends
+to the request the generated builder builds for the same operation, so a contract change that moves a
+route or a member fails there.
 
 ```ts
 const jobs = new YogabaseJobsClient({
@@ -115,7 +119,9 @@ await jobs.cancel(job.jobId);                 // idempotent; a running job is fl
   (409), `job_payload_too_large` (413, with `limitBytes` and `maxBodyBytes` naming the payload and body
   limits), `job_request_invalid` (400), `job_access_denied` (403), `job_unavailable` (503) and
   `job_not_found` (404, for no such job and for another user's, never told apart). A plain `not_found` is
-  an installation that does not serve Jobs at all; no capability row says whether one does.
+  an installation that does not serve Jobs at all; no capability row says whether one does. A status the
+  gateway names no code for reads as `YOGABASE_STATUS_ERROR_CODES` names it (`unsupported_media_type` for a
+  submit that is not JSON, `payload_too_large` for a bare 413 from a gateway that predates the named one).
 - **A result is read separately.** `resultReference` is a name, not a capability; `result()` returns
   `{ content, digest }` after hashing the bytes (Web Crypto) and comparing them with the
   `X-Yogabase-Content-Sha256` header. A result that does not match (`job_result_digest_mismatch`), arrives
@@ -126,7 +132,69 @@ await jobs.cancel(job.jobId);                 // idempotent; a running job is fl
 - A response member this client does not know is ignored, as the generated clients keep unknown members
   aside; a job that breaks a bound it does know (an unknown status, `maxAttempts` outside 1 through 10) is refused.
 
-It was also run end to end on 2026-10-03 against the product's real Jobs routes (26 checks; see the root README for what that host was and was not).
+It was also run end to end on 2026-10-03 against the product's real Jobs routes, built from product
+`main` `92ac1ced` (26 checks; see the root README for what that host was and was not).
+
+## Schedules
+
+`YogabaseSchedulesClient`, authored and exported from the package root, creates, changes, reads, deletes and
+runs once the signed-in user's own **recurring or one-shot schedules** of a deployed stateless function,
+against `/v1/projects/{projectId}/schedules/{scheduleId}` on the application gateway and behind the same
+project token (the `lambda.invoke` scope) as invoking a function. A schedule belongs to the user who created
+it, and only that user reads, changes, deletes or runs it: another user's schedule is a bare 404, updating it
+is a 403 and creating a schedule under its id is a 412. Like the Jobs client it sits beside the generated
+builders (`client.v1.projects.byProjectId(projectId).schedules.byScheduleId(id)`), because a write is
+conditional on the schedule's **ETag**, which a generated builder neither reads from a response nor sends
+unless it is added by hand; `tests/schedules.test.mjs` pins every shape and holds each request to the
+generated builder's.
+
+```ts
+const schedules = new YogabaseSchedulesClient({ gatewayHost, projectId, accessToken: () => session.accessToken });
+let schedule = await schedules.create({             // If-None-Match: *  (201)
+  scheduleId: "nightly",
+  functionId: "orders-nightly",                     // a deployed Stateless Lambda
+  functionVersion: "1",                             // an admitted version
+  cron: "0 3 * * *", timeZone: "Asia/Seoul",        // five fields; or set oneShotAtUtc for a one-shot
+  misfirePolicy: "SkipToNextOccurrence",            // always sent: the gateway's default is not a promise
+  concurrencyPolicy: "Allow",                       // stored, but not yet enforced by the scheduler
+  maxCatchUp: 1, maxAttempts: 3, deadlineSeconds: 300,
+  payload: new TextEncoder().encode("{}"),          // optional, at most 1 MiB before base64
+});
+schedule = await schedules.update({ ...definition, cron: "0 4 * * *" }, schedule.eTag);   // If-Match (200)
+const run = await schedules.trigger("nightly", schedule.eTag, {   // If-Match; runs it once now (202)
+  idempotencyKey: "run-1",                          // the same key against the same version is the same run
+  deadline: new Date(Date.now() + 10 * 60_000),     // after now and at most an hour from now
+});                                                 // run.outcome is "Enqueued", or "Replayed" for a repeat
+await schedules.delete("nightly", schedule.eTag);   // If-Match (204)
+```
+
+- **Every write names the ETag it read.** `eTag` is built from the schedule's `version` (decimal text, a 64-bit
+  number a JSON number cannot carry) and `instanceId`: `"schedule-v<version>-<instance>"`. A stale ETag,
+  creating an id that is already held and updating one that does not exist are each a 412
+  (`precondition_failed`) that changes nothing; the scheduler advances a recurring schedule's version as it
+  runs, so an ETag held for long is stale: `get` it again. A strong `ETag` header that disagrees with the
+  body is refused; a weak or repeated one (a proxy that compresses a response may weaken it) is ignored.
+- **Checked before anything is sent**, with the gateway's bounds (`YOGABASE_SCHEDULES_LIMITS`): a schedule id
+  of 1 to 128 trimmed characters with no control character (and not `.` or `..`, which a URL parser would
+  collapse), a function id of at most 256 and a version of at most 64 characters, a cron expression and a
+  time zone of at most 128, both policies, `maxCatchUp` 1 through 128, `maxAttempts` 1 through 16, a deadline
+  of 1 through 86,400 seconds, a payload of at most 1,048,576 bytes, and an ETag in the gateway's form. A
+  one-shot instant and a run's deadline are sent as UTC instants.
+- **Refusals** are `YogabaseSchedulesError`s with the gateway's `status` and `code`. Only the 413 names a code,
+  `schedule_payload_too_large`, with `limitBytes` and `maxBodyBytes`; every other refusal is a status with a
+  fixed title or no body, and reads as `YOGABASE_STATUS_ERROR_CODES` names it: `precondition_failed` (412),
+  `precondition_required` (428), `not_found` (404; also an installation without the Scheduler), `conflict`
+  (409: a function version that is not admitted, a write that would turn a recurring schedule into a one-shot
+  or the reverse, or a run key the queue holds for another request), `forbidden` (403),
+  `unsupported_media_type` (415) and `request_failed` (a 400 for a member the gateway refuses, such as a cron
+  expression that does not parse; a 503, which is also a run of a schedule whose function version is no longer
+  admitted, where a write answers 409).
+- **An id with a slash cannot be written.** The contract allows any 1 to 128 characters, but the real gateway
+  does not decode `%2F` in the route and answers such a write 400 (checked against product `main` `92ac1ced`);
+  choose ids without `/`.
+
+Run end to end on 2026-10-03 against the product's real schedule routes, built from product `main` `92ac1ced`
+(41 checks, five of them raw requests the client never makes).
 
 ## Workload delivery
 
