@@ -54,18 +54,27 @@ generated source root also contains a Kiota lock binding it to the exact contrac
 The following convenience adapters are authored and deliberately preserved during regeneration:
 
 - `languages/typescript/src/delivery.ts`
+- `languages/typescript/src/gateway.ts`
 - `languages/typescript/src/jobs.ts`
+- `languages/typescript/src/schedules.ts`
 - `languages/typescript/src/storageLogicalKey.ts`
+- `languages/python/src/stackyoga_yogabase/_gateway.py`
 - `languages/python/src/stackyoga_yogabase/delivery.py`
 - `languages/python/src/stackyoga_yogabase/jobs.py`
+- `languages/python/src/stackyoga_yogabase/schedules.py`
 - `languages/python/src/stackyoga_yogabase/storage_logical_key.py`
 - `languages/java/src/main/java/io/stackyoga/yogabase/YogabaseApplicationClient.java`
 - `languages/java/src/main/java/io/stackyoga/yogabase/YogabaseDelivery*.java`
+- `languages/java/src/main/java/io/stackyoga/yogabase/YogabaseGateway*.java`
 - `languages/java/src/main/java/io/stackyoga/yogabase/YogabaseJob*.java`
+- `languages/java/src/main/java/io/stackyoga/yogabase/YogabaseSchedule*.java`
+- `languages/java/src/main/java/io/stackyoga/yogabase/YogabaseStatusErrorCodes.java`
 - `languages/java/src/main/java/io/stackyoga/yogabase/YogabaseStorageLogicalKey.java`
 - `languages/dart/lib/src/yogabase_application_client.dart`
 - `languages/dart/lib/src/yogabase_delivery_*.dart`
+- `languages/dart/lib/src/yogabase_gateway_support.dart`
 - `languages/dart/lib/src/yogabase_jobs_client.dart`
+- `languages/dart/lib/src/yogabase_schedules_client.dart`
 - `languages/dart/lib/src/yogabase_storage_logical_key.dart`
 
 The TypeScript root export, Python package initializer, and Dart package library are likewise
@@ -75,21 +84,52 @@ delivery clients are not Kiota outputs, and neither is the authored runtime-host
 script never touches them. Review generated diffs before committing; regeneration does not
 authorize publication or replace platform-specific build and live-gateway qualification.
 
-### The durable Jobs clients are authored because the contract does not describe the routes
+### The Jobs and schedule clients: the contract describes the routes, the convenience layer stays authored
 
-The product serves durable Jobs to application clients (`/v1/projects/{projectId}/jobs`, owner decision
-2026-10-03) but its client OpenAPI document does not declare the routes (checked at product `main`
-`ab2eca1f`), so regenerating produces no Jobs builders and each language's Jobs client is authored in
-the files above and pinned by its own tests. They are preserved by the same anchored excludes as the
-other authored files. `ContractDigestTests.TheMirroredApplicationContractDeclaresNoJobsRouteSoTheAuthoredJobsSurfaceIsTheOnlyOne`
-is the tripwire for the day a re-mirrored document does declare them: it fails, and the regeneration that
-follows will add generated Jobs builders to the TypeScript, Python, Java and Dart trees beside the authored
-clients. Decide then, per language, whether the authored client stays the front door (it is the one that
-can read the result route's digest header) or is rebuilt over the generated builders, and keep the authored
-names clear of the generated ones: the TypeScript root export re-exports both modules, so a duplicate
-export name is a compile error.
-`JobsSurfaceParityTests` keeps the five authored clients spelling the same route tails, request members,
-status names, error codes, bounds and digest header in the meantime; it reads their sources as text.
+The product's client OpenAPI document describes the durable Jobs routes (`/v1/projects/{projectId}/jobs`,
+`x-yogabase-jobs`) and the schedule routes (`/v1/projects/{projectId}/schedules/{scheduleId}`,
+`x-yogabase-schedules`), so regenerating produces `jobs` and `schedules` request builders and their models
+(`Job`, `JobSubmitRequest`, `ScheduleDefinitionRequest`, `ScheduleTriggerRequest`, `MisfirePolicy`, ...) in the
+TypeScript, Python, Java and Dart trees. The authored clients above stay the front door because they carry what a
+generated builder cannot: the strict response checks, the result route's digest header, the status-derived
+refusal codes, the ETag derived from the schedule's version and instance, and the bounds checked before anything
+is sent. How each language relates to the generated code:
+
+- **Java and Dart** build every Jobs and schedule request from the generated builders
+  (`toGetRequestInformation()`, `toPutRequestInformation(...)`, ...), send it through the same Kiota request
+  adapter and read the answer with the authored strict readers, so a contract change to a route, a verb or a
+  body member surfaces in the next regeneration instead of silently drifting. `YogabaseGatewayChannel.java`
+  and `yogabase_gateway_support.dart` hold what the two clients share.
+- **TypeScript and Python** stay standalone (`fetch` / `httpx`, one `GatewayChannel` in `gateway.ts` and
+  `_gateway.py`), the way their delivery clients do, and are held to the generated builders by tests that build
+  the same request both ways and compare verb, URL, headers and body.
+- **.NET** has no generated code at all; its transport is authored.
+
+Three checks keep the clients and the document together, and a re-mirrored contract that changes any of them
+fails a test instead of passing quietly:
+
+- `ContractOperationParityTests` lists every operation of the mirrored application contract with the SDK surface
+  that serves it in each shipped language. The .NET column is exercised (the first request of each of the 31
+  non-excluded operations is compared with the contract's verb and path); the TypeScript, Python, Java and Dart
+  generated trees are scanned for exactly the contract's verbs and paths; each language's authored Jobs and
+  schedule client must still spell the operation. The only exclusions are the five Data operations of the .NET
+  client, with the reason recorded in its README. A new operation in a re-mirrored document therefore fails
+  until every language has a surface for it or an explicit, reasoned exclusion.
+- `ContractLimitsAndCodesTests` compares the contract's bounds, statuses and refusal codes with each client's
+  constants (the schedule write's `schedule_payload_too_large` and its limits, the job codes, the policy names,
+  the ETag pattern).
+- `JobsSurfaceParityTests` and `SchedulesSurfaceParityTests` keep the five authored clients spelling the same
+  route tails, request members, error codes and bounds; they read the sources as text, which is the only check
+  Dart can have where no Dart SDK is installed.
+
+When a Kiota upgrade or a contract change renames a generated builder, the Java and Dart clients stop
+compiling (or, for Dart, the source test stops matching) at that exact call, which is the point of wrapping
+them; the TypeScript and Python equivalence tests fail the same way. Keep the authored names clear of the
+generated ones: the TypeScript root export re-exports both modules, so a duplicate export name is a compile
+error. `MANIFEST.json` records, per mirrored document, the contract digest beside the Kiota description hash
+that Kiota wrote for it into every `kiota-lock.json` (`generator.descriptionHashes`); the hash is a function of the
+document but not the SHA-256 of its bytes, so the pair is what proves a generated tree belongs to the mirrored
+contract.
 
 ### Every rsync `--exclude` must stay anchored with a leading slash
 

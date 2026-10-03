@@ -135,18 +135,90 @@ await yogabase.Jobs.CancelAsync(job.JobId);           // idempotent; a running j
 - **No capability gates it.** The bootstrap document carries no capability identifier for Jobs, so
   the client does not pretend to know whether an installation serves them and, unlike
   `yogabase.Functions`, does not refuse on `functions-rest`.
-- **It is not in the contract.** The product serves these routes (owner decision, 2026-10-03) but its
-  client OpenAPI document does not describe them yet, so this surface is written from the gateway's
-  source and developer documentation and pinned by `JobsClientTests`, not by the mirrored contract.
-  As everywhere in this client, a response member it does not know is refused (`response_invalid`)
-  rather than ignored.
+- **It is in the contract, and this client is not generated.** The product's client OpenAPI document describes
+  the Jobs routes (`x-yogabase-jobs`), and the TypeScript, Python, Java and Dart clients are generated from
+  it; this package has no generated code, so the surface is authored here and held to the document by tests:
+  `ContractOperationParityTests` sends each of the four operations and compares the first request with the
+  contract's verb and path, `ContractLimitsAndCodesTests` compares the limits, the statuses and every refusal
+  code with the constants below, and `JobsClientTests` pins every shape. As everywhere in this client, a
+  response member it does not know is refused (`response_invalid`) rather than ignored.
+- A refusal the gateway names no code for reads as `YogabaseStatusErrors` names it: `unsupported_media_type`
+  for a submit that is not JSON (415), `payload_too_large` for a bare 413 from a gateway that predates the
+  named one.
 
-It was also run end to end on 2026-10-03 against the product's real Jobs routes (25 checks; see the root README for what that host was and was not).
+It was also run end to end on 2026-10-03 against the product's real Jobs routes, built from product `main`
+`92ac1ced` (25 checks; see the root README for what that host was and was not).
 
 A function invoked directly by `yogabase.Functions` that is refused as too large (413
 `payload_too_large`) carries the same two limits: the payload limit is 1 MiB before base64, the same
 whether the payload is sent inline or as the object an `objectReference` names, and a request at
 exactly the limit is accepted.
+
+## Schedules
+
+`yogabase.Schedules` creates, changes, reads, deletes and runs once the signed-in user's own **recurring or
+one-shot schedules** of a deployed stateless function, against
+`/v1/projects/{projectId}/schedules/{scheduleId}` on the application gateway and behind the same project token
+(the `lambda.invoke` scope) as invoking a function. A schedule belongs to the user who created it, and only that
+user reads, changes, deletes or runs it: another user's schedule is a bare 404, updating it is a 403 and
+creating a schedule under its id is a 412.
+
+```csharp
+var definition = new YogabaseScheduleDefinition
+{
+    ScheduleId = "nightly",
+    FunctionId = "orders-nightly",                    // a deployed Stateless Lambda
+    FunctionVersion = "1",                            // an admitted version
+    Cron = "0 3 * * *",                               // five fields; set OneShotAtUtc for a one-shot instead
+    TimeZone = "Asia/Seoul",
+    MisfirePolicy = YogabaseScheduleMisfirePolicy.SkipToNextOccurrence,   // always sent: the gateway's default is not a promise
+    ConcurrencyPolicy = YogabaseScheduleConcurrencyPolicy.Allow,          // stored, but not yet enforced by the scheduler
+    MaxCatchUp = 1,
+    MaxAttempts = 3,
+    DeadlineSeconds = 300,
+    Payload = Encoding.UTF8.GetBytes("{}"),           // optional, at most 1 MiB before base64
+};
+
+var schedule = await yogabase.Schedules.CreateAsync(definition);                       // If-None-Match: *  (201)
+schedule = await yogabase.Schedules.UpdateAsync(definition, schedule.ETag);            // If-Match (200)
+var run = await yogabase.Schedules.TriggerAsync("nightly", schedule.ETag, new YogabaseScheduleTriggerRequest
+{
+    IdempotencyKey = "run-1",                         // the same key against the same version is the same run
+    Deadline = DateTimeOffset.UtcNow.AddMinutes(10),  // after now and at most an hour from now
+});                                                   // run.Outcome is Enqueued, or Replayed for a repeat
+await yogabase.Schedules.DeleteAsync("nightly", schedule.ETag);                        // If-Match (204)
+```
+
+- **Every write names the ETag it read.** `ETag` is built from the schedule's `Version` (decimal text, a
+  64-bit number a JSON number cannot carry) and `InstanceId`: `"schedule-v<version>-<instance>"`. A stale ETag,
+  creating an id that is already held and updating one that does not exist are each a 412
+  (`precondition_failed`) that changes nothing; the scheduler advances a recurring schedule's version as it
+  runs, so an ETag held for long is stale: `GetAsync` it again. A strong `ETag` header that disagrees with the
+  body is refused; a weak or repeated one (a proxy that compresses a response may weaken it) is ignored.
+- **Checked before anything is sent**, with the gateway's bounds (`YogabaseSchedulesLimits`): a schedule id of
+  1 to 128 trimmed characters with no control character (and not `.` or `..`, which a URL parser would
+  collapse), a function id of at most 256 and a version of at most 64 characters, a cron expression and a time
+  zone of at most 128, both policies, `MaxCatchUp` 1 to 128, `MaxAttempts` 1 to 16, a deadline of 1 to 86,400
+  seconds, a payload of at most 1,048,576 bytes, and an ETag in the gateway's form. A one-shot instant and a
+  run's deadline are sent as UTC instants.
+- **Refusals** surface as `YogabaseApiException`. Only the 413 names a code, `schedule_payload_too_large`
+  (`YogabaseScheduleErrors`, with `LimitBytes` and `MaxBodyBytes`); every other refusal is a status with a fixed
+  title or no body, and reads as `YogabaseStatusErrors` names it: `precondition_failed` (412),
+  `precondition_required` (428), `not_found` (404; also an installation without the Scheduler), `conflict`
+  (409: a function version that is not admitted, a write that would turn a recurring schedule into a one-shot or
+  the reverse, or a run key the queue holds for another request), `forbidden` (403), `unsupported_media_type`
+  (415) and `request_failed` (a 400 for a member the gateway refuses, such as a cron expression that does not
+  parse; a 503, which is also a run of a schedule whose function version is no longer admitted, where a write
+  answers 409).
+- **An id with a slash cannot be written.** The contract allows any 1 to 128 characters, but the real gateway
+  does not decode `%2F` in the route and answers such a write 400 (checked against product `main` `92ac1ced`);
+  choose ids without `/`.
+- **No capability gates it**, and the contract is held as for Jobs: `ContractOperationParityTests` sends the
+  four operations, `ContractLimitsAndCodesTests` compares the limits, policy names, outcome numbers and the
+  ETag's pattern with the contract's, and `SchedulesClientTests` pins every shape.
+
+Run end to end on 2026-10-03 against the product's real schedule routes, built from product `main`
+`92ac1ced` (36 checks).
 
 ## Uploading a build
 
