@@ -35,7 +35,7 @@ public class Schedule implements Parsable {
      */
     private UUID projectId;
     /**
-     * The scheduleId property
+     * The id the schedule was written under. A write holds an id to the pattern of the definition&apos;s scheduleId member; a schedule written before the pattern was enforced may carry another.
      */
     private String scheduleId;
     /**
@@ -123,7 +123,7 @@ public class Schedule implements Parsable {
         return this.projectId;
     }
     /**
-     * Gets the scheduleId property value. The scheduleId property
+     * Gets the scheduleId property value. The id the schedule was written under. A write holds an id to the pattern of the definition&apos;s scheduleId member; a schedule written before the pattern was enforced may carry another.
      * @return a {@link String}
      */
     @jakarta.annotation.Nullable
@@ -205,7 +205,7 @@ public class Schedule implements Parsable {
         this.projectId = value;
     }
     /**
-     * Sets the scheduleId property value. The scheduleId property
+     * Sets the scheduleId property value. The id the schedule was written under. A write holds an id to the pattern of the definition&apos;s scheduleId member; a schedule written before the pattern was enforced may carry another.
      * @param value Value to set for the scheduleId property.
      */
     public void setScheduleId(@jakarta.annotation.Nullable final String value) {

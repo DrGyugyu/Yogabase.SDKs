@@ -20,7 +20,7 @@ class Schedule(Parsable):
     one_shot_at_utc: Optional[datetime.datetime] = None
     # The projectId property
     project_id: Optional[UUID] = None
-    # The scheduleId property
+    # The id the schedule was written under. A write holds an id to the pattern of the definition's scheduleId member; a schedule written before the pattern was enforced may carry another.
     schedule_id: Optional[str] = None
     # The owner: the sub of the user who created the schedule.
     subject: Optional[UUID] = None

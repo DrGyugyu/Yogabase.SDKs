@@ -12,7 +12,7 @@ import java.util.Objects;
 public class SchedulesRequestBuilder extends BaseRequestBuilder {
     /**
      * Gets an item from the io.stackyoga.yogabase.v1.projects.item.schedules.item collection
-     * @param scheduleId The schedule&apos;s id, chosen by the caller: 1 to 128 characters, trimmed, with no control character. The id is the project&apos;s, so one that another user holds cannot be created (412).
+     * @param scheduleId The schedule&apos;s id: the one it was written under, which a write holds to the pattern of the scheduleId member of the definition (one segment of this path, so there is nothing to escape). The id is the project&apos;s, so one that another user holds cannot be created (412). A schedule written before the pattern was enforced under another id is still found by that id, percent-encoded as any path segment is, by a read, a run and a delete; a write of it is refused, so to change it delete it and create it again under an id that follows the pattern.
      * @return a {@link WithScheduleItemRequestBuilder}
      */
     @jakarta.annotation.Nonnull

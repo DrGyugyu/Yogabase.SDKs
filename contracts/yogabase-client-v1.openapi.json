@@ -274,7 +274,7 @@
       "members": ["limitBytes", "maxBodyBytes"],
       "description": "A payload over the limit, or a body over the largest the write takes, is refused with a problem that names both limits in bytes. The status is the same whichever of the two the gateway finds first."
     },
-    "refusals": "Only the 413 carries a code. The other refusals a schedule route makes itself are application/problem+json with a fixed title and no code: 400, 403, 412, 428 and 503. Some answers carry no body: a token the gateway cannot authenticate is 401, a token without the lambda.invoke scope is 403, a schedule that does not exist or is another user's is 404 to a read, a delete and a run, a write that names a function version that is not an admitted Stateless one of the project (or would turn a recurring schedule into a one-shot or the reverse) is 409, a request body that cannot be read as one JSON object of exactly the documented members is 400, and one that is not JSON is 415. Another user's schedule is never told apart from one that does not exist, except that updating it is 403 and creating a schedule under its id is 412."
+    "refusals": "Only the 413 carries a code. The other refusals a schedule route makes itself are application/problem+json with a fixed title and no code: 400, 403, 412, 428 and 503. Three 400s name their cause in the problem's detail: a definition that leaves out a policy (which member is missing, and what it may be), an id that does not follow the rule of the scheduleId member (the member, the rule and why), and a body whose id is not the path's. Some answers carry no body: a token the gateway cannot authenticate is 401, a token without the lambda.invoke scope is 403, a schedule that does not exist or is another user's is 404 to a read, a delete and a run, a write that names a function version that is not an admitted Stateless one of the project (or would turn a recurring schedule into a one-shot or the reverse) is 409, a run of a schedule whose function version is no longer an admitted Stateless one is 409 as well, a request body that cannot be read as one JSON object of exactly the documented members is 400, and one that is not JSON is 415. Another user's schedule is never told apart from one that does not exist, except that updating it is 403 and creating a schedule under its id is 412."
   },
   "paths": {
     "/v1/client-config/{publishableKey}": {
@@ -879,7 +879,7 @@
     "/v1/projects/{projectId}/schedules/{scheduleId}": {
       "put": {
         "operationId": "putYogabaseSchedule",
-        "description": "Creates or updates the schedule scheduleId as the signed-in user, who then owns it: only the owner reads, changes, deletes or runs it. Create with If-None-Match: * (201); update with the ETag last read as If-Match (200); exactly one of the two, and 428 when neither is sent. The answer is the schedule with its new ETag. The id in the path must be the id in the body. A schedule is recurring (cron, in timeZone) or a one-shot (oneShotAtUtc: it runs once and is then deleted), and an update cannot turn one into the other (409). Its function version must be an admitted Stateless Lambda version of the project, else 409. A request body that cannot be read as one JSON object of exactly the documented members is a bare 400, and one that is not JSON a bare 415; a member that is missing, out of range or invalid (a cron expression that does not parse, an unknown time zone, a payload that is not base64) is a 400 with a problem body, except that a missing policy is not refused (see where each is described). A payload over the limit is 413 schedule_payload_too_large.",
+        "description": "Creates or updates the schedule scheduleId as the signed-in user, who then owns it: only the owner reads, changes, deletes or runs it. Create with If-None-Match: * (201); update with the ETag last read as If-Match (200); exactly one of the two, and 428 when neither is sent. The answer is the schedule with its new ETag. The id in the path must be the id in the body (else a 400 whose problem says so), and must follow the pattern of the definition's scheduleId member (else a 400 whose problem names the member and the rule). A schedule is recurring (cron, in timeZone) or a one-shot (oneShotAtUtc: it runs once and is then deleted), and an update cannot turn one into the other (409). Its function version must be an admitted Stateless Lambda version of the project, else 409. A request body that cannot be read as one JSON object of exactly the documented members is a bare 400, and one that is not JSON a bare 415; a member that is missing, out of range or invalid (a cron expression that does not parse, an unknown time zone, a payload that is not base64) is a 400 with a problem body; a missing misfirePolicy or concurrencyPolicy is refused like any other, and its problem names the member and the names it may take in its detail. A payload over the limit is 413 schedule_payload_too_large.",
         "security": [{ "projectOAuth": ["lambda.invoke"] }],
         "parameters": [
           { "$ref": "#/components/parameters/ProjectId" },
@@ -948,7 +948,7 @@
     "/v1/projects/{projectId}/schedules/{scheduleId}/trigger": {
       "post": {
         "operationId": "triggerYogabaseSchedule",
-        "description": "Runs the caller's own schedule once now, outside its cadence: it enqueues one invocation of the schedule's function with the schedule's payload, as the schedule's owner. The ETag last read is required in If-Match (428 without it, 412 when it is stale), and the idempotency key makes the request repeatable: the same key against the same version answers the same invocation, 202 again with outcome 1 where the first said 0. The deadline is when the invocation must finish: after now and at most an hour from now, else 400. A schedule that does not exist or is another user's is a bare 404. A schedule whose function version is no longer admitted is answered 503 here, where a write answers 409.",
+        "description": "Runs the caller's own schedule once now, outside its cadence: it enqueues one invocation of the schedule's function with the schedule's payload, as the schedule's owner. The ETag last read is required in If-Match (428 without it, 412 when it is stale), and the idempotency key makes the request repeatable: the same key against the same version answers the same invocation, 202 again with outcome 1 where the first said 0. The deadline is when the invocation must finish: after now and at most an hour from now, else 400. A schedule that does not exist or is another user's is a bare 404. A schedule whose function version is no longer an admitted Stateless one of the project is a bare 409, as a write of it is. A run is not an occurrence of the schedule: its concurrencyPolicy neither holds it back nor is held back by it.",
         "security": [{ "projectOAuth": ["lambda.invoke"] }],
         "parameters": [
           { "$ref": "#/components/parameters/ProjectId" },
@@ -967,7 +967,7 @@
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Problem" },
           "404": { "$ref": "#/components/responses/ScheduleNotFound" },
-          "409": { "description": "The queue already holds this key for a different request. The answer has no body." },
+          "409": { "description": "The queue already holds this key for a different request, or the schedule's function version is no longer an admitted Stateless version of the project. The answer has no body." },
           "412": { "$ref": "#/components/responses/Problem" },
           "415": { "$ref": "#/components/responses/UnsupportedMediaType" },
           "428": { "$ref": "#/components/responses/Problem" },
@@ -1166,7 +1166,7 @@
         "name": "scheduleId",
         "in": "path",
         "required": true,
-        "description": "The schedule's id, chosen by the caller: 1 to 128 characters, trimmed, with no control character. The id is the project's, so one that another user holds cannot be created (412).",
+        "description": "The schedule's id: the one it was written under, which a write holds to the pattern of the scheduleId member of the definition (one segment of this path, so there is nothing to escape). The id is the project's, so one that another user holds cannot be created (412). A schedule written before the pattern was enforced under another id is still found by that id, percent-encoded as any path segment is, by a read, a run and a delete; a write of it is refused, so to change it delete it and create it again under an id that follows the pattern.",
         "schema": { "type": "string", "minLength": 1, "maxLength": 128 }
       },
       "ScheduleIfMatch": {
@@ -1810,12 +1810,12 @@
       "MisfirePolicy": {
         "type": "string",
         "enum": ["RunImmediately", "SkipToNextOccurrence", "RunAllMissed"],
-        "description": "What the scheduler does about occurrences it missed while it was unavailable. RunImmediately runs once, now, however many were missed, and resumes the cadence. SkipToNextOccurrence abandons what it missed and resumes at the next occurrence. RunAllMissed runs each missed occurrence, oldest first, up to maxCatchUp. An unknown name is a bare 400. Always send it: the gateway reads a missing one as RunImmediately, the first name, which this contract does not promise."
+        "description": "What the scheduler does about occurrences it missed while it was unavailable. RunImmediately runs once, now, however many were missed, and resumes the cadence. SkipToNextOccurrence abandons what it missed and resumes at the next occurrence. RunAllMissed runs each missed occurrence, oldest first, up to maxCatchUp. An unknown name is a bare 400. Required: a request that leaves it out is a 400 whose problem names the member."
       },
       "ConcurrencyPolicy": {
         "type": "string",
         "enum": ["Allow", "Forbid", "Replace"],
-        "description": "What a schedule asks for when an occurrence is due while the one before it is still running: Allow starts it alongside, Forbid skips it, Replace stops the running one and starts it. The value is checked and stored with the schedule, but the scheduler does not yet look for a running occurrence, so every occurrence starts whichever is chosen. An unknown name is a bare 400. Always send it: the gateway reads a missing one as Allow, the first name, which this contract does not promise."
+        "description": "What a schedule does when an occurrence is due while an earlier occurrence of the same schedule has not finished. An occurrence has not finished while its invocation is queued (waiting to start, or waiting for a retry) or running, and its deadline has not passed. Allow starts the new occurrence alongside. Forbid skips it. Replace ends an earlier occurrence that is still queued, with the failure code schedule_occurrence_replaced, and starts the new one; an occurrence that is already running cannot be stopped, because nothing can interrupt a Lambda that is executing, so while one is running Replace skips the new occurrence, as Forbid does. A skipped occurrence is consumed, not deferred: the schedule moves on to its next occurrence and the skipped one never runs. Forbid never starts an occurrence while an earlier one is in flight, and Replace never while one is running; when several are due at once (RunAllMissed after an outage) Forbid starts only the oldest and Replace only the newest. A manual run is not an occurrence: the policy neither holds it back nor is held back by it, and a one-shot has no earlier occurrence, so the policy does not apply to it. The decision is made in the transaction that enqueues the occurrence, so two schedulers cannot both decide. An unknown name is a bare 400. Required: a request that leaves it out is a 400 whose problem names the member."
       },
       "ScheduleDefinitionRequest": {
         "type": "object",
@@ -1826,7 +1826,8 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 128,
-            "description": "The schedule's id, the same as the path's: 1 to 128 characters, trimmed, with no control character."
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._~:-]{0,127}$",
+            "description": "The schedule's id, chosen by the caller and the same as the path's: 1 to 128 characters, a letter or a digit first and then letters, digits and . _ ~ : - only. The id is one segment of the schedule's URL path, so it is made of what a path segment carries without being escaped (a slash would end the segment, a space or a character outside ASCII would have to be escaped, and no id may be . or .., which URL clients resolve away), and the console addresses the schedule by the same id. An id that does not follow the rule is a 400 whose problem names the member and the rule in its detail."
           },
           "functionId": {
             "type": "string",
@@ -1893,7 +1894,12 @@
         "additionalProperties": false,
         "required": ["scheduleId", "projectId", "subject", "functionId", "functionVersion", "version", "instanceId"],
         "properties": {
-          "scheduleId": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "scheduleId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "The id the schedule was written under. A write holds an id to the pattern of the definition's scheduleId member; a schedule written before the pattern was enforced may carry another."
+          },
           "projectId": { "type": "string", "format": "uuid" },
           "subject": {
             "type": "string",

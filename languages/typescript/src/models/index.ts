@@ -1582,7 +1582,7 @@ export interface Schedule extends Parsable {
      */
     projectId?: Guid | null;
     /**
-     * The scheduleId property
+     * The id the schedule was written under. A write holds an id to the pattern of the definition's scheduleId member; a schedule written before the pattern was enforced may carry another.
      */
     scheduleId?: string | null;
     /**
@@ -1596,7 +1596,7 @@ export interface Schedule extends Parsable {
 }
 export interface ScheduleDefinitionRequest extends Parsable {
     /**
-     * What a schedule asks for when an occurrence is due while the one before it is still running: Allow starts it alongside, Forbid skips it, Replace stops the running one and starts it. The value is checked and stored with the schedule, but the scheduler does not yet look for a running occurrence, so every occurrence starts whichever is chosen. An unknown name is a bare 400. Always send it: the gateway reads a missing one as Allow, the first name, which this contract does not promise.
+     * What a schedule does when an occurrence is due while an earlier occurrence of the same schedule has not finished. An occurrence has not finished while its invocation is queued (waiting to start, or waiting for a retry) or running, and its deadline has not passed. Allow starts the new occurrence alongside. Forbid skips it. Replace ends an earlier occurrence that is still queued, with the failure code schedule_occurrence_replaced, and starts the new one; an occurrence that is already running cannot be stopped, because nothing can interrupt a Lambda that is executing, so while one is running Replace skips the new occurrence, as Forbid does. A skipped occurrence is consumed, not deferred: the schedule moves on to its next occurrence and the skipped one never runs. Forbid never starts an occurrence while an earlier one is in flight, and Replace never while one is running; when several are due at once (RunAllMissed after an outage) Forbid starts only the oldest and Replace only the newest. A manual run is not an occurrence: the policy neither holds it back nor is held back by it, and a one-shot has no earlier occurrence, so the policy does not apply to it. The decision is made in the transaction that enqueues the occurrence, so two schedulers cannot both decide. An unknown name is a bare 400. Required: a request that leaves it out is a 400 whose problem names the member.
      */
     concurrencyPolicy?: ConcurrencyPolicy | null;
     /**
@@ -1624,7 +1624,7 @@ export interface ScheduleDefinitionRequest extends Parsable {
      */
     maxCatchUp?: number | null;
     /**
-     * What the scheduler does about occurrences it missed while it was unavailable. RunImmediately runs once, now, however many were missed, and resumes the cadence. SkipToNextOccurrence abandons what it missed and resumes at the next occurrence. RunAllMissed runs each missed occurrence, oldest first, up to maxCatchUp. An unknown name is a bare 400. Always send it: the gateway reads a missing one as RunImmediately, the first name, which this contract does not promise.
+     * What the scheduler does about occurrences it missed while it was unavailable. RunImmediately runs once, now, however many were missed, and resumes the cadence. SkipToNextOccurrence abandons what it missed and resumes at the next occurrence. RunAllMissed runs each missed occurrence, oldest first, up to maxCatchUp. An unknown name is a bare 400. Required: a request that leaves it out is a 400 whose problem names the member.
      */
     misfirePolicy?: MisfirePolicy | null;
     /**
@@ -1636,7 +1636,7 @@ export interface ScheduleDefinitionRequest extends Parsable {
      */
     payloadBase64?: string | null;
     /**
-     * The schedule's id, the same as the path's: 1 to 128 characters, trimmed, with no control character.
+     * The schedule's id, chosen by the caller and the same as the path's: 1 to 128 characters, a letter or a digit first and then letters, digits and . _ ~ : - only. The id is one segment of the schedule's URL path, so it is made of what a path segment carries without being escaped (a slash would end the segment, a space or a character outside ASCII would have to be escaped, and no id may be . or .., which URL clients resolve away), and the console addresses the schedule by the same id. An id that does not follow the rule is a 400 whose problem names the member and the rule in its detail.
      */
     scheduleId?: string | null;
     /**
@@ -2329,7 +2329,7 @@ export const Capability_idObject = {
     DataRest: "data-rest",
 } as const;
 /**
- * What a schedule asks for when an occurrence is due while the one before it is still running: Allow starts it alongside, Forbid skips it, Replace stops the running one and starts it. The value is checked and stored with the schedule, but the scheduler does not yet look for a running occurrence, so every occurrence starts whichever is chosen. An unknown name is a bare 400. Always send it: the gateway reads a missing one as Allow, the first name, which this contract does not promise.
+ * What a schedule does when an occurrence is due while an earlier occurrence of the same schedule has not finished. An occurrence has not finished while its invocation is queued (waiting to start, or waiting for a retry) or running, and its deadline has not passed. Allow starts the new occurrence alongside. Forbid skips it. Replace ends an earlier occurrence that is still queued, with the failure code schedule_occurrence_replaced, and starts the new one; an occurrence that is already running cannot be stopped, because nothing can interrupt a Lambda that is executing, so while one is running Replace skips the new occurrence, as Forbid does. A skipped occurrence is consumed, not deferred: the schedule moves on to its next occurrence and the skipped one never runs. Forbid never starts an occurrence while an earlier one is in flight, and Replace never while one is running; when several are due at once (RunAllMissed after an outage) Forbid starts only the oldest and Replace only the newest. A manual run is not an occurrence: the policy neither holds it back nor is held back by it, and a one-shot has no earlier occurrence, so the policy does not apply to it. The decision is made in the transaction that enqueues the occurrence, so two schedulers cannot both decide. An unknown name is a bare 400. Required: a request that leaves it out is a 400 whose problem names the member.
  */
 export const ConcurrencyPolicyObject = {
     Allow: "Allow",
@@ -2365,7 +2365,7 @@ export const JobStatusObject = {
     DeadLettered: "DeadLettered",
 } as const;
 /**
- * What the scheduler does about occurrences it missed while it was unavailable. RunImmediately runs once, now, however many were missed, and resumes the cadence. SkipToNextOccurrence abandons what it missed and resumes at the next occurrence. RunAllMissed runs each missed occurrence, oldest first, up to maxCatchUp. An unknown name is a bare 400. Always send it: the gateway reads a missing one as RunImmediately, the first name, which this contract does not promise.
+ * What the scheduler does about occurrences it missed while it was unavailable. RunImmediately runs once, now, however many were missed, and resumes the cadence. SkipToNextOccurrence abandons what it missed and resumes at the next occurrence. RunAllMissed runs each missed occurrence, oldest first, up to maxCatchUp. An unknown name is a bare 400. Required: a request that leaves it out is a 400 whose problem names the member.
  */
 export const MisfirePolicyObject = {
     RunImmediately: "RunImmediately",

@@ -16,7 +16,7 @@ class Schedule implements Parsable {
     DateTime? oneShotAtUtc;
     ///  The projectId property
     UuidValue? projectId;
-    ///  The scheduleId property
+    ///  The id the schedule was written under. A write holds an id to the pattern of the definition's scheduleId member; a schedule written before the pattern was enforced may carry another.
     String? scheduleId;
     ///  The owner: the sub of the user who created the schedule.
     UuidValue? subject;
