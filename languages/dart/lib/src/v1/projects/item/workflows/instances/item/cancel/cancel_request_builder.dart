@@ -30,6 +30,7 @@ class CancelRequestBuilder extends BaseRequestBuilder<CancelRequestBuilder> {
             '403' :  Problem.createFromDiscriminatorValue,
             '404' :  Problem.createFromDiscriminatorValue,
             '409' :  Problem.createFromDiscriminatorValue,
+            '413' :  Problem.createFromDiscriminatorValue,
             '422' :  Problem.createFromDiscriminatorValue,
             '503' :  Problem.createFromDiscriminatorValue,
         };

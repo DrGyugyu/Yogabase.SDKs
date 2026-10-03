@@ -6,6 +6,10 @@ import { ActorsRequestBuilderNavigationMetadata, type ActorsRequestBuilder } fro
 // @ts-ignore
 import { FunctionsRequestBuilderNavigationMetadata, type FunctionsRequestBuilder } from './functions/index.js';
 // @ts-ignore
+import { JobsRequestBuilderNavigationMetadata, JobsRequestBuilderRequestsMetadata, type JobsRequestBuilder } from './jobs/index.js';
+// @ts-ignore
+import { SchedulesRequestBuilderNavigationMetadata, type SchedulesRequestBuilder } from './schedules/index.js';
+// @ts-ignore
 import { type WorkflowsRequestBuilder, WorkflowsRequestBuilderNavigationMetadata } from './workflows/index.js';
 // @ts-ignore
 import { type BaseRequestBuilder, type KeysToExcludeForNavigationMetadata, type NavigationMetadata } from '@microsoft/kiota-abstractions';
@@ -22,6 +26,14 @@ export interface WithProjectItemRequestBuilder extends BaseRequestBuilder<WithPr
      * The functions property
      */
     get functions(): FunctionsRequestBuilder;
+    /**
+     * The jobs property
+     */
+    get jobs(): JobsRequestBuilder;
+    /**
+     * The schedules property
+     */
+    get schedules(): SchedulesRequestBuilder;
     /**
      * The workflows property
      */
@@ -40,6 +52,13 @@ export const WithProjectItemRequestBuilderNavigationMetadata: Record<Exclude<key
     },
     functions: {
         navigationMetadata: FunctionsRequestBuilderNavigationMetadata,
+    },
+    jobs: {
+        requestsMetadata: JobsRequestBuilderRequestsMetadata,
+        navigationMetadata: JobsRequestBuilderNavigationMetadata,
+    },
+    schedules: {
+        navigationMetadata: SchedulesRequestBuilderNavigationMetadata,
     },
     workflows: {
         navigationMetadata: WorkflowsRequestBuilderNavigationMetadata,

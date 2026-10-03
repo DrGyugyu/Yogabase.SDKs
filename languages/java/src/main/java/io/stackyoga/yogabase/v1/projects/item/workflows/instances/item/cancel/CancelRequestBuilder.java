@@ -43,6 +43,7 @@ public class CancelRequestBuilder extends BaseRequestBuilder {
      * @throws Problem When receiving a 403 status code
      * @throws Problem When receiving a 404 status code
      * @throws Problem When receiving a 409 status code
+     * @throws Problem When receiving a 413 status code
      * @throws Problem When receiving a 422 status code
      * @throws Problem When receiving a 503 status code
      */
@@ -58,6 +59,7 @@ public class CancelRequestBuilder extends BaseRequestBuilder {
      * @throws Problem When receiving a 403 status code
      * @throws Problem When receiving a 404 status code
      * @throws Problem When receiving a 409 status code
+     * @throws Problem When receiving a 413 status code
      * @throws Problem When receiving a 422 status code
      * @throws Problem When receiving a 503 status code
      */
@@ -70,6 +72,7 @@ public class CancelRequestBuilder extends BaseRequestBuilder {
         errorMapping.put("403", Problem::createFromDiscriminatorValue);
         errorMapping.put("404", Problem::createFromDiscriminatorValue);
         errorMapping.put("409", Problem::createFromDiscriminatorValue);
+        errorMapping.put("413", Problem::createFromDiscriminatorValue);
         errorMapping.put("422", Problem::createFromDiscriminatorValue);
         errorMapping.put("503", Problem::createFromDiscriminatorValue);
         this.requestAdapter.sendPrimitive(requestInfo, errorMapping, Void.class);

@@ -32,6 +32,7 @@ class InvokeRequestBuilder extends BaseRequestBuilder<InvokeRequestBuilder> {
             '404' :  Problem.createFromDiscriminatorValue,
             '408' :  ActorInvocationResult.createFromDiscriminatorValue,
             '409' :  ActorInvocationResult.createFromDiscriminatorValue,
+            '413' :  Problem.createFromDiscriminatorValue,
             '422' :  ActorInvocationResult.createFromDiscriminatorValue,
             '503' :  Problem.createFromDiscriminatorValue,
         };

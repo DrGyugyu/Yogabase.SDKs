@@ -20,6 +20,7 @@ export interface StartRequestBuilder extends BaseRequestBuilder<StartRequestBuil
      * @throws {Problem} error when the service returns a 403 status code
      * @throws {Problem} error when the service returns a 404 status code
      * @throws {Problem} error when the service returns a 409 status code
+     * @throws {Problem} error when the service returns a 413 status code
      * @throws {Problem} error when the service returns a 422 status code
      * @throws {Problem} error when the service returns a 503 status code
      */
@@ -49,6 +50,7 @@ export const StartRequestBuilderRequestsMetadata: RequestsMetadata = {
             403: createProblemFromDiscriminatorValue as ParsableFactory<Parsable>,
             404: createProblemFromDiscriminatorValue as ParsableFactory<Parsable>,
             409: createProblemFromDiscriminatorValue as ParsableFactory<Parsable>,
+            413: createProblemFromDiscriminatorValue as ParsableFactory<Parsable>,
             422: createProblemFromDiscriminatorValue as ParsableFactory<Parsable>,
             503: createProblemFromDiscriminatorValue as ParsableFactory<Parsable>,
         },

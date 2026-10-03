@@ -22,14 +22,17 @@
       "maximumReturnedRows": 1000,
       "maximumResultBytes": 4194304,
       "maximumValueBytes": 1048576,
+      "maximumRequestBytes": 1114112,
       "statementTimeoutSeconds": 5
     },
+    "requestBody": "A request is one JSON document of at most maximumRequestBytes bytes as sent, escapes included: a value of maximumValueBytes and 64 KiB for the structure around it, so the largest value fits in a request. A value's size is measured on its text form, so a string a writer inflated with escapes (a .NET encoder writes an angle bracket, a quotation mark or a plus sign as six bytes) counts for what it weighs on the wire. A request over the limit is refused 413 with the code data_request_too_large, naming both limits in bytes (limitBytes for a value, maxBodyBytes for the whole document), whether the gateway finds the body too large or a Lambda's typed call does.",
     "filterOperators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "like", "ilike", "isNull", "notNull"],
     "refusalCodes": [
       "canonical_subject_required",
       "project_binding_required",
       "project_binding_mismatch",
       "data_request_invalid",
+      "data_request_too_large",
       "data_operation_unknown",
       "data_table_not_exposed",
       "data_column_not_exposed",
@@ -170,6 +173,108 @@
       "members": ["limitBytes", "maxBodyBytes"],
       "description": "A payload over the limit, or a body over the largest the route takes, is refused with a problem that names the limits. The status is the same whichever of the two the gateway finds first."
     }
+  },
+  "x-yogabase-orleans-payload": {
+    "scope": "The actor invoke route, POST /v1/projects/{projectId}/actors/{functionId}/versions/{functionVersion}/instances/{instanceKey}/invoke, the workflow start route, POST /v1/projects/{projectId}/workflows/{workflowId}/versions/{definitionVersion}/start, and the workflow cancel route, POST /v1/projects/{projectId}/workflows/instances/{workflowInstanceId}/cancel.",
+    "limits": {
+      "maximumPayloadBytes": 491520,
+      "maximumPayloadBase64Characters": 655360,
+      "maximumRequestBodyBytes": {
+        "actorInvoke": 3935575,
+        "workflowStart": 3934405,
+        "workflowCancel": 3934417
+      }
+    },
+    "payload": "A request's payload (an actor invocation's payload, a workflow's start input, a workflow cancel's payload) may be at most maximumPayloadBytes before base64 encoding, sent inline as its base64 text member.",
+    "requestBody": "The whole request body may be at most the route's maximumRequestBodyBytes: the largest compact JSON document the request can be with its payload at the limit, taking each character of a string as the longest escape a JSON writer may use (six bytes), exactly as on the function invoke route, so a request at the payload limit is accepted however its bytes encode.",
+    "refusal": {
+      "status": 413,
+      "code": "payload_too_large",
+      "members": ["limitBytes", "maxBodyBytes"],
+      "description": "A payload over the limit, or a body over the largest the route takes, is refused with a problem that names the limits. The status is the same whichever of the two the gateway finds first."
+    }
+  },
+  "x-yogabase-jobs": {
+    "scope": "The durable Jobs routes: submit, read, cancel and fetch the result of one job, under /v1/projects/{projectId}/jobs.",
+    "availability": "Served only by a runtime that enabled Jobs, and reached only with a valid project token, which exists only where Authentication is on. A request with a valid token to a runtime that did not enable Jobs answers 404 with no body, and the bootstrap document carries no capability row for them.",
+    "limits": {
+      "maximumJobTypeLength": 128,
+      "maximumIdempotencyKeyLength": 256,
+      "maximumPayloadBytes": 1048576,
+      "maximumPayloadBase64Characters": 1398104,
+      "maximumRequestBodyBytes": 8391225,
+      "defaultMaxAttempts": 5,
+      "maximumAttempts": 10,
+      "maximumResultBytes": 16777216
+    },
+    "requestBody": "The whole submit body may be at most maximumRequestBodyBytes: the largest compact JSON document the request can be with its payload at the limit, each character of a string taken as the longest escape a JSON writer may use (six bytes), as x-yogabase-inline-payload explains for the function invoke route. A request at the payload limit is therefore accepted however its bytes encode.",
+    "refusal": {
+      "status": 413,
+      "code": "job_payload_too_large",
+      "members": ["limitBytes", "maxBodyBytes"],
+      "description": "A payload over the limit, or a body over the largest the route takes, is refused with a problem that names both limits in bytes. The status is the same whichever of the two the gateway finds first."
+    },
+    "refusals": "Every refusal a Jobs route makes itself is application/problem+json with a stable code and a fixed title that names no job, key, object or ledger detail. Some are answered before any job check and carry no body: a token the gateway cannot authenticate is 401, a token without the lambda.invoke scope is 403, a request body that cannot be read as one JSON object of exactly the documented members is 400, and one that is not JSON is 415. Another user's job is never told apart from one that does not exist.",
+    "refusalCodes": {
+      "submit": {
+        "job_request_invalid": 400,
+        "job_access_denied": 403,
+        "job_idempotency_conflict": 409,
+        "job_payload_too_large": 413,
+        "job_type_not_registered": 422,
+        "job_unavailable": 503
+      },
+      "get": {
+        "job_request_invalid": 400,
+        "job_access_denied": 403,
+        "job_not_found": 404,
+        "job_unavailable": 503
+      },
+      "cancel": {
+        "job_request_invalid": 400,
+        "job_access_denied": 403,
+        "job_not_found": 404,
+        "job_unavailable": 503
+      },
+      "result": {
+        "job_request_invalid": 400,
+        "job_access_denied": 403,
+        "job_result_not_found": 404,
+        "job_result_not_ready": 409,
+        "job_result_reference_invalid": 500,
+        "job_result_integrity_failed": 502,
+        "job_unavailable": 503
+      }
+    }
+  },
+  "x-yogabase-schedules": {
+    "scope": "The schedule routes: write (create or update), read, delete and run once one schedule, under /v1/projects/{projectId}/schedules/{scheduleId}.",
+    "availability": "Served only by a runtime that enabled the Scheduler, and reached only with a valid project token, which exists only where Authentication is on. A request with a valid token to a runtime that did not enable the Scheduler answers 404 with no body, and the bootstrap document carries no capability row for them.",
+    "limits": {
+      "maximumScheduleIdLength": 128,
+      "maximumFunctionIdLength": 256,
+      "maximumFunctionVersionLength": 64,
+      "maximumCronLength": 128,
+      "maximumTimeZoneIdLength": 128,
+      "maximumCatchUp": 128,
+      "maximumAttempts": 16,
+      "minimumDeadlineSeconds": 1,
+      "maximumDeadlineSeconds": 86400,
+      "maximumIdempotencyKeyLength": 256,
+      "maximumManualDeadlineSeconds": 3600,
+      "maximumPayloadBytes": 1048576,
+      "maximumPayloadBase64Characters": 1398104,
+      "maximumRequestBodyBytes": 8394167
+    },
+    "concurrency": "A schedule has a version, which changes whenever the schedule does (a write, or the scheduler recording an occurrence), and an instance, which lasts until the schedule is deleted. Both are in the ETag that every read and write answers, \"schedule-v<version>-<instance>\". To create a schedule send If-None-Match: *; to change, delete or run one send the ETag last read as If-Match. A stale ETag, a create of an id that is already held, and an update of a schedule that does not exist are each 412 and change nothing; a request with no precondition is 428; a precondition that is not of this form, both headers together, and the retired expectedVersion and expectedInstanceId query parameters are 400. Because the scheduler advances a recurring schedule's version as it runs, a client that holds its ETag for long finds it stale: read it again.",
+    "requestBody": "The whole write body may be at most maximumRequestBodyBytes: the largest compact JSON document a definition can be with its payload at the limit, each character of a string taken as the longest escape a JSON writer may use (six bytes), as x-yogabase-inline-payload explains for the function invoke route. The cron expression and the time zone are bounded at 128 characters each so that this largest document is a real one. A request at the payload limit is therefore accepted however its bytes encode.",
+    "refusal": {
+      "status": 413,
+      "code": "schedule_payload_too_large",
+      "members": ["limitBytes", "maxBodyBytes"],
+      "description": "A payload over the limit, or a body over the largest the write takes, is refused with a problem that names both limits in bytes. The status is the same whichever of the two the gateway finds first."
+    },
+    "refusals": "Only the 413 carries a code. The other refusals a schedule route makes itself are application/problem+json with a fixed title and no code: 400, 403, 412, 428 and 503. Some answers carry no body: a token the gateway cannot authenticate is 401, a token without the lambda.invoke scope is 403, a schedule that does not exist or is another user's is 404 to a read, a delete and a run, a write that names a function version that is not an admitted Stateless one of the project (or would turn a recurring schedule into a one-shot or the reverse) is 409, a request body that cannot be read as one JSON object of exactly the documented members is 400, and one that is not JSON is 415. Another user's schedule is never told apart from one that does not exist, except that updating it is 403 and creating a schedule under its id is 412."
   },
   "paths": {
     "/v1/client-config/{publishableKey}": {
@@ -417,7 +522,7 @@
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Problem" },
           "409": { "$ref": "#/components/responses/Problem" },
-          "413": { "$ref": "#/components/responses/Problem" },
+          "413": { "$ref": "#/components/responses/DataTooLarge" },
           "503": { "$ref": "#/components/responses/Problem" }
         }
       }
@@ -438,7 +543,7 @@
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Problem" },
           "409": { "$ref": "#/components/responses/Problem" },
-          "413": { "$ref": "#/components/responses/Problem" },
+          "413": { "$ref": "#/components/responses/DataTooLarge" },
           "503": { "$ref": "#/components/responses/Problem" }
         }
       }
@@ -459,7 +564,7 @@
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Problem" },
           "409": { "$ref": "#/components/responses/Problem" },
-          "413": { "$ref": "#/components/responses/Problem" },
+          "413": { "$ref": "#/components/responses/DataTooLarge" },
           "503": { "$ref": "#/components/responses/Problem" }
         }
       }
@@ -480,7 +585,7 @@
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Problem" },
           "409": { "$ref": "#/components/responses/Problem" },
-          "413": { "$ref": "#/components/responses/Problem" },
+          "413": { "$ref": "#/components/responses/DataTooLarge" },
           "503": { "$ref": "#/components/responses/Problem" }
         }
       }
@@ -501,7 +606,7 @@
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Problem" },
           "409": { "$ref": "#/components/responses/Problem" },
-          "413": { "$ref": "#/components/responses/Problem" },
+          "413": { "$ref": "#/components/responses/DataTooLarge" },
           "503": { "$ref": "#/components/responses/Problem" }
         }
       }
@@ -608,6 +713,7 @@
           "404": { "$ref": "#/components/responses/Problem" },
           "408": { "$ref": "#/components/responses/ActorInvocationResult" },
           "409": { "$ref": "#/components/responses/ActorInvocationResult" },
+          "413": { "$ref": "#/components/responses/PayloadTooLarge" },
           "422": { "$ref": "#/components/responses/ActorInvocationResult" },
           "503": { "$ref": "#/components/responses/Problem" }
         }
@@ -636,6 +742,7 @@
           "403": { "$ref": "#/components/responses/Problem" },
           "404": { "$ref": "#/components/responses/Problem" },
           "409": { "$ref": "#/components/responses/Problem" },
+          "413": { "$ref": "#/components/responses/PayloadTooLarge" },
           "422": { "$ref": "#/components/responses/Problem" },
           "503": { "$ref": "#/components/responses/Problem" }
         }
@@ -663,7 +770,207 @@
           "403": { "$ref": "#/components/responses/Problem" },
           "404": { "$ref": "#/components/responses/Problem" },
           "409": { "$ref": "#/components/responses/Problem" },
+          "413": { "$ref": "#/components/responses/PayloadTooLarge" },
           "422": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/projects/{projectId}/jobs": {
+      "post": {
+        "operationId": "submitYogabaseJob",
+        "description": "Starts one durable run of a deployed stateless function as the signed-in user. The job type is the id of a deployed stateless function, run by its highest released version; an id no released function carries is 422 job_type_not_registered and records nothing. The idempotency key is a member of the body, belongs to the signed-in user, and binds the whole request (job type, payload and maxAttempts): the same request under it answers the job it already made, 202 again and in whatever state that job has reached, and a different request under it is 409 job_idempotency_conflict. The 202 carries the job's own route in Location. A request body that cannot be read as one JSON object of exactly the documented members is a bare 400, and one that is not JSON a bare 415; a member that is missing or out of range (an empty or over-long job type or key, maxAttempts outside 1 to 10, a payload that is not base64) is 400 job_request_invalid.",
+        "security": [{ "projectOAuth": ["lambda.invoke"] }],
+        "parameters": [{ "$ref": "#/components/parameters/ProjectId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/JobSubmitRequest" } }
+          }
+        },
+        "responses": {
+          "202": { "$ref": "#/components/responses/JobAccepted" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "413": { "$ref": "#/components/responses/JobPayloadTooLarge" },
+          "415": { "$ref": "#/components/responses/UnsupportedMediaType" },
+          "422": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/projects/{projectId}/jobs/{jobId}": {
+      "get": {
+        "operationId": "getYogabaseJob",
+        "description": "Reads the caller's own job: its state, how far it has got and how it ended. Another user's job is answered exactly as one that does not exist, 404 job_not_found.",
+        "security": [{ "projectOAuth": ["lambda.invoke"] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/JobId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Job" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/projects/{projectId}/jobs/{jobId}/cancel": {
+      "post": {
+        "operationId": "cancelYogabaseJob",
+        "description": "Asks for the caller's own job to stop, idempotently, and returns it: a queued job is cancelled at once, a running one is flagged (cancellationRequested) and stopped by its worker, and a job that has settled is returned as it is. The request takes no body. Another user's job is 404 job_not_found.",
+        "security": [{ "projectOAuth": ["lambda.invoke"] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/JobId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Job" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/projects/{projectId}/jobs/{jobId}/result": {
+      "get": {
+        "operationId": "getYogabaseJobResult",
+        "description": "The result of the caller's own succeeded job: the bytes its function returned, exactly as it returned them, from one byte to 16 MiB. The gateway reads the stored object twice, once to check it against the digest the job recorded and once to send it, so no byte leaves before all of them have been checked; that digest is in X-Yogabase-Content-Sha256. 404 job_result_not_found is the one answer for another user's job, an id that does not exist, and a job that finished without a result (cancelled, dead-lettered, or succeeded with none), so it never says which. 409 job_result_not_ready is the caller's own job that has not settled. 500 job_result_reference_invalid and 502 job_result_integrity_failed mean the stored result is not the one the job recorded, and send no byte of it.",
+        "security": [{ "projectOAuth": ["lambda.invoke"] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/JobId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "The result bytes, never cached and never sniffed, with the SHA-256 they were checked against.",
+            "headers": {
+              "X-Yogabase-Content-Sha256": {
+                "description": "The digest the body was checked against: sha256: and 64 lowercase hexadecimal digits.",
+                "schema": { "$ref": "#/components/schemas/Sha256Digest" }
+              },
+              "Cache-Control": { "schema": { "type": "string", "const": "private, no-store" } },
+              "X-Content-Type-Options": { "schema": { "type": "string", "const": "nosniff" } }
+            },
+            "content": {
+              "application/octet-stream": {
+                "schema": { "type": "string", "contentEncoding": "binary" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "409": { "$ref": "#/components/responses/Problem" },
+          "500": { "$ref": "#/components/responses/Problem" },
+          "502": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/projects/{projectId}/schedules/{scheduleId}": {
+      "put": {
+        "operationId": "putYogabaseSchedule",
+        "description": "Creates or updates the schedule scheduleId as the signed-in user, who then owns it: only the owner reads, changes, deletes or runs it. Create with If-None-Match: * (201); update with the ETag last read as If-Match (200); exactly one of the two, and 428 when neither is sent. The answer is the schedule with its new ETag. The id in the path must be the id in the body. A schedule is recurring (cron, in timeZone) or a one-shot (oneShotAtUtc: it runs once and is then deleted), and an update cannot turn one into the other (409). Its function version must be an admitted Stateless Lambda version of the project, else 409. A request body that cannot be read as one JSON object of exactly the documented members is a bare 400, and one that is not JSON a bare 415; a member that is missing, out of range or invalid (a cron expression that does not parse, an unknown time zone, a payload that is not base64) is a 400 with a problem body, except that a missing policy is not refused (see where each is described). A payload over the limit is 413 schedule_payload_too_large.",
+        "security": [{ "projectOAuth": ["lambda.invoke"] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/ScheduleId" },
+          { "$ref": "#/components/parameters/ScheduleUpdateIfMatch" },
+          { "$ref": "#/components/parameters/ScheduleCreateIfNoneMatch" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/ScheduleDefinitionRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Schedule" },
+          "201": { "$ref": "#/components/responses/Schedule" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "409": { "description": "The function version is not an admitted Stateless version of the project, or the update would turn a recurring schedule into a one-shot or the reverse. The answer has no body." },
+          "412": { "$ref": "#/components/responses/Problem" },
+          "413": { "$ref": "#/components/responses/SchedulePayloadTooLarge" },
+          "415": { "$ref": "#/components/responses/UnsupportedMediaType" },
+          "428": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      },
+      "get": {
+        "operationId": "getYogabaseSchedule",
+        "description": "Reads the caller's own schedule, with the ETag to send as If-Match to change, delete or run it. A schedule that does not exist and one that is another user's are the same bare 404.",
+        "security": [{ "projectOAuth": ["lambda.invoke"] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/ScheduleId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Schedule" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/ScheduleNotFound" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      },
+      "delete": {
+        "operationId": "deleteYogabaseSchedule",
+        "description": "Deletes the caller's own schedule, 204. The ETag last read is required in If-Match: 428 without it, 412 when it is stale. A schedule that does not exist or is another user's is a bare 404, to a request whose ETag is well formed whatever version it names.",
+        "security": [{ "projectOAuth": ["lambda.invoke"] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/ScheduleId" },
+          { "$ref": "#/components/parameters/ScheduleIfMatch" }
+        ],
+        "responses": {
+          "204": { "$ref": "#/components/responses/NoContent" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/ScheduleNotFound" },
+          "412": { "$ref": "#/components/responses/Problem" },
+          "428": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/projects/{projectId}/schedules/{scheduleId}/trigger": {
+      "post": {
+        "operationId": "triggerYogabaseSchedule",
+        "description": "Runs the caller's own schedule once now, outside its cadence: it enqueues one invocation of the schedule's function with the schedule's payload, as the schedule's owner. The ETag last read is required in If-Match (428 without it, 412 when it is stale), and the idempotency key makes the request repeatable: the same key against the same version answers the same invocation, 202 again with outcome 1 where the first said 0. The deadline is when the invocation must finish: after now and at most an hour from now, else 400. A schedule that does not exist or is another user's is a bare 404. A schedule whose function version is no longer admitted is answered 503 here, where a write answers 409.",
+        "security": [{ "projectOAuth": ["lambda.invoke"] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/ScheduleId" },
+          { "$ref": "#/components/parameters/ScheduleIfMatch" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/ScheduleTriggerRequest" } }
+          }
+        },
+        "responses": {
+          "202": { "$ref": "#/components/responses/ScheduleTriggered" },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/ScheduleNotFound" },
+          "409": { "description": "The queue already holds this key for a different request. The answer has no body." },
+          "412": { "$ref": "#/components/responses/Problem" },
+          "415": { "$ref": "#/components/responses/UnsupportedMediaType" },
+          "428": { "$ref": "#/components/responses/Problem" },
           "503": { "$ref": "#/components/responses/Problem" }
         }
       }
@@ -847,6 +1154,41 @@
         "in": "path",
         "required": true,
         "schema": { "type": "string", "format": "uuid" }
+      },
+      "JobId": {
+        "name": "jobId",
+        "in": "path",
+        "required": true,
+        "description": "A job's id, as returned by submit. An id that is not a uuid in its hyphenated form, or is the all-zero uuid, is 400 job_request_invalid.",
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "ScheduleId": {
+        "name": "scheduleId",
+        "in": "path",
+        "required": true,
+        "description": "The schedule's id, chosen by the caller: 1 to 128 characters, trimmed, with no control character. The id is the project's, so one that another user holds cannot be created (412).",
+        "schema": { "type": "string", "minLength": 1, "maxLength": 128 }
+      },
+      "ScheduleIfMatch": {
+        "name": "If-Match",
+        "in": "header",
+        "required": true,
+        "description": "The ETag of the schedule as last read, quoted exactly as the gateway sent it: \"schedule-v<version>-<instance>\". 428 when absent, 412 when stale, 400 when it is not an ETag of this form (a weak or an unquoted one included).",
+        "schema": { "$ref": "#/components/schemas/ScheduleETag" }
+      },
+      "ScheduleUpdateIfMatch": {
+        "name": "If-Match",
+        "in": "header",
+        "required": false,
+        "description": "Sent to update: the ETag of the schedule as last read, quoted exactly as the gateway sent it. Send this or If-None-Match, not both; 428 when neither is sent.",
+        "schema": { "$ref": "#/components/schemas/ScheduleETag" }
+      },
+      "ScheduleCreateIfNoneMatch": {
+        "name": "If-None-Match",
+        "in": "header",
+        "required": false,
+        "description": "Sent as * to create. Send this or If-Match, not both; 428 when neither is sent. Creating a schedule that already exists is 412.",
+        "schema": { "type": "string", "const": "*" }
       }
     },
     "responses": {
@@ -874,6 +1216,12 @@
         "description": "The rows (each as the database rendered it) and how many rows the statement touched.",
         "content": {
           "application/json": { "schema": { "$ref": "#/components/schemas/DataResult" } }
+        }
+      },
+      "DataTooLarge": {
+        "description": "The request document is over the largest the route takes (code data_request_too_large, naming both limits in bytes: limitBytes for a value and maxBodyBytes for the whole document), or the rows the statement returned are over the result limit (code data_result_too_large).",
+        "content": {
+          "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } }
         }
       },
       "ObjectWrite": {
@@ -906,6 +1254,43 @@
           "application/json": { "schema": { "$ref": "#/components/schemas/WorkflowStartResult" } }
         }
       },
+      "Job": {
+        "description": "One durable job: its state, how far it has got and how it ended. Its payload and its lease never travel back.",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/Job" } }
+        }
+      },
+      "JobAccepted": {
+        "description": "The job as accepted, or the job the same request already made.",
+        "headers": {
+          "Location": {
+            "description": "The job's own route, /v1/projects/{projectId}/jobs/{jobId}, relative to the gateway origin.",
+            "schema": { "type": "string" }
+          }
+        },
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/Job" } }
+        }
+      },
+      "Schedule": {
+        "description": "One schedule as the gateway holds it, and the ETag of this version of it.",
+        "headers": {
+          "ETag": {
+            "description": "The schedule's ETag: send it as If-Match to change, delete or run exactly this version.",
+            "schema": { "$ref": "#/components/schemas/ScheduleETag" }
+          }
+        },
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/Schedule" } }
+        }
+      },
+      "ScheduleTriggered": {
+        "description": "The invocation the run made, or the one the same key already made.",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/ScheduleTriggerResult" } }
+        }
+      },
+      "ScheduleNotFound": { "description": "The schedule does not exist, or is another user's: the answer is the same and has no body." },
       "NoContent": { "description": "Request accepted without secret-bearing output." },
       "Unauthorized": {
         "description": "A valid canonical project bearer subject is required.",
@@ -914,7 +1299,19 @@
         }
       },
       "PayloadTooLarge": {
-        "description": "The request payload is over the inline limit, or the request body is over the largest the route takes. The problem's code is payload_too_large, and it names both limits in bytes: limitBytes for the payload and maxBodyBytes for the whole body.",
+        "description": "The request payload is over the route's payload limit (the inline limit on the function invoke route, the 480 KiB of the actor and workflow routes), or the request body is over the largest the route takes. The problem's code is payload_too_large, and it names both limits in bytes: limitBytes for the payload and maxBodyBytes for the whole body.",
+        "content": {
+          "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } }
+        }
+      },
+      "JobPayloadTooLarge": {
+        "description": "The job payload is over 1 MiB before base64 encoding, or the request body is over the largest the route takes. The problem's code is job_payload_too_large, and it names both limits in bytes: limitBytes for the payload and maxBodyBytes for the whole body.",
+        "content": {
+          "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } }
+        }
+      },
+      "SchedulePayloadTooLarge": {
+        "description": "The schedule's payload is over 1 MiB before base64 encoding, or the request body is over the largest the write takes. The problem's code is schedule_payload_too_large, and it names both limits in bytes: limitBytes for the payload and maxBodyBytes for the whole body.",
         "content": {
           "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } }
         }
@@ -930,7 +1327,8 @@
         "content": {
           "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } }
         }
-      }
+      },
+      "UnsupportedMediaType": { "description": "The request body is not JSON. The answer has no body." }
     },
     "schemas": {
       "GameServerStartRequest": {
@@ -1317,6 +1715,249 @@
           "idempotencyKey": { "type": "string", "minLength": 1, "maxLength": 256 },
           "payloadDigest": { "$ref": "#/components/schemas/Sha256Digest" },
           "inlinePayloadBase64": { "type": "string", "contentEncoding": "base64", "maxLength": 655360 }
+        }
+      },
+      "JobSubmitRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["jobType", "idempotencyKey"],
+        "properties": {
+          "jobType": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+            "description": "The id of a deployed stateless function; its highest released version runs the job."
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "The caller's key for this request: trimmed, with no control character. It belongs to the signed-in user, who may repeat it for the same request and for no other."
+          },
+          "payloadBase64": {
+            "type": ["string", "null"],
+            "contentEncoding": "base64",
+            "maxLength": 1398104,
+            "description": "The function's request, at most 1,048,576 bytes before base64 encoding. Absent, null or empty is a job that carries none."
+          },
+          "maxAttempts": {
+            "type": ["integer", "null"],
+            "format": "int32",
+            "minimum": 1,
+            "maximum": 10,
+            "description": "How many times the job may be attempted. Absent or null is 5. The idempotency key binds it, with the job type and the payload."
+          }
+        }
+      },
+      "JobStatus": {
+        "type": "string",
+        "enum": ["Queued", "Running", "Succeeded", "Failed", "Cancelled", "DeadLettered"],
+        "description": "Queued and Running are in progress. Succeeded, Cancelled and DeadLettered are final: nothing about the job changes again. A failed attempt sends the job back to Queued for its next attempt, or on to DeadLettered once maxAttempts attempts have started. Failed names a failed attempt between those two, is never final, and is not a state the ledger records: a client that reads it treats the job as in progress."
+      },
+      "Job": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["jobId", "jobType", "status", "attempt", "maxAttempts", "progressPercent", "cancellationRequested", "createdAt", "updatedAt"],
+        "properties": {
+          "jobId": { "type": "string", "format": "uuid" },
+          "jobType": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "status": { "$ref": "#/components/schemas/JobStatus" },
+          "attempt": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "maximum": 10,
+            "description": "How many attempts have started: 0 until a worker first claims the job, and never more than maxAttempts."
+          },
+          "maxAttempts": { "type": "integer", "format": "int32", "minimum": 1, "maximum": 10 },
+          "progressPercent": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "How far the job reports it has got; 100 once it has succeeded."
+          },
+          "cancellationRequested": {
+            "type": "boolean",
+            "description": "True once the job's owner has asked for it to stop, and so on a cancelled job."
+          },
+          "resultReference": {
+            "type": ["string", "null"],
+            "pattern": "^object://",
+            "maxLength": 2048,
+            "description": "A name for the stored result, not a capability: the bytes are read from the result route. Null while there is none."
+          },
+          "failureCode": {
+            "type": ["string", "null"],
+            "pattern": "^[a-z0-9_]{1,128}$",
+            "description": "Why the last failed attempt failed, as a stable code. Null until an attempt fails, and again once the job succeeds or is cancelled."
+          },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "completedAt": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "When the job became Succeeded, Cancelled or DeadLettered. Null before."
+          }
+        }
+      },
+      "ScheduleETag": {
+        "type": "string",
+        "pattern": "^\"schedule-v[1-9][0-9]*-[0-9a-f]{32}\"$",
+        "description": "The quotes included: \"schedule-v\", the schedule's version in decimal, a hyphen, and its instance as 32 lowercase hexadecimal digits. The gateway never issues a token whose instance is all zeros or whose version does not fit a 64-bit integer, and refuses one, as it does any token that is not its own, with 400."
+      },
+      "MisfirePolicy": {
+        "type": "string",
+        "enum": ["RunImmediately", "SkipToNextOccurrence", "RunAllMissed"],
+        "description": "What the scheduler does about occurrences it missed while it was unavailable. RunImmediately runs once, now, however many were missed, and resumes the cadence. SkipToNextOccurrence abandons what it missed and resumes at the next occurrence. RunAllMissed runs each missed occurrence, oldest first, up to maxCatchUp. An unknown name is a bare 400. Always send it: the gateway reads a missing one as RunImmediately, the first name, which this contract does not promise."
+      },
+      "ConcurrencyPolicy": {
+        "type": "string",
+        "enum": ["Allow", "Forbid", "Replace"],
+        "description": "What a schedule asks for when an occurrence is due while the one before it is still running: Allow starts it alongside, Forbid skips it, Replace stops the running one and starts it. The value is checked and stored with the schedule, but the scheduler does not yet look for a running occurrence, so every occurrence starts whichever is chosen. An unknown name is a bare 400. Always send it: the gateway reads a missing one as Allow, the first name, which this contract does not promise."
+      },
+      "ScheduleDefinitionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["scheduleId", "functionId", "functionVersion", "cron", "timeZone", "misfirePolicy", "concurrencyPolicy", "maxCatchUp", "maxAttempts", "deadlineSeconds"],
+        "properties": {
+          "scheduleId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "The schedule's id, the same as the path's: 1 to 128 characters, trimmed, with no control character."
+          },
+          "functionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "The id of a deployed Stateless Lambda."
+          },
+          "functionVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "The exact released version of that function which every occurrence runs. It must be admitted for the project, and an update checks it again."
+          },
+          "cron": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Five fields, minute hour day-of-month month day-of-week, each a number, *, a list (1,15), a range (1-5), a step (*/5 or 8-18/2) or, for the month and the day of the week, a name (JAN, MON); 7 is Sunday. No seconds field and no @ macros. It is evaluated in timeZone. A one-shot still sends a valid expression, which does not decide when it runs."
+          },
+          "timeZone": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "The time zone the cron expression is evaluated in, by the id the gateway's system knows it by (UTC, Asia/Seoul). An unknown one is 400."
+          },
+          "misfirePolicy": { "$ref": "#/components/schemas/MisfirePolicy" },
+          "concurrencyPolicy": { "$ref": "#/components/schemas/ConcurrencyPolicy" },
+          "maxCatchUp": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "maximum": 128,
+            "description": "The most missed occurrences RunAllMissed runs after an outage. The other policies ignore it."
+          },
+          "maxAttempts": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "maximum": 16,
+            "description": "How many times an occurrence's invocation may be attempted."
+          },
+          "deadlineSeconds": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "maximum": 86400,
+            "description": "How long an occurrence's invocation has to finish, counted from when the scheduler starts it: the poll that finds the occurrence due, which is a little after its time."
+          },
+          "payloadBase64": {
+            "type": ["string", "null"],
+            "contentEncoding": "base64",
+            "maxLength": 1398104,
+            "description": "The request every occurrence's invocation carries, at most 1,048,576 bytes before base64 encoding. Absent, null or empty is none."
+          },
+          "oneShotAtUtc": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "Makes the schedule a one-shot: it runs once at this instant, which must be a UTC timestamp (Z or +00:00), and is then deleted. An instant already past runs at the scheduler's next poll. Absent or null is a recurring schedule. An update keeps a schedule's kind: it cannot turn a one-shot into a recurring schedule or the reverse (409)."
+          }
+        }
+      },
+      "Schedule": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["scheduleId", "projectId", "subject", "functionId", "functionVersion", "version", "instanceId"],
+        "properties": {
+          "scheduleId": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "projectId": { "type": "string", "format": "uuid" },
+          "subject": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The owner: the sub of the user who created the schedule."
+          },
+          "functionId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "functionVersion": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "version": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$",
+            "description": "The schedule's version as decimal text, because it is a 64-bit number a JSON number cannot carry exactly. It changes whenever the schedule does and is not a counter: read it from the ETag, which carries it with the instance."
+          },
+          "instanceId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Lasts until the schedule is deleted: a schedule deleted and created again has a new one."
+          },
+          "lastOccurrence": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "How far the scheduler has got: when the schedule was created, then the last occurrence it ran or skipped past. Null for a one-shot."
+          },
+          "oneShotAtUtc": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "The instant a one-shot runs; null for a recurring schedule."
+          }
+        }
+      },
+      "ScheduleTriggerRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["idempotencyKey", "deadline"],
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "The caller's key for this run: 1 to 256 characters, with no leading or trailing white space. The same key against the same version of the schedule is the same run."
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the invocation must finish: later than now, and at most 3,600 seconds from now."
+          }
+        }
+      },
+      "ScheduleTriggerResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["outcome", "invocationId"],
+        "properties": {
+          "outcome": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [0, 1],
+            "description": "0 when this request enqueued the invocation, 1 when it found the one the same key had already made."
+          },
+          "invocationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The invocation's id. It derives from the schedule's id, instance and version and the idempotency key, so a repeat has the same one."
+          }
         }
       },
       "ObjectReference": {

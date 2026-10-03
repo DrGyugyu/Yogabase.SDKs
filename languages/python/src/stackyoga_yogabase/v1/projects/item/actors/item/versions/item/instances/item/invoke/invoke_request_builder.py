@@ -53,6 +53,7 @@ class InvokeRequestBuilder(BaseRequestBuilder):
             "404": Problem,
             "408": ActorInvocationResult,
             "409": ActorInvocationResult,
+            "413": Problem,
             "422": ActorInvocationResult,
             "503": Problem,
         }

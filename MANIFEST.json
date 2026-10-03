@@ -29,11 +29,11 @@
   "contract": {
     "path": "contracts/yogabase-client-v1.openapi.json",
     "sourcePath": "Yogabase product repository: docs/api/yogabase-client-v1.openapi.json",
-    "sha256": "d867303d84bb933276a1a544c4b6dd11af39df8f54b381a0863638b75b685551",
-    "pathCount": 27,
-    "operationCount": 28,
-    "schemaCount": 37,
-    "mirroredFrom": "Byte-identical, like the builds, delivery and runtime-host documents below, to the product document on main; this document last changed in 9f653644 (2026-10-03). The delivery document last changed in ec3c58b5 (2026-10-03), the builds document in 1f7ad8a3 (2026-09-22) and the runtime-host document in 87469584 (2026-09-17); all four were re-checked byte-identical at main ab2eca1f (2026-10-03). It carries the player-facing /v1/servers/* game-server surface, the requested-only realtime-presence and data-rest capability rows with the X-Yogabase-Accept-Capabilities request header, the restored client Data API (/v1/data/{table}/select|insert|upsert|update|delete, 9f14ca68, 2026-09-23), the storage refusal codes (858071ba, 2026-09-24), and the inline payload limit with the 413 payload_too_large refusal on the function invoke route (9f653644, 2026-10-03). It declares no /v1/projects/{projectId}/jobs route: the product serves durable Jobs to application clients (owner decision, 2026-10-03) but its document does not describe them yet, so no generator emits them and the Jobs surface in each language is authored here from the gateway's source and docs/DEVELOPER_WORKFLOW.md."
+    "sha256": "d7578c46f8cf35b7bc98cfc2a344dbab922d42231d53a28c9ad4b7d56f4a9280",
+    "pathCount": 33,
+    "operationCount": 36,
+    "schemaCount": 47,
+    "mirroredFrom": "Byte-identical, like the builds, delivery and runtime-host documents below, to the product document at main 92ac1ced (2026-10-03); this document last changed in 552fdb4f (2026-10-03), the delivery document in ec3c58b5 (2026-10-03), the builds document in 1f7ad8a3 (2026-09-22) and the runtime-host document in 87469584 (2026-09-17), and all four were compared byte for byte with the product's files at 92ac1ced. It carries the player-facing /v1/servers/* game-server surface, the requested-only realtime-presence and data-rest capability rows with the X-Yogabase-Accept-Capabilities request header, the restored client Data API (/v1/data/{table}/select|insert|upsert|update|delete, 9f14ca68, 2026-09-23) with its named 413 data_request_too_large (360a31c1), the storage refusal codes (858071ba, 2026-09-24), the inline payload limit with the 413 payload_too_large refusal on the function invoke route (9f653644, 2026-10-03) and on the actor invoke, workflow start and workflow cancel routes at 480 KiB (x-yogabase-orleans-payload, b1d8c286), the durable Jobs routes (/v1/projects/{projectId}/jobs, 1b925cc0, 2026-10-03, x-yogabase-jobs) and the schedule routes (/v1/projects/{projectId}/schedules/{scheduleId} and its /trigger, 552fdb4f, 2026-10-03, x-yogabase-schedules). Kiota therefore generates request builders for the Jobs and schedule routes in TypeScript, Python, Java and Dart, and the authored Jobs and schedule clients sit beside them (jobsSurface and schedulesSurface below)."
   },
   "jobsSurface": {
     "declaredInContract": false,
@@ -97,7 +97,17 @@
     "sourceCommit": "9f9cfb3b1cb9b5311a214ea6ce0f69943c523005",
     "nugetSha256": "4aa14f12d573d5644eb167b837c4fa10d7d7b7ec4a6634b8bc4026269f9a7671",
     "toolManifest": ".config/dotnet-tools.json",
-    "regenerationScript": "scripts/regenerate-clients.sh"
+    "regenerationScript": "scripts/regenerate-clients.sh",
+    "descriptionHashes": {
+      "application": {
+        "contractSha256": "d7578c46f8cf35b7bc98cfc2a344dbab922d42231d53a28c9ad4b7d56f4a9280",
+        "kiotaDescriptionHash": "9ED008DBC30EB08CFB4CFEB50D8A2D5683FE0A778EFC8B328A917546FC56803903D0B878714C3CD7B3143C37CCB5C5A7C9671FB3496BB73E8811449B25A45784"
+      },
+      "delivery": {
+        "contractSha256": "d44f95c0364d49071aa29e0d555687c942d91acbc9215cb71bd1eefb294d9c39",
+        "kiotaDescriptionHash": "4E0FBAFCF1F00C929EAE1EBF7823D18D0A66639DF07FF8EB45649C0E5C9A7DB4D860B078BFDC4C7D6E80BC1D04208F09AAAA073AC111F18C04E603F31741184A"
+      }
+    }
   },
   "verificationToolchains": {
     "dotnetSdk": "10.0.400",

@@ -1,0 +1,105 @@
+from __future__ import annotations
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from kiota_abstractions.base_request_builder import BaseRequestBuilder
+from kiota_abstractions.base_request_configuration import RequestConfiguration
+from kiota_abstractions.default_query_parameters import QueryParameters
+from kiota_abstractions.get_path_parameters import get_path_parameters
+from kiota_abstractions.method import Method
+from kiota_abstractions.request_adapter import RequestAdapter
+from kiota_abstractions.request_information import RequestInformation
+from kiota_abstractions.request_option import RequestOption
+from kiota_abstractions.serialization import Parsable, ParsableFactory
+from typing import Any, Optional, TYPE_CHECKING, Union
+from warnings import warn
+
+if TYPE_CHECKING:
+    from ......models.job import Job
+    from ......models.problem import Problem
+    from .cancel.cancel_request_builder import CancelRequestBuilder
+    from .result.result_request_builder import ResultRequestBuilder
+
+class WithJobItemRequestBuilder(BaseRequestBuilder):
+    """
+    Builds and executes requests for operations under /v1/projects/{projectId}/jobs/{jobId}
+    """
+    def __init__(self,request_adapter: RequestAdapter, path_parameters: Union[str, dict[str, Any]]) -> None:
+        """
+        Instantiates a new WithJobItemRequestBuilder and sets the default values.
+        param path_parameters: The raw url or the url-template parameters for the request.
+        param request_adapter: The request adapter to use to execute the requests.
+        Returns: None
+        """
+        super().__init__(request_adapter, "{+baseurl}/v1/projects/{projectId}/jobs/{jobId}", path_parameters)
+    
+    async def get(self,request_configuration: Optional[RequestConfiguration[QueryParameters]] = None) -> Optional[Job]:
+        """
+        Reads the caller's own job: its state, how far it has got and how it ended. Another user's job is answered exactly as one that does not exist, 404 job_not_found.
+        param request_configuration: Configuration for the request such as headers, query parameters, and middleware options.
+        Returns: Optional[Job]
+        """
+        request_info = self.to_get_request_information(
+            request_configuration
+        )
+        from ......models.problem import Problem
+
+        error_mapping: dict[str, type[ParsableFactory]] = {
+            "400": Problem,
+            "401": Problem,
+            "403": Problem,
+            "404": Problem,
+            "503": Problem,
+        }
+        if not self.request_adapter:
+            raise Exception("Http core is null") 
+        from ......models.job import Job
+
+        return await self.request_adapter.send_async(request_info, Job, error_mapping)
+    
+    def to_get_request_information(self,request_configuration: Optional[RequestConfiguration[QueryParameters]] = None) -> RequestInformation:
+        """
+        Reads the caller's own job: its state, how far it has got and how it ended. Another user's job is answered exactly as one that does not exist, 404 job_not_found.
+        param request_configuration: Configuration for the request such as headers, query parameters, and middleware options.
+        Returns: RequestInformation
+        """
+        request_info = RequestInformation(Method.GET, self.url_template, self.path_parameters)
+        request_info.configure(request_configuration)
+        request_info.headers.try_add("Accept", "application/json")
+        return request_info
+    
+    def with_url(self,raw_url: str) -> WithJobItemRequestBuilder:
+        """
+        Returns a request builder with the provided arbitrary URL. Using this method means any other path or query parameters are ignored.
+        param raw_url: The raw URL to use for the request builder.
+        Returns: WithJobItemRequestBuilder
+        """
+        if raw_url is None:
+            raise TypeError("raw_url cannot be null.")
+        return WithJobItemRequestBuilder(self.request_adapter, raw_url)
+    
+    @property
+    def cancel(self) -> CancelRequestBuilder:
+        """
+        The cancel property
+        """
+        from .cancel.cancel_request_builder import CancelRequestBuilder
+
+        return CancelRequestBuilder(self.request_adapter, self.path_parameters)
+    
+    @property
+    def result(self) -> ResultRequestBuilder:
+        """
+        The result property
+        """
+        from .result.result_request_builder import ResultRequestBuilder
+
+        return ResultRequestBuilder(self.request_adapter, self.path_parameters)
+    
+    @dataclass
+    class WithJobItemRequestBuilderGetRequestConfiguration(RequestConfiguration[QueryParameters]):
+        """
+        Configuration for the request such as headers, query parameters, and middleware options.
+        """
+        warn("This class is deprecated. Please use the generic RequestConfiguration class generated by the generator.", DeprecationWarning)
+    
+

@@ -85,15 +85,19 @@ find "$stage" -name .kiota.log -delete
 rsync -a --delete \
     --exclude /index.ts \
     --exclude /delivery.ts \
+    --exclude /gateway.ts \
     --exclude /jobs.ts \
+    --exclude /schedules.ts \
     --exclude /storageLogicalKey.ts \
     "$stage/languages/typescript/src/" \
     "$repo_root/languages/typescript/src/"
 
 rsync -a --delete \
     --exclude /__init__.py \
+    --exclude /_gateway.py \
     --exclude /delivery.py \
     --exclude /jobs.py \
+    --exclude /schedules.py \
     --exclude /storage_logical_key.py \
     "$stage/languages/python/src/stackyoga_yogabase/" \
     "$repo_root/languages/python/src/stackyoga_yogabase/"
@@ -107,7 +111,10 @@ rsync -a --delete \
     --exclude /YogabaseDeliveryRequestOptions.java \
     --exclude /YogabaseDeliverySseEvent.java \
     --exclude /YogabaseDeliverySseParser.java \
+    --exclude '/YogabaseGateway*.java' \
     --exclude '/YogabaseJob*.java' \
+    --exclude '/YogabaseSchedule*.java' \
+    --exclude /YogabaseStatusErrorCodes.java \
     --exclude /YogabaseStorageLogicalKey.java \
     "$stage/languages/java/src/main/java/io/stackyoga/yogabase/" \
     "$repo_root/languages/java/src/main/java/io/stackyoga/yogabase/"
@@ -123,7 +130,9 @@ rsync -a --delete \
     --exclude /yogabase_delivery_client.dart \
     --exclude /yogabase_delivery_request_options.dart \
     --exclude /yogabase_delivery_sse.dart \
+    --exclude /yogabase_gateway_support.dart \
     --exclude /yogabase_jobs_client.dart \
+    --exclude /yogabase_schedules_client.dart \
     --exclude /yogabase_storage_logical_key.dart \
     "$stage/languages/dart/lib/src/" \
     "$repo_root/languages/dart/lib/src/"

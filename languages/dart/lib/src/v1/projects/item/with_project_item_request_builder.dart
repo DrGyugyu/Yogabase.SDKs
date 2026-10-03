@@ -2,6 +2,8 @@
 import 'package:microsoft_kiota_abstractions/microsoft_kiota_abstractions.dart';
 import './actors/actors_request_builder.dart';
 import './functions/functions_request_builder.dart';
+import './jobs/jobs_request_builder.dart';
+import './schedules/schedules_request_builder.dart';
 import './workflows/workflows_request_builder.dart';
 
 /// auto generated
@@ -14,6 +16,14 @@ class WithProjectItemRequestBuilder extends BaseRequestBuilder<WithProjectItemRe
     ///  The functions property
     FunctionsRequestBuilder get functions {
         return FunctionsRequestBuilder(pathParameters, requestAdapter);
+    }
+    ///  The jobs property
+    JobsRequestBuilder get jobs {
+        return JobsRequestBuilder(pathParameters, requestAdapter);
+    }
+    ///  The schedules property
+    SchedulesRequestBuilder get schedules {
+        return SchedulesRequestBuilder(pathParameters, requestAdapter);
     }
     ///  The workflows property
     WorkflowsRequestBuilder get workflows {

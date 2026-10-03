@@ -122,6 +122,7 @@ export interface ClientConfiguration extends Parsable {
      */
     schema?: string | null;
 }
+export type ConcurrencyPolicy = (typeof ConcurrencyPolicyObject)[keyof typeof ConcurrencyPolicyObject];
 /**
  * Creates a new instance of the appropriate class based on discriminator value
  * @param parseNode The parse node to use to read the discriminator value and create the object
@@ -332,6 +333,24 @@ export function createInvocationResultFromDiscriminatorValue(parseNode: ParseNod
 /**
  * Creates a new instance of the appropriate class based on discriminator value
  * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {Job}
+ */
+// @ts-ignore
+export function createJobFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoJob;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {JobSubmitRequest}
+ */
+// @ts-ignore
+export function createJobSubmitRequestFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoJobSubmitRequest;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
  * @returns {LoginRequest}
  */
 // @ts-ignore
@@ -427,6 +446,42 @@ export function createRecoveryCodeRequestFromDiscriminatorValue(parseNode: Parse
 // @ts-ignore
 export function createRecoveryCodesResponseFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
     return deserializeIntoRecoveryCodesResponse;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {ScheduleDefinitionRequest}
+ */
+// @ts-ignore
+export function createScheduleDefinitionRequestFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoScheduleDefinitionRequest;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {Schedule}
+ */
+// @ts-ignore
+export function createScheduleFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoSchedule;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {ScheduleTriggerRequest}
+ */
+// @ts-ignore
+export function createScheduleTriggerRequestFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoScheduleTriggerRequest;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {ScheduleTriggerResult}
+ */
+// @ts-ignore
+export function createScheduleTriggerResultFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoScheduleTriggerResult;
 }
 /**
  * Creates a new instance of the appropriate class based on discriminator value
@@ -899,6 +954,42 @@ export function deserializeIntoInvocationResult(invocationResult: Partial<Invoca
 }
 /**
  * The deserialization information for the current model
+ * @param Job The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoJob(job: Partial<Job> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "attempt": n => { job.attempt = n.getNumberValue(); },
+        "cancellationRequested": n => { job.cancellationRequested = n.getBooleanValue(); },
+        "completedAt": n => { job.completedAt = n.getDateValue(); },
+        "createdAt": n => { job.createdAt = n.getDateValue(); },
+        "failureCode": n => { job.failureCode = n.getStringValue(); },
+        "jobId": n => { job.jobId = n.getGuidValue(); },
+        "jobType": n => { job.jobType = n.getStringValue(); },
+        "maxAttempts": n => { job.maxAttempts = n.getNumberValue(); },
+        "progressPercent": n => { job.progressPercent = n.getNumberValue(); },
+        "resultReference": n => { job.resultReference = n.getStringValue(); },
+        "status": n => { job.status = n.getEnumValue<JobStatus>(JobStatusObject); },
+        "updatedAt": n => { job.updatedAt = n.getDateValue(); },
+    }
+}
+/**
+ * The deserialization information for the current model
+ * @param JobSubmitRequest The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoJobSubmitRequest(jobSubmitRequest: Partial<JobSubmitRequest> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "idempotencyKey": n => { jobSubmitRequest.idempotencyKey = n.getStringValue(); },
+        "jobType": n => { jobSubmitRequest.jobType = n.getStringValue(); },
+        "maxAttempts": n => { jobSubmitRequest.maxAttempts = n.getNumberValue(); },
+        "payloadBase64": n => { jobSubmitRequest.payloadBase64 = n.getStringValue(); },
+    }
+}
+/**
+ * The deserialization information for the current model
  * @param LoginRequest The instance to deserialize into.
  * @returns {Record<string, (node: ParseNode) => void>}
  */
@@ -1029,6 +1120,71 @@ export function deserializeIntoRecoveryCodeRequest(recoveryCodeRequest: Partial<
 export function deserializeIntoRecoveryCodesResponse(recoveryCodesResponse: Partial<RecoveryCodesResponse> | undefined = {}) : Record<string, (node: ParseNode) => void> {
     return {
         "recoveryCodes": n => { recoveryCodesResponse.recoveryCodes = n.getCollectionOfPrimitiveValues<string>("string"); },
+    }
+}
+/**
+ * The deserialization information for the current model
+ * @param Schedule The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoSchedule(schedule: Partial<Schedule> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "functionId": n => { schedule.functionId = n.getStringValue(); },
+        "functionVersion": n => { schedule.functionVersion = n.getStringValue(); },
+        "instanceId": n => { schedule.instanceId = n.getGuidValue(); },
+        "lastOccurrence": n => { schedule.lastOccurrence = n.getDateValue(); },
+        "oneShotAtUtc": n => { schedule.oneShotAtUtc = n.getDateValue(); },
+        "projectId": n => { schedule.projectId = n.getGuidValue(); },
+        "scheduleId": n => { schedule.scheduleId = n.getStringValue(); },
+        "subject": n => { schedule.subject = n.getGuidValue(); },
+        "version": n => { schedule.version = n.getStringValue(); },
+    }
+}
+/**
+ * The deserialization information for the current model
+ * @param ScheduleDefinitionRequest The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoScheduleDefinitionRequest(scheduleDefinitionRequest: Partial<ScheduleDefinitionRequest> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "concurrencyPolicy": n => { scheduleDefinitionRequest.concurrencyPolicy = n.getEnumValue<ConcurrencyPolicy>(ConcurrencyPolicyObject); },
+        "cron": n => { scheduleDefinitionRequest.cron = n.getStringValue(); },
+        "deadlineSeconds": n => { scheduleDefinitionRequest.deadlineSeconds = n.getNumberValue(); },
+        "functionId": n => { scheduleDefinitionRequest.functionId = n.getStringValue(); },
+        "functionVersion": n => { scheduleDefinitionRequest.functionVersion = n.getStringValue(); },
+        "maxAttempts": n => { scheduleDefinitionRequest.maxAttempts = n.getNumberValue(); },
+        "maxCatchUp": n => { scheduleDefinitionRequest.maxCatchUp = n.getNumberValue(); },
+        "misfirePolicy": n => { scheduleDefinitionRequest.misfirePolicy = n.getEnumValue<MisfirePolicy>(MisfirePolicyObject); },
+        "oneShotAtUtc": n => { scheduleDefinitionRequest.oneShotAtUtc = n.getDateValue(); },
+        "payloadBase64": n => { scheduleDefinitionRequest.payloadBase64 = n.getStringValue(); },
+        "scheduleId": n => { scheduleDefinitionRequest.scheduleId = n.getStringValue(); },
+        "timeZone": n => { scheduleDefinitionRequest.timeZone = n.getStringValue(); },
+    }
+}
+/**
+ * The deserialization information for the current model
+ * @param ScheduleTriggerRequest The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoScheduleTriggerRequest(scheduleTriggerRequest: Partial<ScheduleTriggerRequest> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "deadline": n => { scheduleTriggerRequest.deadline = n.getDateValue(); },
+        "idempotencyKey": n => { scheduleTriggerRequest.idempotencyKey = n.getStringValue(); },
+    }
+}
+/**
+ * The deserialization information for the current model
+ * @param ScheduleTriggerResult The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoScheduleTriggerResult(scheduleTriggerResult: Partial<ScheduleTriggerResult> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "invocationId": n => { scheduleTriggerResult.invocationId = n.getGuidValue(); },
+        "outcome": n => { scheduleTriggerResult.outcome = n.getNumberValue(); },
     }
 }
 /**
@@ -1212,6 +1368,75 @@ export interface InvocationResult extends ApiError, Parsable {
      */
     resultReference?: string | null;
 }
+export interface Job extends Parsable {
+    /**
+     * How many attempts have started: 0 until a worker first claims the job, and never more than maxAttempts.
+     */
+    attempt?: number | null;
+    /**
+     * True once the job's owner has asked for it to stop, and so on a cancelled job.
+     */
+    cancellationRequested?: boolean | null;
+    /**
+     * When the job became Succeeded, Cancelled or DeadLettered. Null before.
+     */
+    completedAt?: Date | null;
+    /**
+     * The createdAt property
+     */
+    createdAt?: Date | null;
+    /**
+     * Why the last failed attempt failed, as a stable code. Null until an attempt fails, and again once the job succeeds or is cancelled.
+     */
+    failureCode?: string | null;
+    /**
+     * The jobId property
+     */
+    jobId?: Guid | null;
+    /**
+     * The jobType property
+     */
+    jobType?: string | null;
+    /**
+     * The maxAttempts property
+     */
+    maxAttempts?: number | null;
+    /**
+     * How far the job reports it has got; 100 once it has succeeded.
+     */
+    progressPercent?: number | null;
+    /**
+     * A name for the stored result, not a capability: the bytes are read from the result route. Null while there is none.
+     */
+    resultReference?: string | null;
+    /**
+     * Queued and Running are in progress. Succeeded, Cancelled and DeadLettered are final: nothing about the job changes again. A failed attempt sends the job back to Queued for its next attempt, or on to DeadLettered once maxAttempts attempts have started. Failed names a failed attempt between those two, is never final, and is not a state the ledger records: a client that reads it treats the job as in progress.
+     */
+    status?: JobStatus | null;
+    /**
+     * The updatedAt property
+     */
+    updatedAt?: Date | null;
+}
+export type JobStatus = (typeof JobStatusObject)[keyof typeof JobStatusObject];
+export interface JobSubmitRequest extends Parsable {
+    /**
+     * The caller's key for this request: trimmed, with no control character. It belongs to the signed-in user, who may repeat it for the same request and for no other.
+     */
+    idempotencyKey?: string | null;
+    /**
+     * The id of a deployed stateless function; its highest released version runs the job.
+     */
+    jobType?: string | null;
+    /**
+     * How many times the job may be attempted. Absent or null is 5. The idempotency key binds it, with the job type and the payload.
+     */
+    maxAttempts?: number | null;
+    /**
+     * The function's request, at most 1,048,576 bytes before base64 encoding. Absent, null or empty is a job that carries none.
+     */
+    payloadBase64?: string | null;
+}
 export interface LoginRequest extends Parsable {
     /**
      * The email property
@@ -1234,6 +1459,7 @@ export interface MfaSetupResponse extends Parsable {
      */
     sharedKey?: string | null;
 }
+export type MisfirePolicy = (typeof MisfirePolicyObject)[keyof typeof MisfirePolicyObject];
 export interface ObjectReference extends Parsable {
     /**
      * The uri property
@@ -1329,6 +1555,114 @@ export interface RecoveryCodesResponse extends Parsable {
      * The recoveryCodes property
      */
     recoveryCodes?: string[] | null;
+}
+export interface Schedule extends Parsable {
+    /**
+     * The functionId property
+     */
+    functionId?: string | null;
+    /**
+     * The functionVersion property
+     */
+    functionVersion?: string | null;
+    /**
+     * Lasts until the schedule is deleted: a schedule deleted and created again has a new one.
+     */
+    instanceId?: Guid | null;
+    /**
+     * How far the scheduler has got: when the schedule was created, then the last occurrence it ran or skipped past. Null for a one-shot.
+     */
+    lastOccurrence?: Date | null;
+    /**
+     * The instant a one-shot runs; null for a recurring schedule.
+     */
+    oneShotAtUtc?: Date | null;
+    /**
+     * The projectId property
+     */
+    projectId?: Guid | null;
+    /**
+     * The scheduleId property
+     */
+    scheduleId?: string | null;
+    /**
+     * The owner: the sub of the user who created the schedule.
+     */
+    subject?: Guid | null;
+    /**
+     * The schedule's version as decimal text, because it is a 64-bit number a JSON number cannot carry exactly. It changes whenever the schedule does and is not a counter: read it from the ETag, which carries it with the instance.
+     */
+    version?: string | null;
+}
+export interface ScheduleDefinitionRequest extends Parsable {
+    /**
+     * What a schedule asks for when an occurrence is due while the one before it is still running: Allow starts it alongside, Forbid skips it, Replace stops the running one and starts it. The value is checked and stored with the schedule, but the scheduler does not yet look for a running occurrence, so every occurrence starts whichever is chosen. An unknown name is a bare 400. Always send it: the gateway reads a missing one as Allow, the first name, which this contract does not promise.
+     */
+    concurrencyPolicy?: ConcurrencyPolicy | null;
+    /**
+     * Five fields, minute hour day-of-month month day-of-week, each a number, *, a list (1,15), a range (1-5), a step (* /5 or 8-18/2) or, for the month and the day of the week, a name (JAN, MON); 7 is Sunday. No seconds field and no @ macros. It is evaluated in timeZone. A one-shot still sends a valid expression, which does not decide when it runs.
+     */
+    cron?: string | null;
+    /**
+     * How long an occurrence's invocation has to finish, counted from when the scheduler starts it: the poll that finds the occurrence due, which is a little after its time.
+     */
+    deadlineSeconds?: number | null;
+    /**
+     * The id of a deployed Stateless Lambda.
+     */
+    functionId?: string | null;
+    /**
+     * The exact released version of that function which every occurrence runs. It must be admitted for the project, and an update checks it again.
+     */
+    functionVersion?: string | null;
+    /**
+     * How many times an occurrence's invocation may be attempted.
+     */
+    maxAttempts?: number | null;
+    /**
+     * The most missed occurrences RunAllMissed runs after an outage. The other policies ignore it.
+     */
+    maxCatchUp?: number | null;
+    /**
+     * What the scheduler does about occurrences it missed while it was unavailable. RunImmediately runs once, now, however many were missed, and resumes the cadence. SkipToNextOccurrence abandons what it missed and resumes at the next occurrence. RunAllMissed runs each missed occurrence, oldest first, up to maxCatchUp. An unknown name is a bare 400. Always send it: the gateway reads a missing one as RunImmediately, the first name, which this contract does not promise.
+     */
+    misfirePolicy?: MisfirePolicy | null;
+    /**
+     * Makes the schedule a one-shot: it runs once at this instant, which must be a UTC timestamp (Z or +00:00), and is then deleted. An instant already past runs at the scheduler's next poll. Absent or null is a recurring schedule. An update keeps a schedule's kind: it cannot turn a one-shot into a recurring schedule or the reverse (409).
+     */
+    oneShotAtUtc?: Date | null;
+    /**
+     * The request every occurrence's invocation carries, at most 1,048,576 bytes before base64 encoding. Absent, null or empty is none.
+     */
+    payloadBase64?: string | null;
+    /**
+     * The schedule's id, the same as the path's: 1 to 128 characters, trimmed, with no control character.
+     */
+    scheduleId?: string | null;
+    /**
+     * The time zone the cron expression is evaluated in, by the id the gateway's system knows it by (UTC, Asia/Seoul). An unknown one is 400.
+     */
+    timeZone?: string | null;
+}
+export interface ScheduleTriggerRequest extends Parsable {
+    /**
+     * When the invocation must finish: later than now, and at most 3,600 seconds from now.
+     */
+    deadline?: Date | null;
+    /**
+     * The caller's key for this run: 1 to 256 characters, with no leading or trailing white space. The same key against the same version of the schedule is the same run.
+     */
+    idempotencyKey?: string | null;
+}
+export interface ScheduleTriggerResult extends Parsable {
+    /**
+     * The invocation's id. It derives from the schedule's id, instance and version and the idempotency key, so a repeat has the same one.
+     */
+    invocationId?: Guid | null;
+    /**
+     * 0 when this request enqueued the invocation, 1 when it found the one the same key had already made.
+     */
+    outcome?: number | null;
 }
 /**
  * Serializes information the current object
@@ -1646,6 +1980,42 @@ export function serializeInvocationResult(writer: SerializationWriter, invocatio
 /**
  * Serializes information the current object
  * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param Job The instance to serialize from.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeJob(writer: SerializationWriter, job: Partial<Job> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!job || isSerializingDerivedType) { return; }
+    writer.writeNumberValue("attempt", job.attempt);
+    writer.writeBooleanValue("cancellationRequested", job.cancellationRequested);
+    writer.writeDateValue("completedAt", job.completedAt);
+    writer.writeDateValue("createdAt", job.createdAt);
+    writer.writeStringValue("failureCode", job.failureCode);
+    writer.writeGuidValue("jobId", job.jobId);
+    writer.writeStringValue("jobType", job.jobType);
+    writer.writeNumberValue("maxAttempts", job.maxAttempts);
+    writer.writeNumberValue("progressPercent", job.progressPercent);
+    writer.writeStringValue("resultReference", job.resultReference);
+    writer.writeEnumValue<JobStatus>("status", job.status);
+    writer.writeDateValue("updatedAt", job.updatedAt);
+}
+/**
+ * Serializes information the current object
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param JobSubmitRequest The instance to serialize from.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeJobSubmitRequest(writer: SerializationWriter, jobSubmitRequest: Partial<JobSubmitRequest> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!jobSubmitRequest || isSerializingDerivedType) { return; }
+    writer.writeStringValue("idempotencyKey", jobSubmitRequest.idempotencyKey);
+    writer.writeStringValue("jobType", jobSubmitRequest.jobType);
+    writer.writeNumberValue("maxAttempts", jobSubmitRequest.maxAttempts);
+    writer.writeStringValue("payloadBase64", jobSubmitRequest.payloadBase64);
+}
+/**
+ * Serializes information the current object
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
  * @param LoginRequest The instance to serialize from.
  * @param writer Serialization writer to use to serialize this model
  */
@@ -1782,6 +2152,71 @@ export function serializeRecoveryCodesResponse(writer: SerializationWriter, reco
 /**
  * Serializes information the current object
  * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param Schedule The instance to serialize from.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeSchedule(writer: SerializationWriter, schedule: Partial<Schedule> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!schedule || isSerializingDerivedType) { return; }
+    writer.writeStringValue("functionId", schedule.functionId);
+    writer.writeStringValue("functionVersion", schedule.functionVersion);
+    writer.writeGuidValue("instanceId", schedule.instanceId);
+    writer.writeDateValue("lastOccurrence", schedule.lastOccurrence);
+    writer.writeDateValue("oneShotAtUtc", schedule.oneShotAtUtc);
+    writer.writeGuidValue("projectId", schedule.projectId);
+    writer.writeStringValue("scheduleId", schedule.scheduleId);
+    writer.writeGuidValue("subject", schedule.subject);
+    writer.writeStringValue("version", schedule.version);
+}
+/**
+ * Serializes information the current object
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param ScheduleDefinitionRequest The instance to serialize from.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeScheduleDefinitionRequest(writer: SerializationWriter, scheduleDefinitionRequest: Partial<ScheduleDefinitionRequest> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!scheduleDefinitionRequest || isSerializingDerivedType) { return; }
+    writer.writeEnumValue<ConcurrencyPolicy>("concurrencyPolicy", scheduleDefinitionRequest.concurrencyPolicy);
+    writer.writeStringValue("cron", scheduleDefinitionRequest.cron);
+    writer.writeNumberValue("deadlineSeconds", scheduleDefinitionRequest.deadlineSeconds);
+    writer.writeStringValue("functionId", scheduleDefinitionRequest.functionId);
+    writer.writeStringValue("functionVersion", scheduleDefinitionRequest.functionVersion);
+    writer.writeNumberValue("maxAttempts", scheduleDefinitionRequest.maxAttempts);
+    writer.writeNumberValue("maxCatchUp", scheduleDefinitionRequest.maxCatchUp);
+    writer.writeEnumValue<MisfirePolicy>("misfirePolicy", scheduleDefinitionRequest.misfirePolicy);
+    writer.writeDateValue("oneShotAtUtc", scheduleDefinitionRequest.oneShotAtUtc);
+    writer.writeStringValue("payloadBase64", scheduleDefinitionRequest.payloadBase64);
+    writer.writeStringValue("scheduleId", scheduleDefinitionRequest.scheduleId);
+    writer.writeStringValue("timeZone", scheduleDefinitionRequest.timeZone);
+}
+/**
+ * Serializes information the current object
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param ScheduleTriggerRequest The instance to serialize from.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeScheduleTriggerRequest(writer: SerializationWriter, scheduleTriggerRequest: Partial<ScheduleTriggerRequest> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!scheduleTriggerRequest || isSerializingDerivedType) { return; }
+    writer.writeDateValue("deadline", scheduleTriggerRequest.deadline);
+    writer.writeStringValue("idempotencyKey", scheduleTriggerRequest.idempotencyKey);
+}
+/**
+ * Serializes information the current object
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param ScheduleTriggerResult The instance to serialize from.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeScheduleTriggerResult(writer: SerializationWriter, scheduleTriggerResult: Partial<ScheduleTriggerResult> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!scheduleTriggerResult || isSerializingDerivedType) { return; }
+    writer.writeGuidValue("invocationId", scheduleTriggerResult.invocationId);
+    writer.writeNumberValue("outcome", scheduleTriggerResult.outcome);
+}
+/**
+ * Serializes information the current object
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
  * @param SignUpRequest The instance to serialize from.
  * @param writer Serialization writer to use to serialize this model
  */
@@ -1893,6 +2328,14 @@ export const Capability_idObject = {
     RealtimePresence: "realtime-presence",
     DataRest: "data-rest",
 } as const;
+/**
+ * What a schedule asks for when an occurrence is due while the one before it is still running: Allow starts it alongside, Forbid skips it, Replace stops the running one and starts it. The value is checked and stored with the schedule, but the scheduler does not yet look for a running occurrence, so every occurrence starts whichever is chosen. An unknown name is a bare 400. Always send it: the gateway reads a missing one as Allow, the first name, which this contract does not promise.
+ */
+export const ConcurrencyPolicyObject = {
+    Allow: "Allow",
+    Forbid: "Forbid",
+    Replace: "Replace",
+} as const;
 export const DataFilter_opObject = {
     Eq: "eq",
     Neq: "neq",
@@ -1909,6 +2352,25 @@ export const DataFilter_opObject = {
 export const GameServerPort_protocolObject = {
     Tcp: "tcp",
     Udp: "udp",
+} as const;
+/**
+ * Queued and Running are in progress. Succeeded, Cancelled and DeadLettered are final: nothing about the job changes again. A failed attempt sends the job back to Queued for its next attempt, or on to DeadLettered once maxAttempts attempts have started. Failed names a failed attempt between those two, is never final, and is not a state the ledger records: a client that reads it treats the job as in progress.
+ */
+export const JobStatusObject = {
+    Queued: "Queued",
+    Running: "Running",
+    Succeeded: "Succeeded",
+    Failed: "Failed",
+    Cancelled: "Cancelled",
+    DeadLettered: "DeadLettered",
+} as const;
+/**
+ * What the scheduler does about occurrences it missed while it was unavailable. RunImmediately runs once, now, however many were missed, and resumes the cadence. SkipToNextOccurrence abandons what it missed and resumes at the next occurrence. RunAllMissed runs each missed occurrence, oldest first, up to maxCatchUp. An unknown name is a bare 400. Always send it: the gateway reads a missing one as RunImmediately, the first name, which this contract does not promise.
+ */
+export const MisfirePolicyObject = {
+    RunImmediately: "RunImmediately",
+    SkipToNextOccurrence: "SkipToNextOccurrence",
+    RunAllMissed: "RunAllMissed",
 } as const;
 /* tslint:enable */
 /* eslint-enable */

@@ -8,6 +8,8 @@ from typing import Any, Optional, TYPE_CHECKING, Union
 if TYPE_CHECKING:
     from .actors.actors_request_builder import ActorsRequestBuilder
     from .functions.functions_request_builder import FunctionsRequestBuilder
+    from .jobs.jobs_request_builder import JobsRequestBuilder
+    from .schedules.schedules_request_builder import SchedulesRequestBuilder
     from .workflows.workflows_request_builder import WorkflowsRequestBuilder
 
 class WithProjectItemRequestBuilder(BaseRequestBuilder):
@@ -40,6 +42,24 @@ class WithProjectItemRequestBuilder(BaseRequestBuilder):
         from .functions.functions_request_builder import FunctionsRequestBuilder
 
         return FunctionsRequestBuilder(self.request_adapter, self.path_parameters)
+    
+    @property
+    def jobs(self) -> JobsRequestBuilder:
+        """
+        The jobs property
+        """
+        from .jobs.jobs_request_builder import JobsRequestBuilder
+
+        return JobsRequestBuilder(self.request_adapter, self.path_parameters)
+    
+    @property
+    def schedules(self) -> SchedulesRequestBuilder:
+        """
+        The schedules property
+        """
+        from .schedules.schedules_request_builder import SchedulesRequestBuilder
+
+        return SchedulesRequestBuilder(self.request_adapter, self.path_parameters)
     
     @property
     def workflows(self) -> WorkflowsRequestBuilder:

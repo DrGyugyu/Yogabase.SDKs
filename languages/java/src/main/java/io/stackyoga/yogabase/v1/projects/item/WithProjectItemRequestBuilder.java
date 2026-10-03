@@ -4,6 +4,8 @@ import com.microsoft.kiota.BaseRequestBuilder;
 import com.microsoft.kiota.RequestAdapter;
 import io.stackyoga.yogabase.v1.projects.item.actors.ActorsRequestBuilder;
 import io.stackyoga.yogabase.v1.projects.item.functions.FunctionsRequestBuilder;
+import io.stackyoga.yogabase.v1.projects.item.jobs.JobsRequestBuilder;
+import io.stackyoga.yogabase.v1.projects.item.schedules.SchedulesRequestBuilder;
 import io.stackyoga.yogabase.v1.projects.item.workflows.WorkflowsRequestBuilder;
 import java.util.HashMap;
 import java.util.Objects;
@@ -27,6 +29,22 @@ public class WithProjectItemRequestBuilder extends BaseRequestBuilder {
     @jakarta.annotation.Nonnull
     public FunctionsRequestBuilder functions() {
         return new FunctionsRequestBuilder(pathParameters, requestAdapter);
+    }
+    /**
+     * The jobs property
+     * @return a {@link JobsRequestBuilder}
+     */
+    @jakarta.annotation.Nonnull
+    public JobsRequestBuilder jobs() {
+        return new JobsRequestBuilder(pathParameters, requestAdapter);
+    }
+    /**
+     * The schedules property
+     * @return a {@link SchedulesRequestBuilder}
+     */
+    @jakarta.annotation.Nonnull
+    public SchedulesRequestBuilder schedules() {
+        return new SchedulesRequestBuilder(pathParameters, requestAdapter);
     }
     /**
      * The workflows property

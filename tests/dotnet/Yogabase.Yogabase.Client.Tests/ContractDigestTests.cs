@@ -177,27 +177,74 @@ public sealed class ContractDigestTests
     }
 
     /// <summary>
-    /// The product serves durable Jobs to application clients (owner decision, 2026-10-03) but its
-    /// client document does not declare the routes (checked against product main <c>ab2eca1f</c>), so
-    /// no generator emits them and every language's Jobs surface is authored here from the gateway's
-    /// source. This is the tripwire for the day the document does declare them: the failing test
-    /// says to re-mirror, regenerate, and decide per language whether the authored surface stays the
-    /// front door beside the generated builders or is rebuilt over them. It reads paths structurally.
+    /// The product's client document now describes the durable Jobs routes and the schedule routes (it did
+    /// not when this repository first mirrored a Jobs surface, and a test here failed on the day it did).
+    /// Their operations are held to every language by <see cref="ContractOperationParityTests"/> and their
+    /// limits and codes by <see cref="ContractLimitsAndCodesTests"/>; this pins only that the document still
+    /// declares them, read structurally, so that a re-sync from a product that dropped them cannot pass by
+    /// leaving the authored clients without a contract.
     /// </summary>
     [Fact]
-    public async Task TheMirroredApplicationContractDeclaresNoJobsRouteSoTheAuthoredJobsSurfaceIsTheOnlyOne()
+    public async Task TheMirroredApplicationContractDeclaresTheJobsAndScheduleRoutesTheAuthoredClientsWrap()
     {
         var repoRoot = FindRepoRoot();
         using var document = System.Text.Json.JsonDocument.Parse(await File.ReadAllTextAsync(
             Path.Combine(repoRoot, "contracts", "yogabase-client-v1.openapi.json"),
             TestContext.Current.CancellationToken));
+        var root = document.RootElement;
+        var paths = root.GetProperty("paths");
 
-        foreach (var path in document.RootElement.GetProperty("paths").EnumerateObject())
+        foreach (var (path, verbs) in new (string Path, string[] Verbs)[]
         {
-            Assert.False(
-                path.Name.Contains("/jobs", StringComparison.Ordinal),
-                $"The mirrored contract now declares {path.Name}: re-run scripts/regenerate-clients.sh and revisit the authored Jobs surfaces.");
+            ("/v1/projects/{projectId}/jobs", ["post"]),
+            ("/v1/projects/{projectId}/jobs/{jobId}", ["get"]),
+            ("/v1/projects/{projectId}/jobs/{jobId}/cancel", ["post"]),
+            ("/v1/projects/{projectId}/jobs/{jobId}/result", ["get"]),
+            ("/v1/projects/{projectId}/schedules/{scheduleId}", ["put", "get", "delete"]),
+            ("/v1/projects/{projectId}/schedules/{scheduleId}/trigger", ["post"]),
+        })
+        {
+            Assert.True(paths.TryGetProperty(path, out var item), $"The contract no longer declares {path}.");
+            foreach (var verb in verbs)
+            {
+                Assert.True(item.TryGetProperty(verb, out _), $"The contract no longer declares {verb.ToUpperInvariant()} {path}.");
+            }
         }
+
+        Assert.True(root.TryGetProperty("x-yogabase-jobs", out _));
+        Assert.True(root.TryGetProperty("x-yogabase-schedules", out _));
+    }
+
+    /// <summary>
+    /// The path, operation and schema counts <c>MANIFEST.json</c> records for each mirrored document are
+    /// the document's own. They were maintained by hand and went stale unnoticed once (27, 28 and 37 while
+    /// the document had grown); counting the document makes a re-sync that forgot them fail.
+    /// </summary>
+    [Theory]
+    [InlineData("contract", "yogabase-client-v1.openapi.json")]
+    [InlineData("buildsContract", "yogabase-builds-v1.openapi.json")]
+    [InlineData("deliveryContract", "yogabase-delivery-v1.openapi.json")]
+    [InlineData("runtimeHostContract", "yogabase-runtime-host-v1.openapi.json")]
+    public async Task ManifestRecordsTheCountsOfEveryMirroredDocument(string manifestBlock, string contractFileName)
+    {
+        var repoRoot = FindRepoRoot();
+        using var manifest = System.Text.Json.JsonDocument.Parse(await File.ReadAllTextAsync(
+            Path.Combine(repoRoot, "MANIFEST.json"),
+            TestContext.Current.CancellationToken));
+        using var contract = System.Text.Json.JsonDocument.Parse(await File.ReadAllTextAsync(
+            Path.Combine(repoRoot, "contracts", contractFileName),
+            TestContext.Current.CancellationToken));
+        var recorded = manifest.RootElement.GetProperty(manifestBlock);
+        var paths = contract.RootElement.GetProperty("paths");
+        var operations = paths.EnumerateObject()
+            .Sum(static path => path.Value.EnumerateObject().Count(static member =>
+                member.Name is "get" or "put" or "post" or "delete" or "patch" or "head" or "options"));
+
+        Assert.Equal(paths.EnumerateObject().Count(), recorded.GetProperty("pathCount").GetInt32());
+        Assert.Equal(operations, recorded.GetProperty("operationCount").GetInt32());
+        Assert.Equal(
+            contract.RootElement.GetProperty("components").GetProperty("schemas").EnumerateObject().Count(),
+            recorded.GetProperty("schemaCount").GetInt32());
     }
 
     /// <summary>
