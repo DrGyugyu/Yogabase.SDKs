@@ -14,8 +14,8 @@ import 'yogabase_api_client.dart';
 import 'yogabase_gateway_support.dart';
 
 /// What a schedule does about occurrences it missed while the scheduler was
-/// unavailable. The gateway reads a missing policy as the first name, which its
-/// contract does not promise, so a definition always names one.
+/// unavailable. A definition always names one: a request that leaves it out is
+/// a 400 whose problem names the member.
 enum YogabaseScheduleMisfirePolicy {
   /// Runs once, now, however many occurrences were missed, and resumes the
   /// cadence.
@@ -34,20 +34,29 @@ enum YogabaseScheduleMisfirePolicy {
   final String wireName;
 }
 
-/// What a schedule asks for when an occurrence is due while the one before it
-/// is still running. The gateway checks and stores the choice, but its
-/// scheduler does not yet look for a running occurrence, so every occurrence
-/// starts whichever is chosen; a definition still names one, because the
-/// gateway reads a missing policy as the first name, which its contract does
-/// not promise.
+/// What a schedule does when an occurrence is due while an earlier occurrence
+/// of the same schedule has not finished: its invocation is queued (waiting to
+/// start, or to be retried) or running, and its deadline has not passed. A
+/// skipped occurrence is consumed, not deferred: the schedule moves on to its
+/// next occurrence. A manual run is not an occurrence, so the policy neither
+/// holds it back nor is held back by it, and a one-shot has no earlier
+/// occurrence, so the policy does not apply to it. A definition always names
+/// one: a request that leaves it out is a 400 whose problem names the member.
 enum YogabaseScheduleConcurrencyPolicy {
-  /// Starts the occurrence alongside the running one.
+  /// Starts the new occurrence alongside the earlier one.
   allow('Allow'),
 
-  /// Skips the occurrence.
+  /// Skips the new occurrence. When several are due at once
+  /// ([YogabaseScheduleMisfirePolicy.runAllMissed] after an outage), only the
+  /// oldest starts.
   forbid('Forbid'),
 
-  /// Stops the running occurrence and starts this one.
+  /// Ends an earlier occurrence that is still queued, with the failure code
+  /// `schedule_occurrence_replaced`, and starts the new one. An occurrence that
+  /// is already running cannot be stopped, because nothing can interrupt a
+  /// Lambda that is executing, so while one is running this skips the new
+  /// occurrence, as [forbid] does. When several are due at once, only the
+  /// newest starts.
   replace('Replace');
 
   const YogabaseScheduleConcurrencyPolicy(this.wireName);
@@ -71,9 +80,9 @@ enum YogabaseScheduleTriggerOutcome {
 /// ([cron] evaluated in [timeZone]) or a one-shot ([oneShotAtUtc]) of one
 /// deployed stateless function version. The project and the owner are never
 /// fields: the project is the client's own and the owner is the signed-in user.
-/// Every member but [payload] and [oneShotAtUtc] is required; the two policies
-/// in particular are always sent, because the gateway reads a missing one as
-/// the first name, which its contract does not promise.
+/// Every member but [payload] and [oneShotAtUtc] is required, the two policies
+/// included: a request that leaves one out is a 400 whose problem names the
+/// member, and a definition here cannot leave one out.
 class YogabaseScheduleDefinition {
   const YogabaseScheduleDefinition({
     required this.scheduleId,
@@ -90,9 +99,15 @@ class YogabaseScheduleDefinition {
     this.oneShotAtUtc,
   });
 
-  /// The schedule's id, chosen by the caller: 1 to 128 characters, trimmed,
-  /// with no control character. The id belongs to the project, so one that
-  /// another user holds cannot be created.
+  /// The schedule's id, chosen by the caller: 1 to 128 characters, a letter or
+  /// a digit first and then letters, digits and `.` `_` `~` `:` `-` only
+  /// (`^[A-Za-z0-9][A-Za-z0-9._~:-]{0,127}$`). The id is one segment of the
+  /// schedule's URL path, so there is nothing to escape, and the console
+  /// addresses the schedule by the same id. The id belongs to the project, so
+  /// one that another user holds cannot be created. A schedule written before
+  /// the rule under another id can still be read, run and deleted by that id,
+  /// but a write of it is refused: delete it and create it again under an id
+  /// that follows the rule.
   final String scheduleId;
 
   /// The id of a deployed Stateless Lambda, at most 256 characters.
@@ -118,7 +133,8 @@ class YogabaseScheduleDefinition {
   /// What to do about occurrences missed while the scheduler was unavailable.
   final YogabaseScheduleMisfirePolicy misfirePolicy;
 
-  /// What to do when an occurrence is due while the one before it is running.
+  /// What to do when an occurrence is due while an earlier one has not
+  /// finished; see [YogabaseScheduleConcurrencyPolicy].
   final YogabaseScheduleConcurrencyPolicy concurrencyPolicy;
 
   /// The most missed occurrences [YogabaseScheduleMisfirePolicy.runAllMissed]
@@ -408,6 +424,13 @@ class YogabaseSchedulesClient {
       RegExp(r'^"schedule-v([1-9][0-9]*)-([0-9a-f]{32})"$');
   static final RegExp _versionPattern = RegExp(r'^[1-9][0-9]*$');
 
+  // The pattern of the contract's definition member scheduleId, which holds a
+  // write to what one segment of a URL path carries without being escaped. A
+  // read, a run and a delete accept more (_requireScheduleId), because a
+  // schedule written before the rule is still found by its id.
+  static final RegExp _writableScheduleIdPattern =
+      RegExp(r'^[A-Za-z0-9][A-Za-z0-9._~:-]{0,127}$');
+
   /// The largest 64-bit signed integer, as text.
   static const String _maximumInt64 = '9223372036854775807';
 
@@ -425,7 +448,9 @@ class YogabaseSchedulesClient {
 
   /// Changes the schedule the [eTag] names (200) and answers it with its new
   /// ETag. The definition names the same schedule id and keeps the schedule's
-  /// kind: recurring or one-shot.
+  /// kind: recurring or one-shot. A schedule written before the id rule under
+  /// an id that does not follow it cannot be changed: delete it and create it
+  /// again under an id that does.
   ///
   /// Throws `precondition_failed` (412) when the ETag is stale or the schedule
   /// does not exist, `forbidden` (403) for another user's schedule, `conflict`
@@ -485,13 +510,15 @@ class YogabaseSchedulesClient {
   /// payload, as the schedule's owner (202). The same idempotency key against
   /// the same version answers the same invocation, with
   /// [YogabaseScheduleTriggerOutcome.replayed] where the first said
-  /// [YogabaseScheduleTriggerOutcome.enqueued].
+  /// [YogabaseScheduleTriggerOutcome.enqueued]. A manual run is not an
+  /// occurrence of the schedule: its [YogabaseScheduleConcurrencyPolicy]
+  /// neither holds it back nor is held back by it.
   ///
   /// Throws `precondition_failed` (412) when the ETag is stale, `not_found`
   /// (404), `conflict` (409) when the queue holds the key for a different
-  /// request, a 400 for a deadline that is not after now or is more than an
-  /// hour away, and a 503 for a schedule whose function version is no longer
-  /// admitted.
+  /// request or the schedule's function version is no longer an admitted
+  /// Stateless one of the project (as for a write of it), and a 400 for a
+  /// deadline that is not after now or is more than an hour away.
   Future<YogabaseScheduleTriggerResult> trigger(
     String scheduleId,
     String eTag,
@@ -608,7 +635,7 @@ class YogabaseSchedulesClient {
   static ScheduleDefinitionRequest _toRequest(
     YogabaseScheduleDefinition definition,
   ) {
-    _requireScheduleId(definition.scheduleId);
+    _requireWritableScheduleId(definition.scheduleId);
     _requireBounded(definition.functionId, maximumFunctionIdLength, 'functionId');
     _requireBounded(
       definition.functionVersion,
@@ -752,6 +779,18 @@ class YogabaseSchedulesClient {
     }
     return value.length < _maximumInt64.length ||
         value.compareTo(_maximumInt64) <= 0;
+  }
+
+  static String _requireWritableScheduleId(String value) {
+    if (!_writableScheduleIdPattern.hasMatch(value)) {
+      throw ArgumentError.value(
+        value,
+        'scheduleId',
+        'a schedule id to write is 1 to 128 characters, a letter or a digit '
+            'first and then letters, digits and . _ ~ : - only',
+      );
+    }
+    return value;
   }
 
   static String _requireScheduleId(String value) {

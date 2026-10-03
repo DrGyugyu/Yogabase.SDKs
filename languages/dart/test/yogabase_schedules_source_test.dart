@@ -20,6 +20,7 @@ Future<void> main() async {
   await _checkCreateAndUpdateAreConditionalPutsOfTheExactBody();
   await _checkAnAbsentOrEmptyPayloadIsOmittedAndAOneShotIsSentInUtc();
   await _checkReadDeleteAndTriggerShapes();
+  await _checkAWriteHoldsTheIdRuleAndAnOlderIdIsStillAddressed();
   await _checkMalformedInputIsRefusedBeforeTheAdapter();
   _checkRefusalsKeepTheirStatusCodeAndLimits();
   _checkTheApplicationClientHandsOutTheSchedulesClient();
@@ -266,6 +267,77 @@ Future<void> _checkReadDeleteAndTriggerShapes() async {
   );
 }
 
+/// The id a request addresses: the path segment after `schedules`, decoded, so
+/// that however the generated builder escapes a character the id is compared
+/// as the gateway reads it.
+String _scheduleIdOf(RequestInformation request) {
+  final segments = request.uri.pathSegments;
+  return segments[segments.indexOf('schedules') + 1];
+}
+
+Future<void> _checkAWriteHoldsTheIdRuleAndAnOlderIdIsStillAddressed() async {
+  final adapter = _RecordingRequestAdapter();
+  final client = _client(adapter);
+
+  // An id that follows the rule is sent unchanged in the body and travels as
+  // one segment of the path.
+  final followers = <String>[
+    'a',
+    'Z',
+    '0',
+    'nightly',
+    'a.b_c~d:e-f',
+    'orders-nightly.v2:eu~west_1',
+    'a' * 128,
+  ];
+  for (final id in followers) {
+    adapter.requests.clear();
+    await _send(() => client.create(_definition(scheduleId: id)));
+    final request = adapter.requests.single;
+    _expect(
+      _scheduleIdOf(request) == id && _body(request)['scheduleId'] == id,
+      'an id that follows the rule travels as one segment: ${request.uri}',
+    );
+  }
+
+  // An older id, written before the rule, is still read, run and deleted by its
+  // id, percent-encoded as any path segment is, but a write of it is refused.
+  const older = 'weekly report/é?#';
+  adapter.requests.clear();
+  await _send(() => client.get(older));
+  await _send(() => client.trigger(
+        older,
+        _eTag,
+        YogabaseScheduleTriggerRequest(
+          idempotencyKey: 'run-1',
+          deadline: DateTime.now().toUtc().add(const Duration(minutes: 10)),
+        ),
+      ));
+  await client.delete(older, _eTag);
+  _expect(
+    adapter.requests.length == 3 &&
+        adapter.requests.every((request) => _scheduleIdOf(request) == older),
+    'an older id is addressed by a read, a run and a delete: '
+    '${adapter.requests.map((request) => request.uri).toList()}',
+  );
+
+  adapter.requests.clear();
+  final writes = <Future<Object?> Function()>[
+    () => client.create(_definition(scheduleId: older)),
+    () => client.update(_definition(scheduleId: older), _eTag),
+  ];
+  for (final write in writes) {
+    var refused = false;
+    try {
+      await write();
+    } on ArgumentError {
+      refused = true;
+    }
+    _expect(refused, 'a write of an older id must be refused');
+  }
+  _expect(adapter.requests.isEmpty, 'a refused write must send no request');
+}
+
 Future<void> _checkMalformedInputIsRefusedBeforeTheAdapter() async {
   final adapter = _RecordingRequestAdapter();
   final client = _client(adapter);
@@ -283,6 +355,40 @@ Future<void> _checkMalformedInputIsRefusedBeforeTheAdapter() async {
         client.create(_definition(scheduleId: '.')),
     'a schedule id of two dots': () =>
         client.create(_definition(scheduleId: '..')),
+    'a schedule id with trailing white space': () =>
+        client.create(_definition(scheduleId: 'nightly ')),
+    'a schedule id with a slash': () =>
+        client.create(_definition(scheduleId: 'weekly/report')),
+    'a schedule id with a space inside': () =>
+        client.create(_definition(scheduleId: 'weekly report')),
+    'a schedule id that starts with a dash': () =>
+        client.create(_definition(scheduleId: '-nightly')),
+    'a schedule id that starts with a dot': () =>
+        client.create(_definition(scheduleId: '.nightly')),
+    'a schedule id that starts with an underscore': () =>
+        client.create(_definition(scheduleId: '_nightly')),
+    'a schedule id that starts with a tilde': () =>
+        client.create(_definition(scheduleId: '~nightly')),
+    'a schedule id that starts with a colon': () =>
+        client.create(_definition(scheduleId: ':nightly')),
+    'a schedule id with a percent sign': () =>
+        client.create(_definition(scheduleId: 'weekly%2Freport')),
+    'a schedule id with a question mark': () =>
+        client.create(_definition(scheduleId: 'nightly?')),
+    'a schedule id with a hash': () =>
+        client.create(_definition(scheduleId: 'night#ly')),
+    'a schedule id with a non-ASCII letter': () =>
+        client.create(_definition(scheduleId: 'nightlé')),
+    // ARABIC-INDIC DIGIT THREE: a digit to Unicode, but not to the contract's
+    // [0-9].
+    'a schedule id with a non-ASCII digit': () =>
+        client.create(_definition(scheduleId: 'night\u0663')),
+    'a schedule id with a trailing newline': () =>
+        client.create(_definition(scheduleId: 'nightly\n')),
+    'an update with a schedule id with a slash': () => client.update(
+          _definition(scheduleId: 'weekly/report'),
+          _eTag,
+        ),
     'a blank function id': () => client.create(_definition(functionId: ' ')),
     'a function id over 256 characters': () =>
         client.create(_definition(functionId: 'x' * 257)),
