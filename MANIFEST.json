@@ -222,9 +222,9 @@
         "targetFramework": "netstandard2.1",
         "packageLine": "src/unity/Directory.Packages.props: Microsoft.AspNetCore.SignalR.Client 8.0.15, System.Text.Json 8.0.5",
         "assembly": "src/unity/Yogabase.Yogabase.Client.Unity/bin/Release/netstandard2.1/Yogabase.Yogabase.Client.dll",
-        "sha256AtThisCommitsSources": "e3d6a3ee5519732db29ce3f5580aef358cbb98104418fd86adef2174a788f5dd"
+        "sha256AtThisCommitsSources": "79bdb5831a2586149e28184991dba54e9c4486b5582f73ecd56856b7c4acb209"
       },
-      "qualification": "locked-restore-release-netstandard2.1-build-deterministic-across-two-no-incremental-builds-2026-10-03-at-commit-8c9a96d-whose-hash-the-assembly-embeds-in-its-informational-version-so-the-digest-is-per-commit; UnityBuildTests-pin-no-9.x-or-10.x-assembly-reference-or-lock-entry; unity-editor-and-il2cpp-evidence-is-the-consuming-project's-own"
+      "qualification": "locked-restore-release-netstandard2.1-build-deterministic-across-two-no-incremental-builds-2026-10-03-at-commit-0da1c82-whose-hash-the-assembly-embeds-in-its-informational-version-so-the-digest-is-per-commit; UnityBuildTests-pin-no-9.x-or-10.x-assembly-reference-or-lock-entry; unity-editor-and-il2cpp-evidence-is-the-consuming-project's-own"
     },
     {
       "language": "CSharp",
@@ -235,9 +235,9 @@
         "targetFramework": "netstandard2.1",
         "packageLine": "src/unity/Directory.Packages.props: System.Text.Json 8.0.5",
         "assembly": "src/unity/Yogabase.Yogabase.RuntimeHost.Unity/bin/Release/netstandard2.1/Yogabase.Yogabase.RuntimeHost.dll",
-        "sha256AtThisCommitsSources": "3c9ccc8a84ea9b231f585c05ee6391c66531f943d324526ba565a6006bbb7c26"
+        "sha256AtThisCommitsSources": "aed767e68a65ee5e6870817f2539277b3336658a8c2777b9bf01ca7bae5835bd"
       },
-      "qualification": "locked-restore-release-netstandard2.1-build-deterministic-across-two-no-incremental-builds-2026-10-03-at-commit-8c9a96d-whose-hash-the-assembly-embeds-in-its-informational-version-so-the-digest-is-per-commit; UnityBuildTests-pin-no-9.x-or-10.x-assembly-reference-or-lock-entry; unity-editor-and-il2cpp-evidence-is-the-consuming-project's-own"
+      "qualification": "locked-restore-release-netstandard2.1-build-deterministic-across-two-no-incremental-builds-2026-10-03-at-commit-0da1c82-whose-hash-the-assembly-embeds-in-its-informational-version-so-the-digest-is-per-commit; UnityBuildTests-pin-no-9.x-or-10.x-assembly-reference-or-lock-entry; unity-editor-and-il2cpp-evidence-is-the-consuming-project's-own"
     }
   ],
   "publicationAuthorized": false
