@@ -1,6 +1,7 @@
 import 'package:microsoft_kiota_abstractions/microsoft_kiota_abstractions.dart';
 import 'yogabase_api_client.dart';
 import 'yogabase_jobs_client.dart';
+import 'yogabase_schedules_client.dart';
 
 /// Application-plane facade with its own origin and request adapter.
 ///
@@ -19,11 +20,17 @@ class YogabaseApplicationClient {
   final RequestAdapter requestAdapter;
   final YogabaseApiClient api;
 
-  /// Durable background jobs of one project for the signed-in user, beside the
-  /// generated invoke routes. It shares this client's adapter, and so its
+  /// Durable background jobs of one project for the signed-in user, over the
+  /// generated Jobs routes. It shares this client's adapter, and so its
   /// authentication and origin.
   YogabaseJobsClient jobs(String projectId) =>
       YogabaseJobsClient(requestAdapter, origin, projectId);
+
+  /// The signed-in user's own schedules of one project, over the generated
+  /// schedule routes: each write is conditional on the schedule's ETag. It
+  /// shares this client's adapter, and so its authentication and origin.
+  YogabaseSchedulesClient schedules(String projectId) =>
+      YogabaseSchedulesClient(requestAdapter, origin, projectId);
 
   static RequestAdapter _configureAdapter(RequestAdapter adapter, Uri origin) {
     adapter.baseUrl = origin.toString();

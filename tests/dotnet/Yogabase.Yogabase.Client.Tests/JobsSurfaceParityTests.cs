@@ -47,7 +47,13 @@ public sealed class JobsSurfaceParityTests
             "languages/java/src/main/java/io/stackyoga/yogabase/v1/projects/item/jobs/",
             "languages/java/src/main/java/io/stackyoga/yogabase/models/JobSubmitRequest.java",
         ],
-        ["Dart"] = ["languages/dart/lib/src/yogabase_jobs_client.dart"],
+        ["Dart"] =
+        [
+            "languages/dart/lib/src/yogabase_jobs_client.dart",
+            "languages/dart/lib/src/yogabase_gateway_support.dart",
+            "languages/dart/lib/src/v1/projects/item/jobs/",
+            "languages/dart/lib/src/models/job_submit_request.dart",
+        ],
     };
 
     // Members and route tails: .NET writes its members as PascalCase properties that its serializer names

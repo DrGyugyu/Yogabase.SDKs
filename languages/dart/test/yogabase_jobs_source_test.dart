@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:microsoft_kiota_abstractions/microsoft_kiota_abstractions.dart';
@@ -8,15 +9,16 @@ import 'package:stackyoga_yogabase_client_preview/src/models/problem.dart';
 /// `dart run test/yogabase_jobs_source_test.dart`.
 ///
 /// Every request goes to an in-memory [_RecordingRequestAdapter]; nothing here
-/// reaches a network. The shapes pinned here are the ones the product's gateway
-/// writes (DurableJobsGateway) and its developer documentation states. This
+/// reaches a network. The shapes pinned here are the ones the mirrored client
+/// OpenAPI document declares for the Jobs routes and the product's gateway
+/// writes, and each request is the one the generated Kiota builder builds. This
 /// program was written without a Dart SDK on hand and has not been run or
-/// analyzed; the submit request body and the response parsing are not covered
-/// here because they need a real serialization writer factory and a real
+/// analyzed; the response parsing is not covered here because it needs a real
 /// adapter, which the other languages' tests do cover.
 Future<void> main() async {
   _checkStatusNamesAndTerminalStates();
   _checkRequestShapes();
+  await _checkTheSubmitBodyIsTheGeneratedBuildersBody();
   await _checkMalformedInputIsRefusedBeforeTheAdapter();
   _checkRefusalsKeepTheirStatusCodeAndLimits();
   _checkTheApplicationClientHandsOutTheJobsClient();
@@ -66,8 +68,9 @@ void _checkRequestShapes() {
     read.httpMethod == HttpMethod.get && read.uri.toString() == '$_jobs/$_job',
     'read request: ${read.httpMethod} ${read.uri}',
   );
+  // The generated builder's own Accept, which is the authored client's.
   _expect(
-    read.headers['Accept']?.single == 'application/json, application/problem+json',
+    read.headers['Accept']?.single == 'application/json',
     'read Accept: ${read.headers['Accept']}',
   );
 
@@ -90,6 +93,68 @@ void _checkRequestShapes() {
     'result Accept: ${result.headers['Accept']}',
   );
   _expect(adapter.requests.isEmpty, 'building a request sends nothing');
+}
+
+Future<void> _checkTheSubmitBodyIsTheGeneratedBuildersBody() async {
+  final adapter = _RecordingRequestAdapter();
+  final client = YogabaseJobsClient(
+    adapter,
+    Uri.parse('https://apps.example.test'),
+    _project,
+  );
+  try {
+    await client.submit(
+      jobType: 'orders-create',
+      idempotencyKey: 'order-42',
+      payload: Uint8List.fromList(utf8.encode('hello')),
+      maxAttempts: 3,
+    );
+  } on YogabaseJobsException {
+    // The recording adapter answers nothing, which is not a job.
+  }
+  final request = adapter.requests.single;
+  _expect(
+    request.httpMethod == HttpMethod.post && request.uri.toString() == _jobs,
+    'submit request: ${request.httpMethod} ${request.uri}',
+  );
+  final body = jsonDecode(utf8.decode(request.content!)) as Map<String, dynamic>;
+  _expect(
+    body.length == 4 &&
+        body['jobType'] == 'orders-create' &&
+        body['idempotencyKey'] == 'order-42' &&
+        body['payloadBase64'] == 'aGVsbG8=' &&
+        body['maxAttempts'] == 3,
+    'submit body: $body',
+  );
+  _expect(
+    request.headers['Content-Type']?.single == 'application/json',
+    'submit Content-Type: ${request.headers['Content-Type']}',
+  );
+
+  // A job with no payload and one with an empty payload are the same job.
+  adapter.requests.clear();
+  for (final payload in <Uint8List?>[null, Uint8List(0)]) {
+    try {
+      await client.submit(
+        jobType: 'emails-send',
+        idempotencyKey: 'k',
+        payload: payload,
+      );
+    } on YogabaseJobsException {
+      // As above.
+    }
+  }
+  final bodies = adapter.requests
+      .map((request) => jsonDecode(utf8.decode(request.content!)) as Map<String, dynamic>)
+      .toList();
+  _expect(
+    bodies.length == 2 &&
+        bodies.every((body) =>
+            body.length == 2 &&
+            body['jobType'] == 'emails-send' &&
+            body['idempotencyKey'] == 'k'),
+    'an absent and an empty payload are both omitted: $bodies',
+  );
 }
 
 Future<void> _checkMalformedInputIsRefusedBeforeTheAdapter() async {
@@ -205,6 +270,10 @@ void _checkRefusalsKeepTheirStatusCodeAndLimits() {
     'a bare 413 reads as payload_too_large',
   );
   _expect(
+    YogabaseJobsException.fromStatus(415).code == 'unsupported_media_type',
+    'a bare 415 reads as unsupported_media_type',
+  );
+  _expect(
     YogabaseJobsException.fromStatus(404).code == 'not_found' &&
         YogabaseJobsException.fromStatus(404).code != YogabaseJobErrorCodes.notFound,
     'a plain 404 is not job_not_found',
@@ -233,9 +302,11 @@ class _RecordingRequestAdapter implements RequestAdapter {
   @override
   String? baseUrl;
 
+  // The generated client registers its JSON writer in the default registry
+  // when it is built, which is all a request body needs.
   @override
   SerializationWriterFactory get serializationWriterFactory =>
-      throw UnimplementedError();
+      SerializationWriterFactoryRegistry.defaultInstance;
 
   @override
   Future<ModelType?> send<ModelType extends Parsable>(

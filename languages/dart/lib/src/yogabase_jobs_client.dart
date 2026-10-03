@@ -2,8 +2,14 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:microsoft_kiota_abstractions/microsoft_kiota_abstractions.dart';
+import 'package:uuid/uuid.dart';
 
+import 'models/job_submit_request.dart';
 import 'models/problem.dart';
+import 'v1/projects/item/jobs/item/with_job_item_request_builder.dart';
+import 'v1/projects/item/jobs/jobs_request_builder.dart';
+import 'yogabase_api_client.dart';
+import 'yogabase_gateway_support.dart';
 
 /// Where a durable job is in its lifecycle: [queued], then [running], then it
 /// settles as [succeeded], [cancelled] or [deadLettered]. [failed] is a
@@ -98,10 +104,12 @@ class YogabaseJob {
 /// The stored result of a job that succeeded with one.
 ///
 /// Unlike the other languages' Jobs clients, this one cannot check the bytes
-/// against the `X-Yogabase-Content-Sha256` header the gateway sends: a Kiota
-/// request adapter does not hand a Dart caller the response headers, and this
-/// package has no hashing dependency. The gateway has already verified the
-/// stored object against the digest the job recorded before it sent a byte.
+/// against the `X-Yogabase-Content-Sha256` header the gateway sends: a typed
+/// Kiota call does not hand a Dart caller the response headers (only a native
+/// response handler does, and this client sends the generated builder's own
+/// request), and this package has no hashing dependency. The gateway has
+/// already verified the stored object against the digest the job recorded
+/// before it sent a byte.
 class YogabaseJobResult {
   const YogabaseJobResult(this.content);
 
@@ -204,21 +212,10 @@ class YogabaseJobsException implements Exception {
     );
   }
 
-  /// The HTTP status a Kiota [ApiException] carries: its response status code, or for a [Problem] the status
-  /// member of the document, or 0 when it has neither.
-  static int statusOf(ApiException exception) {
-    final Object? code = exception.statusCode;
-    if (code is int && code > 0) {
-      return code;
-    }
-    if (exception is Problem) {
-      final Object? member = exception.status;
-      if (member is int) {
-        return member;
-      }
-    }
-    return 0;
-  }
+  /// The HTTP status a Kiota [ApiException] carries: its response status code,
+  /// or for a [Problem] the status member of the document, or 0 when it has
+  /// neither.
+  static int statusOf(ApiException exception) => yogabaseStatusOf(exception);
 
   /// The refusal for a status the contract maps to no problem document.
   static YogabaseJobsException fromStatus(int status) => YogabaseJobsException(
@@ -227,29 +224,10 @@ class YogabaseJobsException implements Exception {
         _codeFromStatus(status),
       );
 
-  static int? _positive(Object? value) =>
-      value is int && value > 0 ? value : null;
+  static int? _positive(Object? value) => yogabasePositiveInt(value);
 
-  static String _codeFromStatus(int status) {
-    switch (status) {
-      case 401:
-        return 'authentication_required';
-      case 403:
-        return 'forbidden';
-      case 404:
-        return 'not_found';
-      case 409:
-        return 'conflict';
-      // A gateway that predates the named refusal answers a bare 413 for a body
-      // over its listener's limit.
-      case 413:
-        return 'payload_too_large';
-      case 429:
-        return 'rate_limited';
-      default:
-        return 'request_failed';
-    }
-  }
+  static String _codeFromStatus(int status) =>
+      YogabaseStatusErrorCodes.forStatus(status);
 
   @override
   String toString() => 'YogabaseJobsException($status $code): $message';
@@ -263,14 +241,17 @@ class YogabaseJobsException implements Exception {
 /// who submitted it, and another user's job is answered exactly as one that
 /// does not exist.
 ///
-/// Jobs are served by the product (owner decision, 2026-10-03) but its client
-/// OpenAPI document does not describe the routes yet, so Kiota generates
-/// nothing for them and this class is written from the gateway's source and
-/// developer documentation instead. It shares the Kiota request adapter, and so
-/// the authentication and the origin, of the generated application client
-/// ([YogabaseApplicationClient.jobs]). Neither this class nor its standalone
-/// source check has been run or analyzed: no Dart SDK was available when it was
-/// written.
+/// The product's client OpenAPI document describes the Jobs routes, so Kiota
+/// generates their request builders (`api.v1.projects.byProjectId(id).jobs`).
+/// This class wraps those builders: each request is the one the generated
+/// builder builds (its route, its media types and its serialized body), sent
+/// through the Kiota request adapter of the generated application client
+/// ([YogabaseApplicationClient.jobs]), and so with its authentication and
+/// origin. What it adds is what a generated builder does not give: it
+/// validates each call before it is sent, refuses an answer that is not what
+/// the route declares, and names every refusal by its code. Neither this class
+/// nor its standalone source check has been run or analyzed: no Dart SDK was
+/// available when it was written.
 ///
 /// No capability gates it: the bootstrap document carries no capability
 /// identifier for Jobs, so the client does not pretend to know whether an
@@ -301,8 +282,6 @@ class YogabaseJobsClient {
   final Uri origin;
   final String projectId;
   final RequestAdapter requestAdapter;
-
-  static const String _route = '{+baseurl}/v1/projects/{projectId}/jobs';
 
   static final RegExp _jobTypePattern = RegExp(r'^[A-Za-z0-9._:-]{1,128}$');
   static final RegExp _failureCodePattern = RegExp(r'^[a-z0-9_]{1,128}$');
@@ -335,27 +314,15 @@ class YogabaseJobsClient {
     int? maxAttempts,
   }) async {
     _validateSubmit(jobType, idempotencyKey, payload, maxAttempts);
-    // The member order and the names are the gateway's submission, which
-    // refuses any other member. A job with no payload and one with an empty
-    // payload are the same job to the gateway.
-    final body = _JobSubmission()
+    // A job with no payload and one with an empty payload are the same job to
+    // the gateway.
+    final body = JobSubmitRequest()
       ..jobType = jobType
       ..idempotencyKey = idempotencyKey
       ..payloadBase64 =
           payload != null && payload.isNotEmpty ? base64Encode(payload) : null
       ..maxAttempts = maxAttempts;
-    final requestInfo = _requestInformation(
-      HttpMethod.post,
-      '',
-      null,
-      'application/json, application/problem+json',
-    );
-    requestInfo.setContentFromParsable(
-      requestAdapter,
-      'application/json',
-      body,
-    );
-    return _sendJob(requestInfo);
+    return _sendJob(_jobs().toPostRequestInformation(body));
   }
 
   /// Reads the caller's own job. Poll this until it [YogabaseJob.isTerminal].
@@ -408,54 +375,31 @@ class YogabaseJobsClient {
     }
   }
 
-  /// The request that reads one job.
+  /// The request that reads one job: the one the generated builder builds.
   RequestInformation toGetRequestInformation(String jobId) =>
-      _requestInformation(
-        HttpMethod.get,
-        '/{jobId}',
-        _requireUuid(jobId, 'jobId'),
-        'application/json, application/problem+json',
-      );
+      _job(jobId).toGetRequestInformation();
 
-  /// The request that cancels one job.
+  /// The request that cancels one job: the one the generated builder builds.
   RequestInformation toCancelRequestInformation(String jobId) =>
-      _requestInformation(
-        HttpMethod.post,
-        '/{jobId}/cancel',
-        _requireUuid(jobId, 'jobId'),
-        'application/json, application/problem+json',
-      );
+      _job(jobId).cancel.toPostRequestInformation();
 
-  /// The request that reads one job's result.
+  /// The request that reads one job's result: the one the generated builder
+  /// builds.
   RequestInformation toResultRequestInformation(String jobId) =>
-      _requestInformation(
-        HttpMethod.get,
-        '/{jobId}/result',
-        _requireUuid(jobId, 'jobId'),
-        'application/octet-stream, application/problem+json',
-      );
+      _job(jobId).result.toGetRequestInformation();
 
-  RequestInformation _requestInformation(
-    HttpMethod method,
-    String template,
-    String? jobId,
-    String accept,
-  ) {
-    final pathParameters = <String, dynamic>{
-      'baseurl': requestAdapter.baseUrl,
-      'projectId': projectId,
-    };
-    if (jobId != null) {
-      pathParameters['jobId'] = jobId;
-    }
-    final requestInfo = RequestInformation(
-      httpMethod: method,
-      urlTemplate: _route + template,
-      pathParameters: pathParameters,
-    );
-    requestInfo.headers.put('Accept', accept);
-    return requestInfo;
-  }
+  /// The generated Jobs request builder of this client's project. It is built
+  /// for each call from the generated client's own navigation, so the route,
+  /// the path parameters and the base URL the adapter holds now are the
+  /// generated code's and never restated here.
+  JobsRequestBuilder _jobs() => YogabaseApiClient(requestAdapter)
+      .v1
+      .projects
+      .byProjectId(UuidValue.fromString(projectId))
+      .jobs;
+
+  WithJobItemRequestBuilder _job(String jobId) =>
+      _jobs().byJobId(UuidValue.fromString(_requireUuid(jobId, 'jobId')));
 
   Map<String, ParsableFactory<Parsable>> _errorMapping() =>
       <String, ParsableFactory<Parsable>>{
@@ -609,34 +553,6 @@ class YogabaseJobsClient {
       host: value.host,
       port: value.hasPort ? value.port : null,
     );
-  }
-}
-
-/// The submit route's request body: exactly the gateway's submission members.
-class _JobSubmission implements Parsable {
-  String? jobType;
-  String? idempotencyKey;
-  String? payloadBase64;
-  int? maxAttempts;
-
-  @override
-  Map<String, void Function(ParseNode)> getFieldDeserializers() {
-    var deserializerMap = <String, void Function(ParseNode)>{};
-    deserializerMap['jobType'] = (node) => jobType = node.getStringValue();
-    deserializerMap['idempotencyKey'] =
-        (node) => idempotencyKey = node.getStringValue();
-    deserializerMap['payloadBase64'] =
-        (node) => payloadBase64 = node.getStringValue();
-    deserializerMap['maxAttempts'] = (node) => maxAttempts = node.getIntValue();
-    return deserializerMap;
-  }
-
-  @override
-  void serialize(SerializationWriter writer) {
-    writer.writeStringValue('jobType', jobType);
-    writer.writeStringValue('idempotencyKey', idempotencyKey);
-    writer.writeStringValue('payloadBase64', payloadBase64);
-    writer.writeIntValue('maxAttempts', maxAttempts);
   }
 }
 

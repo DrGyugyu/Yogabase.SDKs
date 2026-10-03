@@ -75,15 +75,20 @@ reads, cancels and fetches the result of a durable background job as the signed-
 its highest released version runs the job. A job belongs to the user who submitted it, and another user's
 job is answered exactly as one that does not exist.
 
-Nothing is generated for it: the product serves these routes (owner decision, 2026-10-03) but its client
-OpenAPI document does not describe them yet, so the client is written from the gateway's source and
-developer documentation. It shares the Kiota request adapter, and so the authentication and the origin, of
-the generated application client.
+The product's client OpenAPI document describes the Jobs routes, so Kiota generates their request builders
+(`api.v1.projects.byProjectId(projectId).jobs`, with `Job`, `JobStatus` and `JobSubmitRequest` among the
+models). This client **wraps those builders**: each request is the one the generated builder builds (its
+route, its media types and its serialized body), sent through the Kiota request adapter of the generated
+application client, and so with its authentication and origin. What it adds is what a generated builder does
+not give: it checks each call before it is sent, refuses an answer that is not what the route declares, and
+names every refusal by its code.
 
-**It has not been run or analyzed.** No Dart SDK was available when it was written, so
-`lib/src/yogabase_jobs_client.dart` and `test/yogabase_jobs_source_test.dart` were modelled line by line on
-the generated builders and models and the existing standalone check, and neither the compiler nor the
-analyzer has seen them. Run the commands under "Local verification" before relying on it.
+**It has not been run or analyzed.** No Dart SDK was available when it was written (nor when it was
+re-written over the generated builders), so `lib/src/yogabase_jobs_client.dart`,
+`lib/src/yogabase_schedules_client.dart` and the two source checks under `test/` were modelled line by line on
+the generated builders and models, the Kiota Dart packages in the pub cache and the existing standalone
+check, and neither the compiler nor the analyzer has seen them. Run the commands under "Local verification"
+before relying on it.
 
 ```dart
 final application = YogabaseApplicationClient(requestAdapter, Uri.parse('https://apps.example.test'));
@@ -117,16 +122,79 @@ await jobs.cancel(job.jobId);               // idempotent; a running job is flag
   `job_payload_too_large` (413, with `limitBytes` and `maxBodyBytes` naming the payload and body limits),
   `job_request_invalid` (400), `job_access_denied` (403), `job_unavailable` (503) and `job_not_found` (404, for
   no such job and for another user's, never told apart). A plain `not_found` is an installation that does
-  not serve Jobs at all; no capability row says whether one does.
+  not serve Jobs at all; no capability row says whether one does. A status the gateway names no code for
+  reads as `YogabaseStatusErrorCodes` names it (`unsupported_media_type` for a submit that is not JSON,
+  `payload_too_large` for a bare 413 from a gateway that predates the named one).
 - **A result is not checked against its digest here.** `result()` returns the bytes
   (`job_result_not_ready` is 409 for a job that has not settled; `job_result_not_found` is 404 for another
   user's job, an unknown one and one that finished without a result, never told apart). The other languages
-  compare the bytes with the `X-Yogabase-Content-Sha256` header; a Kiota Dart adapter does not hand the caller
-  response headers and this package has no hashing dependency, so this client cannot. The gateway has
+  compare the bytes with the `X-Yogabase-Content-Sha256` header; a typed Kiota Dart call does not hand the
+  caller response headers (only a native response handler does) and this package has no hashing dependency,
+  so this client cannot. The gateway has
   already verified the stored object against the digest the job recorded before it sends a byte, and a
   result over 16 MiB is refused.
 - A response member this client does not know is ignored, as the generated clients keep unknown members
   aside; a job that breaks a bound it does know (an unknown status, `maxAttempts` outside 1 to 10) is refused.
+
+## Schedules
+
+`YogabaseSchedulesClient`, authored and reached from `YogabaseApplicationClient.schedules(projectId)`,
+creates, changes, reads, deletes and runs once the signed-in user's own **recurring or one-shot schedules** of
+a deployed stateless function, against `/v1/projects/{projectId}/schedules/{scheduleId}` on the application
+gateway and behind the same project token (the `lambda.invoke` scope) as invoking a function. A schedule
+belongs to the user who created it, and only that user reads, changes, deletes or runs it: another user's
+schedule is a bare 404, updating it is a 403 and creating a schedule under its id is a 412. Like the Jobs
+client it wraps the generated builders (`api.v1.projects.byProjectId(projectId).schedules.byScheduleId(id)`),
+sends each request as the generated builder builds it, and adds what a builder does not give: every write is
+conditional on the schedule's **ETag**, which it sends as the header the route wants and builds from the
+schedule it reads back. Like the Jobs client it **has not been run or analyzed**; its standalone check is
+`test/yogabase_schedules_source_test.dart`.
+
+```dart
+final schedules = application.schedules(projectId);
+
+var schedule = await schedules.create(const YogabaseScheduleDefinition(   // If-None-Match: *  (201)
+  scheduleId: 'nightly',
+  functionId: 'orders-nightly',             // a deployed Stateless Lambda
+  functionVersion: '1',                     // an admitted version
+  cron: '0 3 * * *', timeZone: 'Asia/Seoul', // five fields; or set oneShotAtUtc for a one-shot
+  misfirePolicy: YogabaseScheduleMisfirePolicy.skipToNextOccurrence, // always sent: the gateway's default is not a promise
+  concurrencyPolicy: YogabaseScheduleConcurrencyPolicy.allow,        // stored, but not yet enforced by the scheduler
+  maxCatchUp: 1, maxAttempts: 3, deadlineSeconds: 300,
+));
+schedule = await schedules.update(definition, schedule.eTag);             // If-Match (200)
+final run = await schedules.trigger('nightly', schedule.eTag, YogabaseScheduleTriggerRequest(
+  idempotencyKey: 'run-1',                  // the same key against the same version is the same run
+  deadline: DateTime.now().toUtc().add(const Duration(minutes: 10)),      // after now, at most an hour from now
+));                                         // run.outcome is enqueued, or replayed for a repeat
+await schedules.delete('nightly', schedule.eTag);                         // If-Match (204)
+```
+
+- **Every write names the ETag it read.** `eTag` is built from the schedule's `version` (decimal text, a
+  64-bit number a JSON number cannot carry) and `instanceId`: `"schedule-v<version>-<instance>"`. A stale ETag,
+  creating an id that is already held and updating one that does not exist are each a 412
+  (`precondition_failed`) that changes nothing; the scheduler advances a recurring schedule's version as it
+  runs, so an ETag held for long is stale: `get` it again. Unlike the other languages' schedule clients this
+  one does not check the `ETag` header against the body, because a typed Kiota call does not hand a Dart caller
+  the response headers.
+- **Checked before anything is sent**, with the gateway's bounds, as `ArgumentError`s (the `maximum*` constants
+  of `YogabaseSchedulesClient`): a schedule id of 1 to 128 trimmed characters with no control character (and
+  not `.` or `..`, which a URL parser would collapse), a function id of at most 256 and a version of at most 64
+  characters, a cron expression and a time zone of at most 128, `maxCatchUp` 1 to 128, `maxAttempts` 1 to 16, a
+  deadline of 1 to 86,400 seconds, a payload of at most 1,048,576 bytes, and an ETag in the gateway's form. A
+  one-shot instant and a run's deadline are sent as UTC instants.
+- **Refusals** are `YogabaseSchedulesException`s carrying the gateway's `status` and `code`. Only the 413 names
+  a code, `schedule_payload_too_large` (`YogabaseScheduleErrorCodes`), with `limitBytes` and `maxBodyBytes`;
+  every other refusal is a status with a fixed title or no body, and reads as `YogabaseStatusErrorCodes`
+  names it: `precondition_failed` (412), `precondition_required` (428), `not_found` (404; also an installation
+  without the Scheduler), `conflict` (409: a function version that is not admitted, a write that would turn a
+  recurring schedule into a one-shot or the reverse, or a run key the queue holds for another request),
+  `forbidden` (403), `unsupported_media_type` (415) and `request_failed` (a 400 for a member the gateway
+  refuses, such as a cron expression that does not parse; a 503, which is also a run of a schedule whose
+  function version is no longer admitted, where a write answers 409).
+- **An id with a slash cannot be written.** The contract allows any 1 to 128 characters, but the real gateway
+  does not decode `%2F` in the route and answers such a write 400 (checked against product `main` `92ac1ced`);
+  choose ids without `/`.
 
 ## Workload delivery
 
@@ -160,6 +228,7 @@ dart pub get --enforce-lockfile
 dart analyze --fatal-infos --fatal-warnings
 dart run test/yogabase_delivery_source_test.dart
 dart run test/yogabase_jobs_source_test.dart
+dart run test/yogabase_schedules_source_test.dart
 ```
 
 The package declares no `dev_dependencies`, so `dart test` is not wired; the checks are one
@@ -178,7 +247,8 @@ issues with infos and warnings fatal, and the standalone program passed and exit
 Flutter, a streaming adapter, and a live gateway were not exercised.
 
 That run predates the source regenerated on 2026-10-03 (the restored Data API builders and models, the
-invoke builder's 413 mapping and `jobsMaxRunSeconds` on the delivery release configuration) and the
-authored Jobs client with its standalone program. No Dart SDK was installed on the machine that made
-those changes, so none of them has been through `dart analyze` or `dart run`: the commands above are the
-check they are waiting for.
+invoke builder's 413 mapping and `jobsMaxRunSeconds` on the delivery release configuration), the source
+regenerated again that day from the client contract of product `main` `92ac1ced` (the Jobs and schedule
+builders and models, the actor and workflow 413 mappings), and the authored Jobs and schedule clients with
+their standalone programs. No Dart SDK was installed on the machine that made those changes, so none of them
+has been through `dart analyze` or `dart run`: the commands above are the check they are waiting for.
