@@ -107,6 +107,7 @@ rsync -a --delete \
     --exclude /YogabaseDeliveryRequestOptions.java \
     --exclude /YogabaseDeliverySseEvent.java \
     --exclude /YogabaseDeliverySseParser.java \
+    --exclude '/YogabaseJob*.java' \
     --exclude /YogabaseStorageLogicalKey.java \
     "$stage/languages/java/src/main/java/io/stackyoga/yogabase/" \
     "$repo_root/languages/java/src/main/java/io/stackyoga/yogabase/"
