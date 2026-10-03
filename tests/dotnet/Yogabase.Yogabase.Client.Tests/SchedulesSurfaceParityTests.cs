@@ -136,6 +136,44 @@ public sealed class SchedulesSurfaceParityTests
             $"{language} no longer addresses /v1/projects/{{projectId}}/schedules.");
     }
 
+    // How each client spells the contract's pattern where it compiles it, with {core} standing for the text between the
+    // contract's anchors. A language has its own anchors or none (a JavaScript literal, a Python fullmatch, a Java
+    // matches(), a Dart RegExp, a .NET \z), and a doc comment that quotes the pattern does not count: these forms occur
+    // only where the pattern is compiled, so a client whose code drifts from the contract fails here whatever its
+    // comments say.
+    private static readonly Dictionary<string, string> PatternSpellings = new(StringComparer.Ordinal)
+    {
+        [".NET"] = "\"^{core}\\\\z\"",
+        ["TypeScript"] = "/^{core}$/",
+        ["Python"] = "re.compile(r\"{core}\")",
+        ["Java"] = "Pattern.compile(\"{core}\")",
+        ["Dart"] = "RegExp(r'^{core}$')",
+    };
+
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public async Task EveryLanguagesScheduleWriteCompilesThePatternOfTheContractsScheduleIdMember(string language)
+    {
+        var pattern = await ReadScheduleIdPatternAsync();
+        Assert.StartsWith("^", pattern, StringComparison.Ordinal);
+        Assert.EndsWith("$", pattern, StringComparison.Ordinal);
+        var spelling = PatternSpellings[language].Replace("{core}", pattern[1..^1], StringComparison.Ordinal);
+
+        var text = await ReadAsync(language);
+        Assert.True(
+            text.Contains(spelling, StringComparison.Ordinal),
+            $"{language} no longer compiles the contract's schedule id pattern as {spelling}.");
+    }
+
+    private static async Task<string> ReadScheduleIdPatternAsync()
+    {
+        using var document = System.Text.Json.JsonDocument.Parse(await File.ReadAllTextAsync(
+            Path.Combine(FindRepoRoot(), "contracts", "yogabase-client-v1.openapi.json"),
+            TestContext.Current.CancellationToken));
+        return document.RootElement.GetProperty("components").GetProperty("schemas").GetProperty("ScheduleDefinitionRequest")
+            .GetProperty("properties").GetProperty("scheduleId").GetProperty("pattern").GetString()!;
+    }
+
     private static async Task<string> ReadAsync(string language)
     {
         var root = FindRepoRoot();

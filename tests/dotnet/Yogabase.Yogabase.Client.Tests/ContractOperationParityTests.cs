@@ -715,6 +715,21 @@ public sealed class ContractLimitsAndCodesTests
         Assert.Equal(
             ["concurrencyPolicy", "cron", "deadlineSeconds", "functionId", "functionVersion", "maxAttempts", "maxCatchUp", "misfirePolicy", "scheduleId", "timeZone"],
             definition.GetProperty("required").EnumerateArray().Select(static value => value.GetString()!).Order(StringComparer.Ordinal).ToArray());
+
+        // A write holds the id to one rule: a letter or a digit, then up to the limit's remaining characters of letters,
+        // digits and . _ ~ : - (the id is one segment of the URL path). Every client spells that pattern, which
+        // SchedulesSurfaceParityTests holds to the contract's text. The path parameter carries no pattern, only the
+        // limit: a schedule written before the rule is still found by its id by a read, a run and a delete, so a client
+        // must not hold those three to the pattern. If the contract ever adds one to the parameter, this fails.
+        var scheduleId = definition.GetProperty("properties").GetProperty("scheduleId");
+        Assert.Equal(1, scheduleId.GetProperty("minLength").GetInt32());
+        Assert.Equal(YogabaseSchedulesLimits.MaximumScheduleIdLength, scheduleId.GetProperty("maxLength").GetInt32());
+        Assert.Equal(
+            $"^[A-Za-z0-9][A-Za-z0-9._~:-]{{0,{YogabaseSchedulesLimits.MaximumScheduleIdLength - 1}}}$",
+            scheduleId.GetProperty("pattern").GetString());
+        var pathId = root.GetProperty("components").GetProperty("parameters").GetProperty("ScheduleId").GetProperty("schema");
+        Assert.False(pathId.TryGetProperty("pattern", out _));
+        Assert.Equal(YogabaseSchedulesLimits.MaximumScheduleIdLength, pathId.GetProperty("maxLength").GetInt32());
     }
 
     [Fact]

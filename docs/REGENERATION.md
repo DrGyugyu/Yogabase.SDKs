@@ -117,10 +117,14 @@ fails a test instead of passing quietly:
   until every language has a surface for it or an explicit, reasoned exclusion.
 - `ContractLimitsAndCodesTests` compares the contract's bounds, statuses and refusal codes with each client's
   constants (the schedule write's `schedule_payload_too_large` and its limits, the job codes, the policy names,
-  the ETag pattern).
+  the ETag pattern, and the schedule id: the definition member's pattern, and the path parameter's lack of one,
+  because a schedule written before the rule is still read, run and deleted by its id).
 - `JobsSurfaceParityTests` and `SchedulesSurfaceParityTests` keep the five authored clients spelling the same
-  route tails, request members, error codes and bounds; they read the sources as text, which is the only check
-  Dart can have where no Dart SDK is installed.
+  route tails, request members, error codes and bounds, and `SchedulesSurfaceParityTests` holds the pattern each
+  client compiles for a schedule write's id to the contract's text; they read the sources as text, which is the
+  only check Dart can have where no Dart SDK is installed. The .NET, TypeScript, Python and Java tests also run
+  every Latin-1 character and the edge lengths through both a write and the pattern read from the mirrored
+  document.
 
 When a Kiota upgrade or a contract change renames a generated builder, the Java and Dart clients stop
 compiling (or, for Dart, the source test stops matching) at that exact call, which is the point of wrapping
