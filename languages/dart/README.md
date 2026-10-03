@@ -176,3 +176,9 @@ Last run on 2026-09-17 with the Dart 3.13.2 stable macOS arm64 SDK (revision
 `MANIFEST.json`: `pub get --enforce-lockfile` left `pubspec.lock` unchanged, analysis found no
 issues with infos and warnings fatal, and the standalone program passed and exited within a second.
 Flutter, a streaming adapter, and a live gateway were not exercised.
+
+That run predates the source regenerated on 2026-10-03 (the restored Data API builders and models, the
+invoke builder's 413 mapping and `jobsMaxRunSeconds` on the delivery release configuration) and the
+authored Jobs client with its standalone program. No Dart SDK was installed on the machine that made
+those changes, so none of them has been through `dart analyze` or `dart run`: the commands above are the
+check they are waiting for.
