@@ -54,14 +54,18 @@ generated source root also contains a Kiota lock binding it to the exact contrac
 The following convenience adapters are authored and deliberately preserved during regeneration:
 
 - `languages/typescript/src/delivery.ts`
+- `languages/typescript/src/jobs.ts`
 - `languages/typescript/src/storageLogicalKey.ts`
 - `languages/python/src/stackyoga_yogabase/delivery.py`
+- `languages/python/src/stackyoga_yogabase/jobs.py`
 - `languages/python/src/stackyoga_yogabase/storage_logical_key.py`
 - `languages/java/src/main/java/io/stackyoga/yogabase/YogabaseApplicationClient.java`
 - `languages/java/src/main/java/io/stackyoga/yogabase/YogabaseDelivery*.java`
+- `languages/java/src/main/java/io/stackyoga/yogabase/YogabaseJob*.java`
 - `languages/java/src/main/java/io/stackyoga/yogabase/YogabaseStorageLogicalKey.java`
 - `languages/dart/lib/src/yogabase_application_client.dart`
 - `languages/dart/lib/src/yogabase_delivery_*.dart`
+- `languages/dart/lib/src/yogabase_jobs_client.dart`
 - `languages/dart/lib/src/yogabase_storage_logical_key.dart`
 
 The TypeScript root export, Python package initializer, and Dart package library are likewise
@@ -70,6 +74,22 @@ delivery clients are not Kiota outputs, and neither is the authored runtime-host
 `src/dotnet/Yogabase.Yogabase.RuntimeHost` or its Unity package under `languages/unity` — the
 script never touches them. Review generated diffs before committing; regeneration does not
 authorize publication or replace platform-specific build and live-gateway qualification.
+
+### The durable Jobs clients are authored because the contract does not describe the routes
+
+The product serves durable Jobs to application clients (`/v1/projects/{projectId}/jobs`, owner decision
+2026-10-03) but its client OpenAPI document does not declare the routes (checked at product `main`
+`ab2eca1f`), so regenerating produces no Jobs builders and each language's Jobs client is authored in
+the files above and pinned by its own tests. They are preserved by the same anchored excludes as the
+other authored files. `ContractDigestTests.TheMirroredApplicationContractDeclaresNoJobsRouteSoTheAuthoredJobsSurfaceIsTheOnlyOne`
+is the tripwire for the day a re-mirrored document does declare them: it fails, and the regeneration that
+follows will add generated Jobs builders to the TypeScript, Python, Java and Dart trees beside the authored
+clients. Decide then, per language, whether the authored client stays the front door (it is the one that
+can read the result route's digest header) or is rebuilt over the generated builders, and keep the authored
+names clear of the generated ones: the TypeScript root export re-exports both modules, so a duplicate
+export name is a compile error.
+`JobsSurfaceParityTests` keeps the five authored clients spelling the same route tails, request members,
+status names, error codes, bounds and digest header in the meantime; it reads their sources as text.
 
 ### Every rsync `--exclude` must stay anchored with a leading slash
 

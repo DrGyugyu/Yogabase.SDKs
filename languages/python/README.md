@@ -228,3 +228,9 @@ error; `build --no-isolation` produced the wheel (88 Python files) and the sdist
 environment the wheel installed offline over the runtime lock, `pip check` reported no broken
 requirements, and the same 23 tests passed against the installed wheel. Python 3.10 and 3.11, a
 live gateway, and a published index were not exercised.
+
+Run again on 2026-10-03, on CPython 3.13.12 and 3.12.13, from source under `-X dev` with
+`ResourceWarning` as an error, against the packages of the locked environment above: 58 tests passed (the
+23, a delivery `jobsMaxRunSeconds` case, the 32 cases of `test_jobs.py`, and two generated-surface cases
+for the invoke route's 413 problem and the restored Data select). The wheel and sdist were not rebuilt and
+the installed-wheel run was not repeated, so the wheel evidence above predates `jobs.py`.

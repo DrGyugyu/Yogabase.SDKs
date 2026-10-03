@@ -163,4 +163,4 @@ by the client. As the SSE grammar says, exactly one space after a field's colon 
 further leading whitespace stays in the value, so an id round-trips unchanged; until 2026-09-22 this
 client trimmed every leading space, as the Python client did before 2026-09-17.
 
-`npm ci && npm test` passed 13 tests on 2026-09-22 (Node 25.9.0, npm 11.12.1).
+`npm ci && npm test` passed 13 tests on 2026-09-22 (Node 25.9.0, npm 11.12.1). On 2026-10-03 `npm test` passed 45 tests (the 13, a delivery `jobsMaxRunSeconds` case, 29 Jobs cases and 2 generated-surface cases) on the same Node and npm, over a `node_modules` tree copied from that locked install rather than a fresh `npm ci`.

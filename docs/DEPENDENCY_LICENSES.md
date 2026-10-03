@@ -1,7 +1,7 @@
 # Dependency licenses
 
 Status: local preview inventory
-Last reviewed: 2026-09-23
+Last reviewed: 2026-10-03
 
 This inventory covers direct SDK and test dependencies. Exact transitive versions and integrity
 values remain locked in `packages.lock.json`, `package-lock.json`, `pubspec.lock`, the hash-pinned
@@ -26,6 +26,8 @@ transitive graph before publication.
 | `build` | 1.6.1 (`build-requirements.lock`) | Python wheel and sdist build frontend | MIT | Build-only; not shipped. Its lock also pins `packaging` 26.3 (Apache-2.0 OR BSD-2-Clause) and `pyproject_hooks` 1.3.3 (MIT), and, only where their markers hold, `tomli` 2.4.1 (MIT), `importlib_metadata` 9.0.1 (Apache-2.0), `zipp` 4.1.0 (MIT) and `colorama` 0.4.6 (BSD classifier). |
 | `com.microsoft.kiota:microsoft-kiota-bundle` | 1.9.3 | Java runtime | MIT | Retain the MIT notice. |
 | `com.microsoft.kiota:microsoft-kiota-serialization-*` | 1.9.3 | Java serializers | MIT | Retain the MIT notice. |
+| `com.google.code.gson:gson` | 2.14.0 (transitive compile dependency of `microsoft-kiota-serialization-json` 1.9.3) | Java: JSON reading in the authored Jobs client | Apache-2.0 | Retain the Apache-2.0 notice. Used directly by `YogabaseJobsClient` though it arrives with the Kiota JSON module; replacement is Kiota's own `ParseNode`, at the cost of the strict member-type checks the client makes. |
+| `com.squareup.okhttp3:okhttp` | 4.12.0 (compile dependency of `microsoft-kiota-http-okHttp` 1.9.3) | Java: the Jobs client reads the OkHttp `Response` the Kiota adapter hands back | Apache-2.0 | Retain the Apache-2.0 notice. Used directly by `YogabaseJobsClient`, which therefore needs the Kiota bundle's `OkHttpRequestAdapter` and names any other adapter; the result route's digest header is not reachable through the adapter interface. |
 | `jakarta.annotation:jakarta.annotation-api` | 2.1.1 | Java annotations | EPL-2.0 or GPL-2.0 with Classpath Exception | Preserve the selected license notices and confirm the release SBOM selection. |
 | `microsoft_kiota_bundle` | 0.1.1 | Dart runtime | MIT | Retain the MIT notice; live Dart transport and Flutter integration remain unqualified. |
 | `uuid` | 4.6.0 | Dart delivery UUID value type | MIT | Retain the MIT notice. |
