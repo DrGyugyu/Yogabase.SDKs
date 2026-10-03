@@ -126,6 +126,8 @@ async with AsyncJobsClient(
   clients keep unknown members aside; a job that breaks a bound it does know (an unknown status,
   `maxAttempts` outside 1 through 10) is refused.
 
+It was also run end to end on 2026-10-03 against the product's real Jobs routes (24 checks; see the root README for what that host was and was not).
+
 ## Workload delivery
 
 `AsyncDeliveryClient` is a separate client for the release-configured Delivery API host. It uses

@@ -54,7 +54,14 @@
       "java": "YogabaseJobsClient and YogabaseApplicationClient.jobs (languages/java/src/main/java/io/stackyoga/yogabase/YogabaseJob*.java)",
       "dart": "YogabaseJobsClient (languages/dart/lib/src/yogabase_jobs_client.dart), not analyzed or run, no digest check"
     },
-    "tripwire": "tests/dotnet/Yogabase.Yogabase.Client.Tests/ContractDigestTests.cs fails when a re-mirrored client contract declares a /jobs route"
+    "tripwire": "tests/dotnet/Yogabase.Yogabase.Client.Tests/ContractDigestTests.cs fails when a re-mirrored client contract declares a /jobs route",
+    "endToEndEvidence": {
+      "date": "2026-10-03",
+      "host": "The product's real MapYogabaseJobs and function invoke routes, its authorization policy and gateway request body policy, built from product main ab2eca1f and hosted in-process on loopback over the product's in-memory ledger test double (InMemoryDurableJobRuntime) and a stub result reader. Not exercised: the object store, the engine's SQL, a real installation. The harness references the product repository and is not in this repository.",
+      "checksPassed": { "dotnet": 25, "typescript": 26, "python": 24, "java": 24 },
+      "dart": "not run",
+      "covered": "replay and idempotency conflict, 422 job_type_not_registered, per-user isolation of read, cancel and result, 403 for a token without the scope, 409 job_result_not_ready, queued and running cancel, a payload of exactly 1 MiB, a 300 KB result with its SHA-256 digest, 404 job_result_not_found, 502 job_result_integrity_failed, a dead-lettered job, and the real 413 problems of the Jobs and invoke routes (raw)"
+    }
   },
   "buildsContract": {
     "path": "contracts/yogabase-builds-v1.openapi.json",

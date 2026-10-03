@@ -141,6 +141,8 @@ await yogabase.Jobs.CancelAsync(job.JobId);           // idempotent; a running j
   As everywhere in this client, a response member it does not know is refused (`response_invalid`)
   rather than ignored.
 
+It was also run end to end on 2026-10-03 against the product's real Jobs routes (25 checks; see the root README for what that host was and was not).
+
 A function invoked directly by `yogabase.Functions` that is refused as too large (413
 `payload_too_large`) carries the same two limits: the payload limit is 1 MiB before base64, the same
 whether the payload is sent inline or as the object an `objectReference` names, and a request at

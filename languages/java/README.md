@@ -128,6 +128,8 @@ jobs.cancel(job.jobId());                        // idempotent; a running job is
   aside; a job that breaks a bound it does know (an unknown status, `maxAttempts` outside 1 to 10) is refused.
   Calls block: run them off the UI thread.
 
+It was also run end to end on 2026-10-03, over the default Kiota OkHttp pipeline, against the product's real Jobs routes (24 checks; see the root README for what that host was and was not).
+
 ## Workload delivery
 
 The package also contains a delivery client generated from the separate workload Delivery v1
