@@ -94,6 +94,7 @@ from .schedules import (
     YogabaseScheduleTriggerResult,
     YogabaseSchedulesError,
 )
+from .sign_in import YogabaseAuthError, YogabaseSession, sign_in_with_password
 
 __all__ = [
     "YogabaseApiClient",
@@ -183,4 +184,7 @@ __all__ = [
     "STATUS_PRECONDITION_REQUIRED",
     "STATUS_RATE_LIMITED",
     "STATUS_REQUEST_FAILED",
+    "YogabaseAuthError",
+    "YogabaseSession",
+    "sign_in_with_password",
 ]
