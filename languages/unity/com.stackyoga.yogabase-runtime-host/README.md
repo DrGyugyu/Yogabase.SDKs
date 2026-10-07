@@ -48,10 +48,56 @@ not authorized. To use it locally:
   ```
 - Or copy this directory directly into the target project's `Packages/` folder.
 
-The folder is **import-ready as-is**: it deliberately contains no hand-written `.meta` files.
-Unity generates `.meta` files (with fresh GUIDs) the first time it imports the package — do not
-fabricate them ahead of time, since a hand-guessed GUID risks colliding with something else in the
-target project.
+The folder is **import-ready as-is** and carries its 24 `.meta` files, one for every file and for
+the `Editor`, `Runtime`, `Tests` and `licenses` folders. They are committed because Unity ignores
+an asset in an immutable package (one installed from a Git URL) that has no `.meta` file, and so
+that every asset keeps the same GUID in every project that imports it. When you add a file, let
+Unity generate its `.meta` in a project that references this folder by a `file:` path and commit
+that file; do not write a GUID by hand.
+
+The `unity` field of `package.json` is `6000.5` with `unityRelease` `7f1`: Unity 6000.5.7f1 is the
+only version this package has been compile-checked or imported on. No other Unity version has been
+tried.
+
+## The player-side client is not in this package
+
+A game that signs a player in, invokes Functions, uses Storage or Realtime, or asks for a game server
+uses the .NET client, `Yogabase.Yogabase.Client`. **There is no UPM package for it**, and this one
+does not carry it: it holds only the dedicated server's runtime-host module and the Editor publisher.
+What exists is that client's own source, built for Unity's profile (paths below are from this
+repository's root):
+
+- `src/unity/Yogabase.Yogabase.Client.Unity` compiles the same `*.cs` files as
+  `src/dotnet/Yogabase.Yogabase.Client` for `netstandard2.1` into an assembly named
+  `Yogabase.Yogabase.Client`, against SignalR client 8.0.15 and System.Text.Json 8.0.5
+  (`src/unity/Directory.Packages.props`). The NuGet package is built against the 10.x line, and Unity
+  6000.5 binds its own 8.0 extension assemblies, so a plugin built against 10.x is CS1705 there.
+- **To use it, a developer builds it and brings its dependencies by hand.** With the .NET 10 SDK,
+  `dotnet build src/unity/Yogabase.Yogabase.Client.Unity -c Release` writes
+  `bin/Release/netstandard2.1/Yogabase.Yogabase.Client.dll` (with its `.pdb`, XML documentation and
+  `.deps.json`). The output does not contain the SignalR client or the rest of its closure, and no
+  script in this repository gathers them. The closure is the 27 packages locked in that project's
+  `packages.lock.json`; each package's `netstandard2.0` or `netstandard2.1` assembly is in its `lib`
+  folder in the NuGet cache after a restore. `src/unity/Directory.Packages.props` records that
+  Unity 6000.5.7f1 supplies System.Text.Json, Microsoft.Extensions.Logging.Abstractions,
+  Microsoft.Extensions.DependencyInjection.Abstractions, Microsoft.Bcl.AsyncInterfaces,
+  System.Diagnostics.DiagnosticSource and System.Text.Encodings.Web itself at 8.0.0.0, and
+  `docs/DEPENDENCY_LICENSES.md` that `System.Memory`, `System.Buffers`, `System.Numerics.Vectors` and
+  `System.Threading.Tasks.Extensions` need no DLL; which of the rest a given project must add has not
+  been worked out here. Copy the assemblies into the project's `Assets` (for example `Assets/Plugins`)
+  and keep each package's MIT notice with them.
+- The SignalR versions are the ones the AI Game Developer (MCP) Unity package restores into
+  `Assets/Plugins/NuGet`, so a project that has it holds byte-identical copies.
+
+**Never tried in an Editor.** `UnityBuildTests` checks that the Unity build compiles and that neither
+its references nor its lock reach any assembly at 9.x or above. This repository records no run of
+the build in a Unity Editor, none in a player and none in an IL2CPP build. Three things stay untried:
+whether the assemblies a developer gathers by hand resolve in Unity; whether the client's password
+sign-in works on Unity's `HttpClientHandler`, since it needs the handler to keep the identity cookie
+and not follow the authorize redirect; and whether Medium or High managed stripping breaks the client,
+which reads and writes JSON with `System.Text.Json.JsonSerializer` in a few places (the runtime-host
+module deliberately avoids that, see above) while the `link.xml` here preserves only the runtime-host
+assembly.
 
 ## Publishing a build
 

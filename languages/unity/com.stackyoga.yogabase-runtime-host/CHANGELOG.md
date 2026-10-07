@@ -2,6 +2,13 @@
 
 All notable changes to this package are documented in this file.
 
+## Unreleased
+
+- `package.json` names Unity 6000.5 (release 7f1), the version the compile check and the one import
+  ran on, where it named 6000.0.
+- The README says the folder carries its 24 committed `.meta` files, where it said it carried none,
+  and says how a Unity project gets the player-side client, which is not in this package.
+
 ## [0.2.3-preview.1]
 
 - A Lambda publish states `registeredLambdaIds` for a bundle whose entry is `RegisterLambdas`
