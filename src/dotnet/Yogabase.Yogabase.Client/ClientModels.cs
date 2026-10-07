@@ -247,6 +247,16 @@ public interface IYogabaseAuth
         string state,
         CancellationToken cancellationToken = default);
     Task<YogabaseSession> SignInWithPkceAsync(YogabasePkceOptions options, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Signs in with e-mail and password and leaves a bearer session in the store, with no browser: it logs
+    /// in for the identity cookie, then runs the PKCE code flow with that cookie in place of the browser.
+    /// The default transport keeps the cookie; a custom <c>TransportHandler</c> must too. Every refusal is a
+    /// <see cref="YogabaseApiException"/> carrying the gateway's code: <c>invalid_credentials</c> (401: a wrong
+    /// password, an unknown, unconfirmed or locked account, never told apart), <c>mfa_enrollment_required</c>
+    /// (403), <c>authentication_rate_limited</c> (429), and <c>mfa_required</c> (202) when the account has MFA
+    /// and no <paramref name="mfaCode"/> was passed; call again with the authenticator code.
+    /// </summary>
+    Task<YogabaseSession> SignInWithPasswordAsync(string email, string password, string? mfaCode = null, CancellationToken cancellationToken = default);
     Task<YogabaseSession> RefreshAsync(CancellationToken cancellationToken = default);
     Task ClearLocalSessionAsync(CancellationToken cancellationToken = default);
 }

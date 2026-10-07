@@ -3,6 +3,13 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Yogabase.Yogabase;
 
 namespace Yogabase.Tests;
@@ -457,6 +464,123 @@ public sealed class YogabaseClientTests
             },
             TestContext.Current.CancellationToken));
         Assert.Equal("authorization_response_invalid", forged.Code);
+    }
+
+    [Fact]
+    public async Task PasswordSignInLogsInThenAuthorizesWithAChallengeAndStoresTheTokens()
+    {
+        var seen = new List<(string Path, string Query, string Body)>();
+        var store = new InMemoryYogabaseSessionStore();
+        await using var client = Client(SignInGateway(seen, () => new(HttpStatusCode.NoContent), state => Found($"{Callback}?code=code-1&state={state}")), store);
+
+        var session = await client.Auth.SignInWithPasswordAsync("user@example.com", "pw", cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal("access-1", session.AccessToken);
+        Assert.Equal("refresh-1", (await store.LoadAsync(TestContext.Current.CancellationToken))!.RefreshToken);
+        Assert.Equal(["/auth/login", "/.well-known/openid-configuration", "/connect/authorize", "/connect/token"], seen.Select(call => call.Path).ToArray());
+        var authorize = ParseQuery(seen[2].Query);
+        var token = ParseQuery(seen[3].Body);
+        Assert.Equal(("S256", "code-1", Callback), (authorize["code_challenge_method"], token["code"], token["redirect_uri"]));
+        var verifier = token["code_verifier"];
+        Assert.Equal(authorize["code_challenge"], Convert.ToBase64String(SHA256.HashData(Encoding.ASCII.GetBytes(verifier))).TrimEnd('=').Replace('+', '-').Replace('/', '_'));
+        Assert.DoesNotContain(verifier, seen[2].Query, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized, "invalid_credentials")]
+    [InlineData(HttpStatusCode.Forbidden, "mfa_enrollment_required")]
+    [InlineData(HttpStatusCode.TooManyRequests, "authentication_rate_limited")]
+    public async Task PasswordSignInSurfacesTheLoginRefusalAndGoesNoFurther(HttpStatusCode status, string code)
+    {
+        var seen = new List<(string Path, string Query, string Body)>();
+        var store = new InMemoryYogabaseSessionStore();
+        await using var client = Client(SignInGateway(seen, () => Json(status, $"{{\"code\":\"{code}\"}}"), _ => Found(Callback)), store);
+
+        var refused = await Assert.ThrowsAsync<YogabaseApiException>(() => client.Auth.SignInWithPasswordAsync("user@example.com", "wrong", cancellationToken: TestContext.Current.CancellationToken));
+
+        Assert.Equal(((int)status, code), (refused.StatusCode, refused.Code));
+        Assert.Equal(["/auth/login"], seen.Select(call => call.Path).ToArray());
+        Assert.Null(await store.LoadAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Theory]
+    [InlineData(null, "interactive_login_required")]
+    [InlineData("com.stackyoga.app:/oauth/callback?code=code-1&state=forged", "authorization_response_invalid")]
+    [InlineData("com.stackyoga.app:/oauth/callback?state={state}", "authorization_response_invalid")]
+    [InlineData("com.stackyoga.app:/oauth/callback?error=access_denied&state={state}", "access_denied")]
+    [InlineData("https://other.example/cb?code=code-1&state={state}", "authorization_redirect_mismatch")]
+    public async Task PasswordSignInMakesNoTokenRequestUnlessAuthorizeAnswersWithTheCodeAndState(string? location, string code)
+    {
+        var seen = new List<(string Path, string Query, string Body)>();
+        var store = new InMemoryYogabaseSessionStore();
+        await using var client = Client(SignInGateway(seen, () => new(HttpStatusCode.NoContent), state => location is null
+            ? Json(HttpStatusCode.Unauthorized, "{\"code\":\"interactive_login_required\"}")
+            : Found(location.Replace("{state}", state, StringComparison.Ordinal))), store);
+
+        var refused = await Assert.ThrowsAsync<YogabaseApiException>(() => client.Auth.SignInWithPasswordAsync("user@example.com", "pw", cancellationToken: TestContext.Current.CancellationToken));
+
+        Assert.Equal(code, refused.Code);
+        Assert.DoesNotContain(seen, call => call.Path == "/connect/token");
+        Assert.Null(await store.LoadAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task PasswordSignInNamesMfaAndCompletesItWhenTheCodeIsPassed()
+    {
+        var seen = new List<(string Path, string Query, string Body)>();
+        await using var client = Client(SignInGateway(seen, () => Json(HttpStatusCode.Accepted, "{\"code\":\"mfa_required\"}"), state => Found($"{Callback}?code=code-1&state={state}")), new InMemoryYogabaseSessionStore());
+
+        var required = await Assert.ThrowsAsync<YogabaseApiException>(() => client.Auth.SignInWithPasswordAsync("user@example.com", "pw", cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Equal((202, "mfa_required"), (required.StatusCode, required.Code));
+        Assert.Equal(["/auth/login"], seen.Select(call => call.Path).ToArray());
+
+        seen.Clear();
+        var session = await client.Auth.SignInWithPasswordAsync("user@example.com", "pw", "123456", TestContext.Current.CancellationToken);
+        Assert.Equal("access-1", session.AccessToken);
+        Assert.Equal(["/auth/login", "/auth/mfa/verify"], seen.Take(2).Select(call => call.Path).ToArray());
+        Assert.Contains("123456", seen[1].Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PasswordSignInNeedsAHandlerThatKeepsTheLoginCookie()
+    {
+        // A real loopback gateway: only a request carrying the cookie /auth/login set is authorized.
+        var tokenCalls = 0;
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Logging.ClearProviders();
+        await using var gateway = builder.Build();
+        gateway.MapPost("/auth/login", (HttpContext context) =>
+        {
+            context.Response.Cookies.Append("yogabase.project.identity", "signed-in");
+            return Results.NoContent();
+        });
+        gateway.MapGet("/.well-known/openid-configuration", (HttpContext context) => Results.Text(
+            $"{{\"issuer\":\"http://{context.Request.Host}/p/11111111-1111-4111-8111-111111111111\","
+            + $"\"authorization_endpoint\":\"http://{context.Request.Host}/connect/authorize\","
+            + $"\"token_endpoint\":\"http://{context.Request.Host}/connect/token\"}}", "application/json"));
+        gateway.MapGet("/connect/authorize", (HttpContext context) => context.Request.Cookies.ContainsKey("yogabase.project.identity")
+            ? Results.Redirect($"{Callback}?code=code-1&state={context.Request.Query["state"]}")
+            : Results.Json(new { code = "interactive_login_required" }, statusCode: 401));
+        gateway.MapPost("/connect/token", () =>
+        {
+            tokenCalls++;
+            return Results.Text(TokenBody, "application/json");
+        });
+        await gateway.StartAsync(TestContext.Current.CancellationToken);
+        var origin = gateway.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
+
+        await using var defaultHandler = YogabaseClient.FromConfiguration(Configuration(origin: origin), new YogabaseClientOptions { AllowInsecureLoopback = true });
+        var session = await defaultHandler.Auth.SignInWithPasswordAsync("user@example.com", "pw", cancellationToken: TestContext.Current.CancellationToken);
+        Assert.Equal(("access-1", 1), (session.AccessToken, tokenCalls));
+
+        await using var noCookies = YogabaseClient.FromConfiguration(Configuration(origin: origin), new YogabaseClientOptions
+        {
+            AllowInsecureLoopback = true,
+            TransportHandler = new HttpClientHandler { UseCookies = false, AllowAutoRedirect = false },
+        });
+        var refused = await Assert.ThrowsAsync<YogabaseApiException>(() => noCookies.Auth.SignInWithPasswordAsync("user@example.com", "pw", cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Equal((401, "interactive_login_required", 1), (refused.StatusCode, refused.Code, tokenCalls));
     }
 
     [Fact]
@@ -1029,17 +1153,41 @@ public sealed class YogabaseClientTests
         return store;
     }
 
+    private const string Callback = "com.stackyoga.app:/oauth/callback";
+    private const string TokenBody = "{\"access_token\":\"access-1\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"refresh_token\":\"refresh-1\"}";
+
+    // The gateway's headless sign-in routes, recording each call. `authorize` receives the state it was sent.
+    private static ScriptedHandler SignInGateway(
+        List<(string Path, string Query, string Body)> seen,
+        Func<HttpResponseMessage> login,
+        Func<string, HttpResponseMessage> authorize) => new(async (request, cancellationToken) =>
+        {
+            var uri = request.RequestUri!;
+            seen.Add((uri.AbsolutePath, uri.Query, request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken)));
+            return uri.AbsolutePath switch
+            {
+                "/auth/login" => login(),
+                "/auth/mfa/verify" => new HttpResponseMessage(HttpStatusCode.NoContent),
+                "/.well-known/openid-configuration" => Json(HttpStatusCode.OK, Discovery()),
+                "/connect/authorize" => authorize(ParseQuery(uri.Query)["state"]),
+                _ => Json(HttpStatusCode.OK, TokenBody),
+            };
+        });
+
+    private static HttpResponseMessage Found(string location) => new(HttpStatusCode.Found) { Headers = { Location = new Uri(location) } };
+
     private static YogabaseClientConfiguration Configuration(
         IReadOnlyList<string>? scopes = null,
-        IReadOnlyList<YogabaseCapability>? capabilities = null) => new()
+        IReadOnlyList<YogabaseCapability>? capabilities = null,
+        string origin = "http://localhost") => new()
         {
             Schema = YogabaseClient.ClientConfigSchema,
             ProjectId = Guid.Parse("11111111-1111-4111-8111-111111111111"),
             EnvironmentId = Guid.Parse("22222222-2222-4222-8222-222222222222"),
-            GatewayEndpoint = "http://localhost/",
+            GatewayEndpoint = origin + "/",
             RealtimeEndpoint = "http://localhost:5001/",
-            OidcAuthority = "http://localhost/p/11111111-1111-4111-8111-111111111111",
-            OidcDiscoveryEndpoint = "http://localhost/.well-known/openid-configuration",
+            OidcAuthority = origin + "/p/11111111-1111-4111-8111-111111111111",
+            OidcDiscoveryEndpoint = origin + "/.well-known/openid-configuration",
             OidcPublicClientId = "stackyoga-native-preview",
             OidcScopes = scopes ?? ["openid", "offline_access"],
             OidcRedirectUris = ["com.stackyoga.app:/oauth/callback"],

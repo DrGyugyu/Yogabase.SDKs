@@ -332,6 +332,47 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
             cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<YogabaseSession> SignInWithPasswordAsync(
+        string email,
+        string password,
+        string? mfaCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (await LoginAsync(email, password, cancellationToken).ConfigureAwait(false)
+            == YogabaseInteractiveSignInOutcome.MfaRequired)
+        {
+            if (mfaCode is null)
+            {
+                throw new YogabaseApiException(202, "mfa_required", "Complete the second authentication factor: pass mfaCode.");
+            }
+            await VerifyMfaAsync(mfaCode, cancellationToken).ConfigureAwait(false);
+        }
+
+        return await SignInWithPkceAsync(
+            new YogabasePkceOptions
+            {
+                RedirectUri = new Uri(configuration.OidcRedirectUris[0], UriKind.Absolute),
+                OpenBrowserAsync = AuthorizeWithCookieAsync,
+            },
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    // Stands in for the browser: the transport's cookie jar answers /connect/authorize with a 302 to the
+    // redirect URI, which is read here and never followed. Without the cookie it is a 401.
+    private async Task<Uri> AuthorizeWithCookieAsync(Uri authorize, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, authorize);
+        var response = await RequireTransport().SendExternalAsync(request, cancellationToken).ConfigureAwait(false);
+        if ((int)response.StatusCode == 302 && response.Headers.Location is { } location)
+        {
+            response.Dispose();
+            return location;
+        }
+
+        await YogabaseHttpTransport.ThrowApiExceptionAsync(response, cancellationToken).ConfigureAwait(false);
+        throw new InvalidOperationException("The authorization response was not handled.");
+    }
+
     public Task<YogabaseSession> RefreshAsync(CancellationToken cancellationToken = default) =>
         RefreshCoreAsync(force: true, cancellationToken);
 
