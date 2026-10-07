@@ -445,3 +445,9 @@ smoke test's body once against it, to prove the requests are well formed. The wh
 and no run against a live installation is recorded: the one probe made, an anonymous
 `GET /connect/authorize` on the owner's CloudFront gateway, answered OpenIddict's own `400 invalid_request`
 (an unregistered `client_id`), not a Yogabase sign-in refusal.
+
+Run again later on 2026-10-07 at version 0.4.0.dev1, in new environments made from the locks with
+`--require-hashes`: 111 tests, 110 passed and the live smoke test skipped, on CPython 3.13.12 and 3.12.13
+from source under `-X dev` with `ResourceWarning` as an error. The wheel and sdist were built with
+`build --no-isolation`, and on 3.13.12 the wheel was installed offline over the runtime lock alone
+(`pip check` clean) and the same 111 ran against that copy with `python -P`.
