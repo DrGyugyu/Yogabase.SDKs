@@ -88,6 +88,7 @@ rsync -a --delete \
     --exclude /gateway.ts \
     --exclude /jobs.ts \
     --exclude /schedules.ts \
+    --exclude /session.ts \
     --exclude /storageLogicalKey.ts \
     "$stage/languages/typescript/src/" \
     "$repo_root/languages/typescript/src/"
@@ -98,6 +99,7 @@ rsync -a --delete \
     --exclude /delivery.py \
     --exclude /jobs.py \
     --exclude /schedules.py \
+    --exclude /sign_in.py \
     --exclude /storage_logical_key.py \
     "$stage/languages/python/src/stackyoga_yogabase/" \
     "$repo_root/languages/python/src/stackyoga_yogabase/"

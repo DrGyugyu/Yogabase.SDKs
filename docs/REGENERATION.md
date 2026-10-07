@@ -57,11 +57,13 @@ The following convenience adapters are authored and deliberately preserved durin
 - `languages/typescript/src/gateway.ts`
 - `languages/typescript/src/jobs.ts`
 - `languages/typescript/src/schedules.ts`
+- `languages/typescript/src/session.ts`
 - `languages/typescript/src/storageLogicalKey.ts`
 - `languages/python/src/stackyoga_yogabase/_gateway.py`
 - `languages/python/src/stackyoga_yogabase/delivery.py`
 - `languages/python/src/stackyoga_yogabase/jobs.py`
 - `languages/python/src/stackyoga_yogabase/schedules.py`
+- `languages/python/src/stackyoga_yogabase/sign_in.py`
 - `languages/python/src/stackyoga_yogabase/storage_logical_key.py`
 - `languages/java/src/main/java/io/stackyoga/yogabase/YogabaseApplicationClient.java`
 - `languages/java/src/main/java/io/stackyoga/yogabase/YogabaseDelivery*.java`
