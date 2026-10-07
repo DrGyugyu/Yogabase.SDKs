@@ -18,6 +18,10 @@ Future<void> main() async {
   await _onlyAnHttpsGatewayAndDiscoveryInsideItAreAccepted();
   await _theAuthoredClientsSendTheSessionsTokenToTheGatewayOnly();
   await _anExpiringTokenIsRefreshedOnceWithTheRotatingRefreshToken();
+  await _externalSignInSendsOnlyTheChallengeAndKeepsTheTokens();
+  await _anExternalRedirectThatDoesNotCheckOutMakesNoRequestAfterTheStart();
+  await _externalRefusalsKeepTheGatewaysCode();
+  await _externalMfaCompletesWithTheCodeAndNeverResendsTheCallback();
   print('dart sign-in source checks: PASS');
 }
 
@@ -36,20 +40,27 @@ String _s256(String verifier) => base64Url.encode(sha256.convert(ascii.encode(ve
 
 /// The sign-in routes. [login] is the (status, code) that /auth/login answers, [redirect] the authorize Location.
 class _Gateway {
-  _Gateway({this.login = (204, null), this.redirect = '$_redirect?code=code-1&state={state}', this.cookie = true, this.expiresIn = 3600, Map<String, String>? discovery})
+  _Gateway({this.login = (204, null), this.callback = (204, null), this.redirect = '$_redirect?code=code-1&state={state}', this.cookie = true, this.expiresIn = 3600, Map<String, String>? discovery})
       : discovery = discovery ?? {'authorization_endpoint': '$_gateway/connect/authorize', 'token_endpoint': '$_gateway/connect/token'};
 
-  final (int, String?) login;
+  final (int, String?) login, callback; // what /auth/login and the external callback answer once their input checks out
   final String redirect;
   final bool cookie;
   final Map<String, String> discovery;
   final int expiresIn;
   bool rejectRefresh = false;
   Map<String, Object?>? badToken; // a token response the endpoint should answer instead
+  Map<String, Object?>? badStart; // a start response the external route should answer instead
   String discoveryUrl = '$_gateway/.well-known/openid-configuration';
   int issued = 0;
   String challenge = '';
+  final startChallenges = <String, String>{}; // state -> the challenge its start received
   final requests = <http.Request>[];
+
+  http.Response _signedIn((int, String?) outcome) {
+    if (outcome.$2 == null) return _reply(204, null, cookie ? {'set-cookie': '$_cookie$_secure'} : {});
+    return outcome.$1 == 202 ? _reply(202, {'status': 202, 'code': 'mfa_required'}, {'set-cookie': 'yogabase.project.identity.2fa=tfa-1$_secure'}) : _problem(outcome.$1, outcome.$2!);
+  }
 
   List<String> get paths => [for (final request in requests) request.url.path];
   http.Request path(String path) => requests.firstWhere((request) => request.url.path == path);
@@ -63,8 +74,17 @@ class _Gateway {
       case '/.well-known/openid-configuration':
         return _reply(200, discovery);
       case '/auth/login':
-        if (login.$2 == null) return _reply(204, null, cookie ? {'set-cookie': '$_cookie$_secure'} : {});
-        return login.$1 == 202 ? _reply(202, {'status': 202, 'code': 'mfa_required'}, {'set-cookie': 'yogabase.project.identity.2fa=tfa-1$_secure'}) : _problem(login.$1, login.$2!);
+        return _signedIn(login);
+      case '/auth/external/google/start':
+        final state = 'state-${startChallenges.length + 1}';
+        startChallenges[state] = (jsonDecode(request.body) as Map<String, dynamic>)['codeChallenge'] as String;
+        return _reply(200, badStart ?? {'authorizationUrl': 'https://accounts.example.test/auth?state=$state', 'state': state});
+      case '/auth/external/other/start':
+        return _problem(404, 'external_provider_unknown');
+      case '/auth/external/google/callback':
+        final form = jsonDecode(request.body) as Map<String, dynamic>; // the verifier must be the one whose challenge the start received
+        if (form['code'] != 'ext-code' || startChallenges[form['state']] != _s256('${form['codeVerifier']}')) return _problem(401, 'external_identity_invalid');
+        return _signedIn(callback);
       case '/auth/mfa/verify':
         if (!request.headers['cookie']!.contains('tfa-1') || !request.body.contains('123456')) return _problem(400, 'mfa_invalid');
         return _reply(204, null, {'set-cookie': '$_cookie$_secure,yogabase.project.identity.2fa=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'});
@@ -209,6 +229,100 @@ Future<void> _anExpiringTokenIsRefreshedOnceWithTheRotatingRefreshToken() async 
   } on YogabaseAuthException catch (error) {
     _expect(error.status == 400 && error.code == 'invalid_grant', 'refresh refusal: ${error.code}');
   }
+}
+
+Future<YogabaseExternalSignIn> _start(_Gateway gateway, [String provider = 'google']) =>
+    startExternalSignIn(_gateway, 'sy_pub_key', provider, _redirect, httpClient: MockClient(gateway.handle));
+
+/// What the browser is redirected to: [query] with `{state}` replaced by the state of [pending]'s own start.
+Uri _back(YogabaseExternalSignIn pending, [String query = 'code=ext-code&state={state}', String address = _redirect]) =>
+    Uri.parse('$address?${query.replaceAll('{state}', pending.authorizationUrl.queryParameters['state']!)}');
+
+Future<YogabaseAuthException> _externalRefusal(Future<Object?> attempt) async {
+  try {
+    await attempt;
+  } on YogabaseAuthException catch (error) {
+    return error;
+  }
+  throw StateError('external sign-in was not refused');
+}
+
+Future<void> _externalSignInSendsOnlyTheChallengeAndKeepsTheTokens() async {
+  final gateway = _Gateway();
+  final pending = await _start(gateway);
+  _expect(pending.authorizationUrl.scheme == 'https', 'the provider address is https');
+  final start = gateway.path('/auth/external/google/start'), sent = jsonDecode(start.body) as Map<String, dynamic>;
+  _expect(sent.length == 2 && sent['redirectUri'] == _redirect && !start.headers.containsKey('authorization') && !start.headers.containsKey('cookie'), 'start body: $sent');
+  final session = await completeExternalSignIn(pending, _back(pending)); // the fake callback rejects any verifier but the one whose challenge start got
+  _expect(gateway.paths.join(' ') == '/auth/external/google/start /v1/client-config/sy_pub_key /.well-known/openid-configuration /auth/external/google/callback /connect/authorize /connect/token', 'routes: ${gateway.paths}');
+  final callback = gateway.path('/auth/external/google/callback'), body = jsonDecode(callback.body) as Map<String, dynamic>, verifier = body['codeVerifier'] as String;
+  _expect(RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(verifier) && sent['codeChallenge'] == _s256(verifier), 'the challenge is S256 of the verifier');
+  _expect(!start.body.contains(verifier) && !start.url.toString().contains(verifier) && !start.headers.toString().contains(verifier), 'the verifier never reaches start');
+  _expect(body['code'] == 'ext-code' && body['state'] == pending.authorizationUrl.queryParameters['state'] && !callback.headers.containsKey('authorization'), 'callback body: $body');
+  final authorize = gateway.path('/connect/authorize');
+  _expect(!authorize.followRedirects && authorize.headers['cookie'] == _cookie, 'the redirect is not followed and the cookie is sent');
+  _expect(session.projectId == _project && await session.getAccessToken() == 'access-1', 'the tokens are stored');
+  _expect((await _start(gateway)).authorizationUrl != pending.authorizationUrl, 'each start has its own state');
+}
+
+Future<void> _anExternalRedirectThatDoesNotCheckOutMakesNoRequestAfterTheStart() async {
+  final cases = {
+    'authorization_response_invalid': ['code=ext-code&state=other', 'error=access_denied&state=other', 'code=ext-code', 'state={state}', 'code=&state={state}', 'code=ext-code&code=ext-code&state={state}', 'code=ext-code&state={state}&state={state}'],
+    'access_denied': ['error=access_denied&state={state}'],
+  };
+  for (final MapEntry(key: code, value: queries) in cases.entries) {
+    for (final query in queries) {
+      final gateway = _Gateway(), pending = await _start(gateway);
+      final error = await _externalRefusal(completeExternalSignIn(pending, _back(pending, query)));
+      _expect(error.status == 400 && error.code == code && gateway.paths.length == 1, '$query: ${error.status} ${error.code} ${gateway.paths}');
+    }
+  }
+  for (final address in ['https://evil.example.test/callback', '$_redirect/x', 'http://app.example.test/callback', 'https://app.example.test:8443/callback', 'https://user@app.example.test/callback', '$_redirect#fragment']) {
+    final gateway = _Gateway(), pending = await _start(gateway);
+    final error = await _externalRefusal(completeExternalSignIn(pending, _back(pending, 'code=ext-code&state={state}', address)));
+    _expect(error.code == 'authorization_redirect_mismatch' && gateway.paths.length == 1, '$address: ${error.code} ${gateway.paths}');
+  }
+  final gateway = _Gateway(), first = await _start(gateway), second = await _start(gateway); // a redirect belongs to the start that made it
+  final error = await _externalRefusal(completeExternalSignIn(first, _back(second)));
+  _expect(error.code == 'authorization_response_invalid' && gateway.paths.length == 2, 'another start\'s redirect: ${error.code} ${gateway.paths}');
+}
+
+Future<void> _externalRefusalsKeepTheGatewaysCode() async {
+  for (final (status, code) in [(401, 'external_identity_invalid'), (409, 'external_identity_email_in_use'), (403, 'external_email_unverified')]) {
+    final gateway = _Gateway(callback: (status, code)), pending = await _start(gateway);
+    final error = await _externalRefusal(completeExternalSignIn(pending, _back(pending)));
+    _expect('${error.status} ${error.code} ${error.correlationId}' == '$status $code corr-1' && !gateway.paths.contains('/connect/authorize'), 'callback $status: ${error.code}');
+  }
+  _expect((await _externalRefusal(_start(_Gateway(), 'other'))).code == 'external_provider_unknown', 'an unknown provider is named');
+  for (final bad in <Map<String, Object?>>[{}, {'authorizationUrl': 'http://accounts.example.test/auth', 'state': 's'}, {'authorizationUrl': 'https://accounts.example.test/auth', 'state': ''}, {'authorizationUrl': 'not a url', 'state': 's'}]) {
+    final error = await _externalRefusal(_start(_Gateway()..badStart = bad));
+    _expect(error.status == 502 && error.code == 'external_start_invalid', 'start answer $bad: ${error.code}');
+  }
+  for (final provider in ['Google', '..', 'a/b', '']) {
+    final gateway = _Gateway();
+    try {
+      await _start(gateway, provider);
+      _expect(false, 'provider "$provider" must be refused');
+    } on ArgumentError {
+      _expect(gateway.requests.isEmpty, 'nothing is sent for provider "$provider"');
+    }
+  }
+  try {
+    await startExternalSignIn(Uri.parse('http://localhost:5080'), 'sy_pub_key', 'google', _redirect, httpClient: MockClient(_Gateway().handle));
+    _expect(false, 'an http gateway must be refused');
+  } on ArgumentError {
+    // expected
+  }
+}
+
+Future<void> _externalMfaCompletesWithTheCodeAndNeverResendsTheCallback() async {
+  final gateway = _Gateway(callback: (202, 'mfa_required')), pending = await _start(gateway), redirect = _back(pending);
+  final error = await _externalRefusal(completeExternalSignIn(pending, redirect));
+  _expect('${error.status} ${error.code} ${gateway.paths.last}' == '202 mfa_required /auth/external/google/callback', 'mfa required: ${error.code}');
+  _expect((await _externalRefusal(completeExternalSignIn(pending, redirect, mfaCode: '000000'))).code == 'mfa_invalid' && !gateway.paths.contains('/connect/authorize'), 'a wrong code stops before authorize');
+  final session = await completeExternalSignIn(pending, redirect, mfaCode: '123456'); // the 2fa cookie rides along from the callback's answer
+  _expect(await session.getAccessToken() == 'access-1', 'mfa sign-in');
+  _expect(gateway.paths.where((path) => path == '/auth/external/google/callback').length == 1, 'the spent code is sent once');
 }
 
 void _expect(bool condition, String message) {
