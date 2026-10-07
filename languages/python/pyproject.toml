@@ -7,7 +7,7 @@ name = "stackyoga-yogabase-client-preview"
 version = "0.3.0.dev1"
 description = "Unpublished application and workload-delivery client preview for Yogabase"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12,<3.14"
 license = "LicenseRef-Proprietary"
 license-files = ["LICENSE.md"]
 dependencies = ["microsoft-kiota-bundle==1.9.10", "httpx==0.28.1"]
