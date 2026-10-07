@@ -232,13 +232,13 @@ class ExternalSignInTests(unittest.IsolatedAsyncioTestCase):
         async with http_for(gateway) as http:
             pending = await start(http)
             session = await complete_external_sign_in(pending, returned(pending), http_client=http)
-        self.assertEqual(gateway.paths, ["/auth/external/google/start", "/auth/external/google/callback", "/v1/client-config/sy_pub_key", "/.well-known/openid-configuration", "/connect/authorize", "/connect/token"])
-        begun, callback = gateway.requests[:2]
+        self.assertEqual(gateway.paths, ["/auth/external/google/start", "/v1/client-config/sy_pub_key", "/.well-known/openid-configuration", "/auth/external/google/callback", "/connect/authorize", "/connect/token"])
+        begun, callback = gateway.requests[0], gateway.requests[3]
         verifier = json.loads(callback.content)["codeVerifier"]
         self.assertTrue(43 <= len(verifier) <= 128)
         self.assertEqual(json.loads(begun.content), {"redirectUri": REDIRECT, "codeChallenge": s256(verifier)})
         self.assertEqual(json.loads(callback.content), {"code": "ext-code", "state": "state-1", "codeVerifier": verifier})
-        self.assertFalse(any("authorization" in request.headers for request in gateway.requests[:2]))
+        self.assertFalse(any("authorization" in request.headers for request in gateway.requests[:4]))
         self.assertEqual((pending.authorization_url, session.access_token, session.refresh_token, session.project_id), ("https://accounts.example.test/auth?state=state-1", "access-1", "refresh-1", PROJECT))
 
     async def test_a_redirect_that_does_not_check_out_makes_no_callback_request_and_leaves_the_pending_usable(self) -> None:
@@ -290,14 +290,26 @@ class ExternalSignInTests(unittest.IsolatedAsyncioTestCase):
             session = await complete_external_sign_in(pending, returned(pending), mfa_code="123456", http_client=second)  # the cookies travel in the pending
         self.assertEqual((gateway.paths.count("/auth/external/google/callback"), session.access_token), (1, "access-1"))
 
-    async def test_a_failure_after_the_callback_is_retried_without_sending_the_spent_code_again(self) -> None:
+    async def test_a_bad_discovery_document_ends_the_call_before_the_code_is_sent(self) -> None:
         gateway = Gateway(discovery={**DISCOVERY, "token_endpoint": "https://evil.example.test/connect/token"})
         async with http_for(gateway) as http:
             pending = await start(http)
             with self.assertRaises(YogabaseAuthError) as raised:
                 await complete_external_sign_in(pending, returned(pending), http_client=http)
             self.assertEqual(raised.exception.code, "oidc_discovery_invalid")
+            self.assertNotIn("/auth/external/google/callback", gateway.paths)
             gateway.discovery = DISCOVERY
+            self.assertEqual((await complete_external_sign_in(pending, returned(pending), http_client=http)).access_token, "access-1")
+        self.assertEqual(gateway.paths.count("/auth/external/google/callback"), 1)
+
+    async def test_a_failure_after_the_callback_is_retried_without_sending_the_spent_code_again(self) -> None:
+        gateway = Gateway(redirect=REDIRECT + "?code=code-1&state=forged")
+        async with http_for(gateway) as http:
+            pending = await start(http)
+            with self.assertRaises(YogabaseAuthError) as raised:
+                await complete_external_sign_in(pending, returned(pending), http_client=http)
+            self.assertEqual(raised.exception.code, "authorization_response_invalid")
+            gateway.redirect = REDIRECT + "?code=code-1&state={state}"
             self.assertEqual((await complete_external_sign_in(pending, returned(pending), http_client=http)).access_token, "access-1")
         self.assertEqual(gateway.paths.count("/auth/external/google/callback"), 1)
 

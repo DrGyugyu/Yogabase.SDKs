@@ -211,8 +211,9 @@ async def complete_external_sign_in(
     async with _open(http_client) as http:
         http.cookies.update(pending._cookies)
         try:
+            code = _read_redirect(redirect, pending._redirect_uri, pending._state) if pending._status is None else ""
+            found = await _discover(http, pending._gateway, pending._key)  # a bad discovery document ends the call before the one-time code is sent
             if pending._status is None:
-                code = _read_redirect(redirect, pending._redirect_uri, pending._state)
                 response = await http.post(f"{pending._route}/callback", json={"code": code, "state": pending._state, "codeVerifier": pending._verifier})
                 if response.status_code not in (202, 204):
                     raise _refusal(response)
@@ -224,6 +225,6 @@ async def complete_external_sign_in(
                 if response.status_code != 204:
                     raise _refusal(response)
                 pending._status = 204
-            return await _authorize(http, pending._gateway, await _discover(http, pending._gateway, pending._key), http_client)
+            return await _authorize(http, pending._gateway, found, http_client)
         finally:
             pending._cookies = httpx.Cookies(http.cookies)  # the second factor's cookie and a retry need what the gateway has set
