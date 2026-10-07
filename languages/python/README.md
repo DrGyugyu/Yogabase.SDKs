@@ -1,14 +1,113 @@
 # Yogabase Python client preview
 
-Generated with Microsoft Kiota 1.34.1 from the current Yogabase v1-preview contract. Python 3.10
-or newer is required by the pinned Kiota runtime. Callers provide a Kiota request adapter whose
-base URL is the validated Yogabase REST gateway and whose authentication provider supplies a
-project bearer token for protected operations.
+Generated with Microsoft Kiota 1.34.1 from the current Yogabase v1-preview contract, with authored
+parts beside it: a password sign-in, durable Jobs, schedules, a workload Delivery client and a
+hierarchical storage-key adapter. It supports Python 3.12 and 3.13, the two versions it has been run
+on (`requires-python = ">=3.12,<3.14"`); the pinned Kiota runtime would accept older ones, but 3.10
+and 3.11 have never been run, so they are not claimed.
 
 The generated REST surface includes bootstrap, signup and interactive auth endpoints,
-Storage, stateless Function invocation, Actor Lambda invocation, and Workflow start/cancel. The
+Storage, stateless Function invocation, Actor Lambda invocation, Workflow start/cancel, and the
+request builders of the Jobs and schedule routes. The
 contract returns a separate realtime origin, but this package does not yet include or qualify a
 Python SignalR wrapper. This source preview is local, unpublished, and not production-qualified.
+
+## Getting started
+
+Nothing is published, so install from a checkout of this repository, into a virtual environment on
+Python 3.12 or 3.13, from the hash-locked dependencies:
+
+```text
+cd languages/python
+python3.13 -m venv .venv
+.venv/bin/python -m pip install --require-hashes -r requirements.lock -r build-requirements.lock
+.venv/bin/python -m pip install --no-deps --no-build-isolation .
+```
+
+Apart from the bootstrap and the `auth` calls, every call needs a signed-in user, so sign in before
+the first one. `sign_in_with_password` returns a session that is the Kiota authentication provider:
+
+```python
+import asyncio
+import base64
+import getpass
+import hashlib
+import uuid
+from datetime import datetime, timedelta, timezone
+
+import httpx
+from kiota_http.httpx_request_adapter import HttpxRequestAdapter
+from kiota_http.kiota_client_factory import KiotaClientFactory
+from stackyoga_yogabase import YogabaseApiClient, platform_ssl_context, sign_in_with_password
+from stackyoga_yogabase.models.invocation_request import InvocationRequest
+
+GATEWAY = "https://api.example.com"            # the installation's gateway origin
+
+
+async def main() -> None:
+    session = await sign_in_with_password(
+        GATEWAY,
+        "sy_pub_example_project",               # the project's publishable key, which is not a secret
+        "user@example.com",
+        getpass.getpass("Password: "),
+    )
+
+    http = KiotaClientFactory.create_with_default_middleware(httpx.AsyncClient(verify=platform_ssl_context()))
+    adapter = HttpxRequestAdapter(session, http_client=http)
+    adapter.base_url = GATEWAY                  # this Kiota version ignores the constructor's base_url
+    client = YogabaseApiClient(adapter)
+
+    payload = b"{}"
+    result = await (
+        client.v1.projects.by_project_id(session.project_id)
+        .functions.by_function_id("hello-world").versions.by_function_version("1").invoke
+        .post(InvocationRequest(
+            idempotency_key=uuid.uuid4().hex,
+            correlation_id="first-call",
+            mode=0,                             # 0 is synchronous, 1 asynchronous
+            deadline=datetime.now(timezone.utc) + timedelta(seconds=20),
+            payload_digest="sha256:" + hashlib.sha256(payload).hexdigest(),
+            inline_payload_base64=base64.b64encode(payload).decode(),
+        ))
+    )
+    print(result.outcome, base64.b64decode(result.inline_result_base64 or ""))  # outcome 4 is Completed
+    await http.aclose()
+
+
+asyncio.run(main())
+```
+
+- **It needs no browser.** `sign_in_with_password` logs in for the identity cookie, then runs the PKCE
+  code flow with that cookie answering `/connect/authorize`; the redirect is read and never followed,
+  and the first redirect URI the bootstrap registers is used. The cookie is `Secure`, so the gateway
+  must be an `https` origin (anything else is a `ValueError`). A `http_client=` you pass must keep
+  cookies and not follow redirects (httpx's default), and stay open: the session refreshes through it.
+- **The session** holds `access_token`, `refresh_token` and `project_id` (the bootstrap's, which the
+  Jobs and schedules clients ask for). It refreshes its rotating tokens a minute before they expire,
+  once however many calls are waiting, and adds the bearer only to requests for the gateway origin.
+  The authored clients take `access_token=session.get_access_token`.
+- **`HttpxRequestAdapter` ignores its `base_url` argument** in the pinned Kiota version (it reads the
+  http client's), so set `adapter.base_url` after constructing it. Left unset, the generated client
+  falls back to the placeholder `https://{gatewayHost}`.
+- **The user must already exist.** Sign-up is invite-only and needs a confirmed e-mail unless the
+  installation turned either off: `client.auth.signup.post` without an invitation token is a
+  `403 invitation_required`, and an account whose confirmation link (`client.auth.email.confirm`) was
+  not followed cannot sign in. Where confirmation is required but the installation has no e-mail
+  transport, sign-up is a `503 authentication_email_unavailable`.
+- **A refusal is a `YogabaseAuthError`** with the gateway's `status`, `code` and `correlation_id` (quote
+  it when reporting a problem). `401 invalid_credentials` is a wrong password, an unknown account, an
+  unconfirmed e-mail and a locked account alike, never told apart; `403 mfa_enrollment_required` means
+  the project requires MFA and the account has none; `429 authentication_rate_limited`. An account with
+  MFA raises `202 mfa_required`: call again with the authenticator code as `mfa_code=`. A redirect, state
+  or code that does not check out is `400 authorization_redirect_mismatch` or
+  `400 authorization_response_invalid`, an `error` the authorization server sends back is the code, and
+  the token endpoint keeps its own (`invalid_grant`). No token request follows any of these.
+- **A live check.** `tests/test_live_smoke.py` signs in, invokes a function, then puts and gets an
+  object. It is skipped unless `YOGABASE_SMOKE_GATEWAY`, `YOGABASE_SMOKE_PUBLISHABLE_KEY`,
+  `YOGABASE_SMOKE_EMAIL`, `YOGABASE_SMOKE_PASSWORD` (an existing, confirmed user without MFA),
+  `YOGABASE_SMOKE_FUNCTION_ID` and `YOGABASE_SMOKE_FUNCTION_VERSION` (a deployed stateless function that
+  accepts `{}`) are all set. The requests it builds were checked against a fake gateway; no run against a
+  live installation is recorded here yet.
 
 ## The Data API and game servers are generated; builds are not
 
@@ -47,13 +146,13 @@ Two other surfaces were added when the Data API was withdrawn:
 
 Generated `objects.by_key(...)` is single-segment-only. For a logical key containing `/`, import
 `storage_object_for_logical_key` from `stackyoga_yogabase` and pass the generated objects builder,
-the validated gateway origin, and the logical key. The authored adapter validates the C# key grammar,
+the gateway origin, and the logical key (`client` and `GATEWAY` are those of Getting started). The authored adapter validates the C# key grammar,
 encodes each segment separately, and returns the generated builder through `with_url(...)`.
 
 ```python
 item = storage_object_for_logical_key(
     client.v1.storage.objects,
-    request_adapter.base_url,
+    GATEWAY,
     "avatars/user-1/photo.png",
 )
 ```
@@ -80,15 +179,16 @@ is a response header a generated builder cannot hand back, each call is checked 
 refusal is named by its code. Like the delivery client it takes its own gateway host and access token rather
 than a Kiota adapter, and it uses the same platform trust store. `tests/test_jobs.py` pins every shape and
 holds each request it sends to the request the generated builder builds for the same operation, so a
-contract change that moves a route or a member fails there.
+contract change that moves a route or a member fails there. `GATEWAY` and `session` are those of Getting started.
 
 ```python
+import asyncio
 from stackyoga_yogabase import AsyncJobsClient
 
 async with AsyncJobsClient(
-    gateway_host="https://apps.example.test",
-    project_id=project_id,                    # the bootstrap document's projectId
-    access_token=lambda: session.access_token,  # the signed-in user's access token
+    gateway_host=GATEWAY,                     # the session from Getting started signed in to it
+    project_id=session.project_id,            # the bootstrap document's projectId
+    access_token=session.get_access_token,    # the signed-in user's access token, refreshed for you
 ) as jobs:
     job = await jobs.submit(
         job_type="orders-create",
@@ -144,7 +244,7 @@ that user reads, changes, deletes or runs it: another user's schedule is a bare 
 creating a schedule under its id is a 412. Like the Jobs client it sits beside the generated builders
 (`client.v1.projects.by_project_id(project_id).schedules.by_schedule_id(id)`), because a write is conditional
 on the schedule's **ETag**, which a generated builder neither reads from a response nor sends unless it is
-added by hand; `tests/test_schedules.py` pins every shape and holds each request to the generated builder's.
+added by hand; `tests/test_schedules.py` pins every shape and holds each request to the generated builder's. `GATEWAY` and `session` are those of Getting started.
 
 ```python
 from datetime import datetime, timedelta, timezone
@@ -160,7 +260,7 @@ definition = YogabaseScheduleDefinition(
     max_catch_up=1, max_attempts=3, deadline_seconds=300,
     payload=b"{}",                             # optional, at most 1 MiB before base64
 )
-async with AsyncSchedulesClient(gateway_host=host, project_id=project_id, access_token=lambda: session.access_token) as schedules:
+async with AsyncSchedulesClient(gateway_host=GATEWAY, project_id=session.project_id, access_token=session.get_access_token) as schedules:
     schedule = await schedules.create(definition)                          # If-None-Match: *  (201)
     schedule = await schedules.update(definition, schedule.etag)           # If-Match (200)
     run = await schedules.trigger(                                         # If-Match; runs it once now (202)
@@ -228,11 +328,11 @@ from stackyoga_yogabase import AsyncDeliveryClient
 
 async with AsyncDeliveryClient(
     delivery_host="https://delivery.example.test",
-    access_token=lambda: token,
+    access_token=lambda: token,   # a short-lived workload token from the configured delivery authority, not the signed-in user's
 ) as delivery:
     preview = await delivery.preview_environment(
-        project_id,
-        {"name": "staging", "templateId": template_id, "templateVersion": 1},
+        project_id,                                  # your project's id
+        {"name": "staging", "templateId": template_id, "templateVersion": 1},  # a template of that project
         if_match='W/"7"',
     )
     accepted = await delivery.submit_environment(
@@ -263,19 +363,8 @@ OpenSSL default verify paths (plus the system stores on Windows). It requires a 
 and a matching host name. `AsyncDeliveryClient` uses it for the HTTP client it creates when you
 pass none. The generated application client uses whatever `httpx.AsyncClient` you give its Kiota
 `HttpxRequestAdapter`; build that client with `verify=platform_ssl_context()` too, because httpx's
-own default and Kiota's `get_default_client()` both trust certifi's bundle:
-
-```python
-import httpx
-from kiota_http.httpx_request_adapter import HttpxRequestAdapter
-from kiota_http.kiota_client_factory import KiotaClientFactory
-from stackyoga_yogabase import YogabaseApiClient, platform_ssl_context
-
-http = KiotaClientFactory.create_with_default_middleware(
-    httpx.AsyncClient(verify=platform_ssl_context(), http2=True))
-adapter = HttpxRequestAdapter(auth_provider, http_client=http, base_url="https://<installation-host>")
-client = YogabaseApiClient(adapter)
-```
+own default and Kiota's `get_default_client()` both trust certifi's bundle. Getting started does, and
+`sign_in_with_password` does the same for the client it makes when you pass none.
 
 An interpreter whose OpenSSL has no default store configured (some macOS installers ship one
 empty until a certificate step is run) then fails verification instead of silently trusting
@@ -298,7 +387,7 @@ PYTHONPATH=src .venv/bin/python -m unittest discover -s tests
 ```
 
 `requirements.lock` hash-pins the runtime closure of the two direct pins (22 wheels, one of them
-only for Python below 3.11). `pyproject.toml` pins the build backend exactly (`setuptools==84.0.0`),
+only for Python below 3.11, so never installed on the two supported versions). `pyproject.toml` pins the build backend exactly (`setuptools==84.0.0`),
 and `build-requirements.lock` hash-pins `build` 1.6.1 and that backend, so the wheel and sdist are
 built with exactly those tools rather than whatever an isolated build environment resolves. The tests import whichever `stackyoga_yogabase` is on the path:
 with `PYTHONPATH=src` they check this source tree; in a fresh environment holding only
@@ -311,6 +400,12 @@ game-server list and refusal through a real Kiota `HttpxRequestAdapter` over an 
 `test_packaging_and_trust.py` pins the exact build-backend pin against the build lock and checks
 that the Delivery client's default transport uses `platform_ssl_context()` without consulting
 certifi's bundle.
+
+`test_sign_in.py` runs the sign-in against a fake gateway and pins its negatives: no token request
+follows a login refusal, a missing cookie, a redirect, state, code or `error` that does not check out,
+or MFA without a code; the PKCE challenge is the S256 of a verifier the authorize request never
+carries; the bearer reaches only the gateway; and a rotating refresh token is spent once however many
+calls wait. `test_live_smoke.py` is skipped unless its variables are set (see Getting started).
 
 Last run on 2026-09-22 on CPython 3.13.12 and 3.12.13 (macOS arm64, pip 26.0): both locks installed
 with `--require-hashes`; 23 tests passed from source under `-X dev` with `ResourceWarning` as an
@@ -335,3 +430,14 @@ with the schedule escaping case split into one for an id that follows the rule a
 read, a run and a delete still address, and two cases added (every Latin-1 character and the edge lengths held
 to the pattern read from the mirrored contract, and an id's URL held to the generated builder's). The wheel
 was not rebuilt.
+
+Run on 2026-10-07 on CPython 3.13.12 and 3.12.13, each in an environment made from the locks with
+`--require-hashes` (pip 26.0), from source under `-X dev` with `ResourceWarning` as an error, after the
+password sign-in was added: 111 tests, 110 passed and the live smoke test skipped (no `YOGABASE_SMOKE_*`
+variable was set). Nine are `test_sign_in.py`'s. On 3.13 the package was also installed from the checkout with
+`pip install --no-deps --no-build-isolation .` into a clean environment (`pip check` clean) and the same
+111 ran against that copy. Getting started's example was run verbatim against the same fake gateway, and the
+smoke test's body once against it, to prove the requests are well formed. The wheel and sdist were not rebuilt,
+and no run against a live installation is recorded: the one probe made, an anonymous
+`GET /connect/authorize` on the owner's CloudFront gateway, answered OpenIddict's own `400 invalid_request`
+(an unregistered `client_id`), not a Yogabase sign-in refusal.
