@@ -1,9 +1,9 @@
 # Yogabase TypeScript client preview
 
-Generated with Microsoft Kiota 1.34.1 from the current Yogabase v1-preview contract. Install
-dependencies and run `npm test` to compile and execute the authored adapter tests. Callers provide
-a Kiota request adapter whose base URL is the validated Yogabase REST gateway and whose
-authentication provider supplies a project bearer token for protected operations.
+Generated with Microsoft Kiota 1.34.1 from the current Yogabase v1-preview contract, with authored
+facades beside it. **It runs in Node, not in a browser:** the gateway sends no CORS headers, so a page on
+another origin cannot call it at all, and sign-in needs to set a `Cookie` header and read a redirect, which a
+browser does not let a script do. It was run on Node 25.9.0 and `engines` says so; older versions are untested.
 
 The generated REST surface includes bootstrap, signup and interactive auth endpoints,
 Storage, stateless Function invocation, Actor Lambda invocation, Workflow start/cancel, and the durable Jobs
@@ -12,13 +12,78 @@ contract returns a separate realtime origin, but this package does not yet inclu
 TypeScript SignalR wrapper. This source preview is unpublished and not production-qualified;
 TypeScript generation and its Kiota runtime are themselves preview dependencies.
 
+## Getting started
+
+Nothing is published: the package is marked `private` and `dist` is not committed. Build it from a checkout of
+this repository and install the tarball into your app (an ES module project, `"type": "module"`):
+
+```text
+cd Yogabase.SDKs/languages/typescript
+npm ci        # installs the locked dependencies and compiles dist/ (the prepare script)
+npm pack      # writes stackyoga-yogabase-client-preview-0.3.0-preview.1.tgz
+cd path/to/your-app && npm install path/to/stackyoga-yogabase-client-preview-0.3.0-preview.1.tgz
+```
+
+Apart from the bootstrap and the `auth` calls, every call needs a signed-in user, so sign in before the first one:
+
+```ts
+import { createHash } from "node:crypto";
+import { DefaultRequestAdapter } from "@microsoft/kiota-bundle";
+import { createYogabaseApiClient, YogabaseSession } from "@stackyoga/yogabase-client-preview";
+
+const session = new YogabaseSession({
+  gatewayHost: "https://api.example.com",     // the installation's gateway origin
+  publishableKey: "sy_pub_example_project",   // the project's publishable key
+});
+await session.signInWithPassword("user@example.com", password);
+
+const adapter = new DefaultRequestAdapter(session);   // the session is the authentication provider
+adapter.baseUrl = session.gatewayHost;
+const yogabase = createYogabaseApiClient(adapter);
+
+const payload = new TextEncoder().encode("{}");
+const result = await yogabase.v1.projects.byProjectId(session.projectId!)   // known once signed in
+  .functions.byFunctionId("hello-world").versions.byFunctionVersion("1").invoke.post({
+    idempotencyKey: crypto.randomUUID(),
+    correlationId: "first-call",
+    deadline: new Date(Date.now() + 20_000),
+    mode: 0,                                           // synchronous
+    payloadDigest: `sha256:${createHash("sha256").update(payload).digest("hex")}`,
+    inlinePayloadBase64: Buffer.from(payload).toString("base64"),
+  });
+console.log(result?.outcome);                          // 4: Completed
+```
+
+`signInWithPassword` needs no browser: it logs in for the identity cookie, then runs the OIDC authorization-code
+flow with PKCE using that cookie, with the first redirect URI the bootstrap registers, and never follows the
+redirect. The tokens stay in memory (they are gone when the process ends) and `session.accessToken()` refreshes
+them a minute before they expire; a refresh token that no longer works is an `invalid_grant`. Besides
+authenticating the generated client, `session.accessToken` is the `accessToken` of the Jobs and Schedules
+clients below.
+
+- **The user must already exist.** Sign-up is invite-only and needs a confirmed e-mail unless the installation
+  turned either off: a sign-up without an invitation token is a `403 invitation_required`, and an account whose
+  confirmation link was not followed cannot sign in.
+- **A refusal is a `YogabaseAuthError`** with the gateway's `status` and `code` (and `correlationId`):
+  `401 invalid_credentials` is a wrong password, an unknown account, an unconfirmed e-mail and a locked account
+  alike, never told apart; `403 mfa_enrollment_required` (the project requires MFA and the account has none),
+  `429 authentication_rate_limited` and `401 interactive_login_required` (the identity cookie did not come back).
+  An account with MFA throws `202 mfa_required`; call again with the authenticator code,
+  `signInWithPassword(email, password, code)`. An authorize answer that is not this call's (another state or
+  redirect URI, no code, or an `error`) is `authorization_response_invalid`, `authorization_redirect_mismatch` or
+  the `error` itself, and no token is requested after it.
+- **A live check.** `tests/liveSmoke.test.mjs` signs in, invokes a function and puts and gets an object. It is
+  skipped unless `YOGABASE_SMOKE_GATEWAY`, `YOGABASE_SMOKE_PUBLISHABLE_KEY`, `YOGABASE_SMOKE_EMAIL`,
+  `YOGABASE_SMOKE_PASSWORD` (an existing, confirmed user without MFA), `YOGABASE_SMOKE_FUNCTION_ID` and
+  `YOGABASE_SMOKE_FUNCTION_VERSION` are set. No run against a live installation is recorded here yet.
+
 ## The Data API and game servers are generated; builds are not
 
 The mirrored contract declares the restored client Data API: `POST /v1/data/{table}/select|insert|upsert|update|delete`
 on the application gateway, authenticated with the signed-in user's access token and run under
 row-level security as that user. It is served only where the bootstrap document's requested-only
 `data-rest` row says so (a client asks for the row by naming it in `X-Yogabase-Accept-Capabilities`),
-and this client carries the operations as generated code, for example `client.v1.data.byTable("notes").select.post(body)` with the builders
+and this client carries the operations as generated code, for example `yogabase.v1.data.byTable("notes").select.post(body)` with the builders
 `select`, `insert`, `upsert`, `update` and `delete`. A response is a `DataResult` (`rows`, `affectedRows`, `hasMore`) and a refusal is an RFC 7807 problem whose `code` is one of the refusal codes
 the contract lists under `x-yogabase-data-api`, which also states the limits (at most 1000 rows per
 select and 500 per write, 1 MiB per value, a five-second statement timeout). Request values are plain JSON.
@@ -30,7 +95,7 @@ Two other surfaces were added when the Data API was withdrawn:
 - **Game servers** — `POST /v1/servers/start`, `GET /v1/servers`, `GET /v1/servers/{serverId}`
   and `POST /v1/servers/{serverId}/stop` on the application gateway, authenticated with the
   signed-in player's access token. They are part of the mirrored application contract, so this
-  client carries them as generated code: `client.v1.servers` (`start.post(body)`, `get()`, `byServerId(id).get()`, `byServerId(id).stop.post()`). The list answers a bare array; a `GameServer` is
+  client carries them as generated code: `yogabase.v1.servers` (`start.post(body)`, `get()`, `byServerId(id).get()`, `byServerId(id).stop.post()`). The list answers a bare array; a `GameServer` is
   `serverId`, `state` and `networkPorts[{name, internalPort, externalPort, protocol, host}]`; a
   refusal is an RFC 7807 problem whose `code` is one of `server_request_invalid`,
   `server_authentication_required`, `server_none_available`, `server_contended`,
@@ -54,8 +119,8 @@ from the package root; it applies the C# logical-key grammar and then calls the 
 
 ```ts
 const item = storageObjectForLogicalKey(
-  client.v1.storage.objects,
-  requestAdapter.baseUrl,
+  yogabase.v1.storage.objects,
+  adapter.baseUrl,
   "avatars/user-1/photo.png",
 );
 ```
@@ -77,7 +142,7 @@ the job. A job belongs to the user who submitted it, and another user's job is a
 that does not exist.
 
 The product's client OpenAPI document describes the Jobs routes, so Kiota also generates their request
-builders (`client.v1.projects.byProjectId(projectId).jobs`, with `Job`, `JobStatus` and `JobSubmitRequest`
+builders (`yogabase.v1.projects.byProjectId(projectId).jobs`, with `Job`, `JobStatus` and `JobSubmitRequest`
 among the models). This client sits **beside** those builders, not on top of them: the result route's
 digest is a response header a generated builder cannot hand back, each call is checked before it is sent,
 and every refusal is named by its code. Like the delivery client it takes its own gateway host and access
@@ -86,10 +151,10 @@ to the request the generated builder builds for the same operation, so a contrac
 route or a member fails there.
 
 ```ts
-const jobs = new YogabaseJobsClient({
-  gatewayHost: "https://apps.example.test",
-  projectId,                                  // the bootstrap document's projectId
-  accessToken: () => session.accessToken,     // the signed-in user's access token
+const jobs = new YogabaseJobsClient({       // `session` is the signed-in YogabaseSession from above
+  gatewayHost: session.gatewayHost,
+  projectId: session.projectId!,
+  accessToken: session.accessToken,           // the signed-in user's access token, refreshed as needed
 });
 let job = await jobs.submit({
   jobType: "orders-create",
@@ -97,7 +162,7 @@ let job = await jobs.submit({
   payload: new TextEncoder().encode("hello"), // optional, at most 1 MiB before base64
   maxAttempts: 3,                             // optional, 1 through 10; the gateway's default is 5
 });
-while (!YOGABASE_JOB_TERMINAL_STATUSES.includes(job.status)) {   // Succeeded, Cancelled or DeadLettered
+while (!(YOGABASE_JOB_TERMINAL_STATUSES as readonly string[]).includes(job.status)) {   // Succeeded, Cancelled or DeadLettered
   await new Promise(resolve => setTimeout(resolve, 1000));
   job = await jobs.get(job.jobId);
 }
@@ -143,14 +208,16 @@ against `/v1/projects/{projectId}/schedules/{scheduleId}` on the application gat
 project token (the `lambda.invoke` scope) as invoking a function. A schedule belongs to the user who created
 it, and only that user reads, changes, deletes or runs it: another user's schedule is a bare 404, updating it
 is a 403 and creating a schedule under its id is a 412. Like the Jobs client it sits beside the generated
-builders (`client.v1.projects.byProjectId(projectId).schedules.byScheduleId(id)`), because a write is
+builders (`yogabase.v1.projects.byProjectId(projectId).schedules.byScheduleId(id)`), because a write is
 conditional on the schedule's **ETag**, which a generated builder neither reads from a response nor sends
 unless it is added by hand; `tests/schedules.test.mjs` pins every shape and holds each request to the
 generated builder's.
 
 ```ts
-const schedules = new YogabaseSchedulesClient({ gatewayHost, projectId, accessToken: () => session.accessToken });
-let schedule = await schedules.create({             // If-None-Match: *  (201)
+const schedules = new YogabaseSchedulesClient({
+  gatewayHost: session.gatewayHost, projectId: session.projectId!, accessToken: session.accessToken,
+});
+const definition: YogabaseScheduleDefinition = {
   scheduleId: "nightly",
   functionId: "orders-nightly",                     // a deployed Stateless Lambda
   functionVersion: "1",                             // an admitted version
@@ -159,7 +226,8 @@ let schedule = await schedules.create({             // If-None-Match: *  (201)
   concurrencyPolicy: "Allow",                       // required too: Allow, Forbid or Replace (see below)
   maxCatchUp: 1, maxAttempts: 3, deadlineSeconds: 300,
   payload: new TextEncoder().encode("{}"),          // optional, at most 1 MiB before base64
-});
+};
+let schedule = await schedules.create(definition);  // If-None-Match: *  (201)
 schedule = await schedules.update({ ...definition, cron: "0 4 * * *" }, schedule.eTag);   // If-Match (200)
 const run = await schedules.trigger("nightly", schedule.eTag, {   // If-Match; runs it once now (202)
   idempotencyKey: "run-1",                          // the same key against the same version is the same run
@@ -221,9 +289,12 @@ API host. It uses a bearer token provider, returns response metadata (`etag`, `l
 admissions, releases, promotions, rollbacks, decommissions, and operation abandonment:
 
 ```ts
+// Placeholders: workloadToken is a short-lived workload OIDC token (the CI path, not a signed-in user's token);
+// projectId and templateId name your project and an approved template.
+const abortController = new AbortController();
 const delivery = new YogabaseDeliveryClient({
   deliveryHost: "https://delivery.example.test",
-  accessToken: () => token,
+  accessToken: () => workloadToken,
 });
 const preview = await delivery.previewEnvironment(
   projectId,
@@ -250,4 +321,4 @@ by the client. As the SSE grammar says, exactly one space after a field's colon 
 further leading whitespace stays in the value, so an id round-trips unchanged; until 2026-09-22 this
 client trimmed every leading space, as the Python client did before 2026-09-17.
 
-`npm ci && npm test` passed 13 tests on 2026-09-22 (Node 25.9.0, npm 11.12.1). On 2026-10-03 `npm test` passed 88 tests (the 13 of the first run and the cases added since for delivery, Jobs, schedules, the generated surface and the schedule id rule held to the contract's pattern) on the same Node and npm, over a `node_modules` tree copied from that locked install rather than a fresh `npm ci`.
+`npm ci && npm test` passed 13 tests on 2026-09-22 (Node 25.9.0, npm 11.12.1). On 2026-10-03 `npm test` passed 88 tests (the 13 of the first run and the cases added since for delivery, Jobs, schedules, the generated surface and the schedule id rule held to the contract's pattern) on the same Node and npm, over a `node_modules` tree copied from that locked install rather than a fresh `npm ci`. On 2026-10-07, after a fresh `npm ci`, `npm test` ran 98 tests: 97 passed and the live smoke test was skipped (the 88, nine for the password sign-in, and the smoke test).
