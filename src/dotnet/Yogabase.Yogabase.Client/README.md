@@ -7,7 +7,7 @@ same sources, `src/unity/Yogabase.Yogabase.Client.Unity` (netstandard2.1, the Si
 System.Text.Json 8.0.5 line), because Unity 6000.5 binds its own 8.0 BCL extensions and a plugin
 built against 10.x is CS1705 there; `UnityBuildTests` pins that the Unity build references nothing
 at 9.x or above. The Unity build is unqualified until the demo's IL2CPP player has run it. It supports non-secret publishable-key bootstrap,
-headless password sign-in, OIDC authorization-code/PKCE, mediated object
+headless password sign-in, sign-in with an external provider, OIDC authorization-code/PKCE, mediated object
 storage, stateless Function invocation, Actor and Workflow Lambdas, durable background jobs, SignalR
 realtime, and game-server allocation.
 
@@ -74,6 +74,40 @@ the authorize step answers `interactive_login_required`.
   receives a realtime message. It is skipped unless `YOGABASE_SMOKE_GATEWAY`, `_PUBLISHABLE_KEY`, `_EMAIL`,
   `_PASSWORD` (an existing, confirmed user without MFA), `_FUNCTION_ID` and `_FUNCTION_VERSION` are set;
   `_TOPIC` adds the realtime step. No run against a live installation is recorded here yet.
+
+## Signing in with a provider
+
+A project that configured Google, Microsoft or Apple signs its users in through the gateway. The browser step belongs
+to your application, so there are two calls around it:
+
+```csharp
+// The redirect URI must be one the project registered: yogabase.Configuration.OidcRedirectUris.
+var pending = await yogabase.Auth.StartExternalSignInAsync("google", "com.example.app:/oauth/callback");
+
+// Open this in the system browser, and receive the address the browser is redirected to.
+Uri redirect = await OpenInBrowserAndWaitForRedirectAsync(pending.AuthorizationUrl);
+
+await yogabase.Auth.CompleteExternalSignInAsync(pending, redirect);   // the tokens are in the session store now
+```
+
+- **The provider id** is the one the project gave the provider (`google` above).
+- **The one address a developer registers with each provider** is `https://<gateway>/auth/external/<provider id>/return`.
+  The provider sends the browser there; the gateway sends it on to your redirect URI with `code` and `state`, or with
+  `error=access_denied` and `state`.
+- **The client checks the redirect itself.** A redirect with another `state`, an `error`, no `code` or another address
+  throws a `YogabaseApiException` (`authorization_response_invalid`, `access_denied`, `authorization_redirect_mismatch`)
+  before any request. The verifier stays in `pending`; only its S256 challenge is sent to `start`, and the verifier goes
+  to the callback alone. Complete a `pending` from the redirect of its own start, once.
+- **A refusal is a `YogabaseApiException` with the gateway's code**: `external_identity_invalid` (401),
+  `external_identity_email_in_use` (409: an account already uses the address and nothing is linked),
+  `external_email_unverified`, `external_identity_not_enrolled` and `mfa_enrollment_required` (403),
+  `external_provider_unknown` (404), `external_redirect_uri_invalid` (400) and, when the installation or the provider
+  cannot be reached, `external_identity_unavailable` or `external_provider_unavailable` (503). An account with MFA throws
+  `202 mfa_required` after the callback; call again with the same `pending` and the authenticator code as `mfaCode`.
+- **There is no loopback listener and no browser launcher in the package.** Opening the address and receiving the redirect
+  (a custom URI scheme, an app link, a loopback listener of your own) is the application's.
+- **It has never run against a real provider.** Only fake-transport tests cover it, with the gateway's answers written from
+  its route code.
 
 ## Reading and writing data
 
