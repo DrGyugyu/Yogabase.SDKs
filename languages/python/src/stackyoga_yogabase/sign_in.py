@@ -157,3 +157,73 @@ async def sign_in_with_password(
             raise _refusal(response)
 
         return await _authorize(http, gateway, found, http_client)
+
+
+class ExternalSignIn:
+    """A started external sign-in: open ``authorization_url`` in the system browser, then pass the address it is redirected to, with this
+    object, to :func:`complete_external_sign_in`, once. It holds the verifier and the cookies the gateway sets, not an HTTP client: nothing to close."""
+
+    def __init__(self, authorization_url: str, gateway: str, key: str, route: str, redirect_uri: str, state: str, verifier: str) -> None:
+        self.authorization_url = authorization_url
+        self._gateway, self._key, self._route, self._redirect_uri = gateway, key, route, redirect_uri
+        self._state, self._verifier, self._cookies = state, verifier, httpx.Cookies()
+        self._status: int | None = None  # what the callback answered: the code is spent once it has (202 awaits the MFA code)
+
+
+async def start_external_sign_in(
+    gateway_host: str,
+    publishable_key: str,
+    provider: str,
+    redirect_uri: str,
+    *,
+    http_client: httpx.AsyncClient | None = None,
+) -> ExternalSignIn:
+    """Starts signing in with a provider the project configured, under the id it gave it (``google``, ``microsoft``, ``apple``);
+    ``redirect_uri`` must be one the project registered. Only the S256 challenge of a random verifier is sent. A refusal is a
+    :class:`YogabaseAuthError` with the gateway's code, or ``external_start_invalid`` for an answer that is not an https address and a state.
+    A ``http_client`` you pass here and to the completion must keep cookies and not follow redirects."""
+    gateway, verifier = normalize_host(gateway_host, False), secrets.token_urlsafe(48)
+    route = f"{gateway}/auth/external/{quote(provider, safe='')}"
+    async with _open(http_client) as http:
+        response = await http.post(f"{route}/start", json={"redirectUri": redirect_uri, "codeChallenge": _s256(verifier)})
+        if response.status_code != 200:
+            raise _refusal(response)
+        try:
+            body = response.json()
+            url, state = body["authorizationUrl"], body["state"]
+            if not (isinstance(url, str) and isinstance(state, str) and state and urlsplit(url).scheme == "https" and urlsplit(url).hostname):
+                raise ValueError
+        except (ValueError, KeyError, TypeError):
+            raise YogabaseAuthError("The gateway returned an invalid external sign-in start.", 502, "external_start_invalid") from None
+        return ExternalSignIn(url, gateway, publishable_key, route, redirect_uri, state, verifier)
+
+
+async def complete_external_sign_in(
+    pending: ExternalSignIn,
+    redirect: str,
+    *,
+    mfa_code: str | None = None,
+    http_client: httpx.AsyncClient | None = None,
+) -> YogabaseSession:
+    """Completes ``pending`` from ``redirect``, the full address the browser was redirected to, then signs in as :func:`sign_in_with_password`
+    does. A redirect with another state, an ``error``, no code or another address ends the call before any request. A refusal is a
+    :class:`YogabaseAuthError` with the gateway's code. An account with MFA raises ``mfa_required`` (202): call again with ``mfa_code=``."""
+    async with _open(http_client) as http:
+        http.cookies.update(pending._cookies)
+        try:
+            if pending._status is None:
+                code = _read_redirect(redirect, pending._redirect_uri, pending._state)
+                response = await http.post(f"{pending._route}/callback", json={"code": code, "state": pending._state, "codeVerifier": pending._verifier})
+                if response.status_code not in (202, 204):
+                    raise _refusal(response)
+                pending._status = response.status_code
+            if pending._status == 202:
+                if mfa_code is None:
+                    raise YogabaseAuthError("Complete the second authentication factor: pass mfa_code.", 202, "mfa_required")
+                response = await http.post(f"{pending._gateway}/auth/mfa/verify", json={"code": mfa_code})
+                if response.status_code != 204:
+                    raise _refusal(response)
+                pending._status = 204
+            return await _authorize(http, pending._gateway, await _discover(http, pending._gateway, pending._key), http_client)
+        finally:
+            pending._cookies = httpx.Cookies(http.cookies)  # the second factor's cookie and a retry need what the gateway has set

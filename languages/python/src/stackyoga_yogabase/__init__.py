@@ -94,7 +94,7 @@ from .schedules import (
     YogabaseScheduleTriggerResult,
     YogabaseSchedulesError,
 )
-from .sign_in import YogabaseAuthError, YogabaseSession, sign_in_with_password
+from .sign_in import ExternalSignIn, YogabaseAuthError, YogabaseSession, complete_external_sign_in, sign_in_with_password, start_external_sign_in
 
 __all__ = [
     "YogabaseApiClient",
@@ -187,4 +187,7 @@ __all__ = [
     "YogabaseAuthError",
     "YogabaseSession",
     "sign_in_with_password",
+    "ExternalSignIn",
+    "start_external_sign_in",
+    "complete_external_sign_in",
 ]

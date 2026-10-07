@@ -1,8 +1,9 @@
-"""Headless password sign-in against a fake gateway that answers the routes the product's sign-in uses."""
+"""Headless password and external-provider sign-in against a fake gateway that answers the routes the product's sign-in uses."""
 
 import asyncio
 import base64
 import hashlib
+import json
 import unittest
 import uuid
 from urllib.parse import parse_qs
@@ -12,7 +13,8 @@ from kiota_abstractions.method import Method
 from kiota_abstractions.request_information import RequestInformation
 from kiota_http.httpx_request_adapter import HttpxRequestAdapter
 
-from stackyoga_yogabase import AsyncJobsClient, YogabaseApiClient, YogabaseAuthError, YogabaseJobsError, sign_in_with_password
+from stackyoga_yogabase import (
+    AsyncJobsClient, YogabaseApiClient, YogabaseAuthError, YogabaseJobsError, complete_external_sign_in, sign_in_with_password, start_external_sign_in)
 from stackyoga_yogabase.models.invocation_request import InvocationRequest
 
 GATEWAY = "https://apps.example.test"
@@ -22,6 +24,7 @@ CONFIG = {"projectId": PROJECT, "oidcPublicClientId": "client-1", "oidcRedirectU
           "oidcDiscoveryEndpoint": f"{GATEWAY}/.well-known/openid-configuration"}
 DISCOVERY = {"authorization_endpoint": f"{GATEWAY}/connect/authorize", "token_endpoint": f"{GATEWAY}/connect/token"}
 COOKIE = {"Set-Cookie": "yogabase.project.identity=cookie-1; Path=/; Secure; HttpOnly"}
+MFA = {"Set-Cookie": "yogabase.mfa=mfa-1; Path=/; Secure; HttpOnly"}  # set by a 202 callback, required by the MFA step
 INVOKE = f"/v1/projects/{PROJECT}/functions/hello/versions/1/invoke"
 
 
@@ -34,11 +37,13 @@ def s256(verifier: str) -> str:
 
 
 class Gateway:
-    """The sign-in routes. ``login`` is the (status, code) /auth/login answers, ``redirect`` the authorize Location."""
+    """The sign-in routes. ``login`` and ``callback`` are the (status, code) /auth/login and the provider callback answer,
+    ``redirect`` the authorize Location, ``start`` a (status, code) refusal or members of the start answer to replace."""
 
-    def __init__(self, login=(204, None), redirect=REDIRECT + "?code=code-1&state={state}", discovery=DISCOVERY, expires_in=3600, cookie=True):
+    def __init__(self, login=(204, None), redirect=REDIRECT + "?code=code-1&state={state}", discovery=DISCOVERY, expires_in=3600, cookie=True, callback=(204, None), start=None):
         self.requests: list[httpx.Request] = []
         self.login, self.redirect, self.discovery, self.expires_in, self.cookie, self.issued, self.challenge = login, redirect, discovery, expires_in, cookie, 0, ""
+        self.callback, self.start, self.starts = callback, start, {}  # starts: the state of each start and the challenge it sent
 
     @property
     def paths(self) -> list[str]:
@@ -54,7 +59,20 @@ class Gateway:
         if path == "/auth/login":
             return problem(*self.login) if self.login[1] else httpx.Response(204, headers=COOKIE if self.cookie else {})
         if path == "/auth/mfa/verify":
-            return httpx.Response(204, headers=COOKIE) if b"123456" in request.content else problem(400, "mfa_invalid")
+            needs_cookie = self.callback[0] == 202 and "mfa-1" not in request.headers.get("cookie", "")
+            return httpx.Response(204, headers=COOKIE) if b"123456" in request.content and not needs_cookie else problem(400, "mfa_invalid")
+        if path == "/auth/external/google/start":
+            if isinstance(self.start, tuple):
+                return problem(*self.start)
+            state = f"state-{len(self.starts) + 1}"
+            self.starts[state] = json.loads(request.content)["codeChallenge"]
+            return httpx.Response(200, json={"authorizationUrl": f"https://accounts.example.test/auth?state={state}", "state": state, **(self.start or {})})
+        if path == "/auth/external/google/callback":
+            body = json.loads(request.content)
+            if body["code"] != "ext-code" or s256(body["codeVerifier"]) != self.starts.get(body["state"]):
+                return problem(401, "external_identity_invalid")
+            status, code = self.callback
+            return httpx.Response(202, headers=MFA) if status == 202 else problem(status, code) if code else httpx.Response(204, headers=COOKIE)
         if path == "/connect/authorize":
             if "cookie-1" not in request.headers.get("cookie", ""):
                 return problem(401, "interactive_login_required")
@@ -188,6 +206,100 @@ class SignInTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(YogabaseAuthError) as raised:
                 await session.get_access_token()
         self.assertEqual((raised.exception.status, raised.exception.code), (400, "invalid_grant"))
+
+
+def returned(pending, **query) -> str:
+    return f"{REDIRECT}?" + "&".join(f"{key}={value}" for key, value in {"code": "ext-code", "state": pending.authorization_url.rsplit("=", 1)[1], **query}.items() if value)
+
+
+async def start(http: httpx.AsyncClient, redirect_uri: str = REDIRECT):
+    return await start_external_sign_in(GATEWAY, "sy_pub_key", "google", redirect_uri, http_client=http)
+
+
+async def external_refusal(gateway: Gateway, redirect=None, **options) -> YogabaseAuthError:
+    async with http_for(gateway) as http:
+        pending = await start(http)
+        try:
+            await complete_external_sign_in(pending, redirect or returned(pending), http_client=http, **options)
+        except YogabaseAuthError as error:
+            return error
+    raise AssertionError("sign-in was not refused")
+
+
+class ExternalSignInTests(unittest.IsolatedAsyncioTestCase):
+    async def test_signs_in_with_the_challenge_of_a_verifier_the_start_never_carries_and_keeps_the_tokens(self) -> None:
+        gateway = Gateway()  # the callback itself rejects a wrong code, or a verifier that is not the start's
+        async with http_for(gateway) as http:
+            pending = await start(http)
+            session = await complete_external_sign_in(pending, returned(pending), http_client=http)
+        self.assertEqual(gateway.paths, ["/auth/external/google/start", "/auth/external/google/callback", "/v1/client-config/sy_pub_key", "/.well-known/openid-configuration", "/connect/authorize", "/connect/token"])
+        begun, callback = gateway.requests[:2]
+        verifier = json.loads(callback.content)["codeVerifier"]
+        self.assertTrue(43 <= len(verifier) <= 128)
+        self.assertEqual(json.loads(begun.content), {"redirectUri": REDIRECT, "codeChallenge": s256(verifier)})
+        self.assertEqual(json.loads(callback.content), {"code": "ext-code", "state": "state-1", "codeVerifier": verifier})
+        self.assertFalse(any("authorization" in request.headers for request in gateway.requests[:2]))
+        self.assertEqual((pending.authorization_url, session.access_token, session.refresh_token, session.project_id), ("https://accounts.example.test/auth?state=state-1", "access-1", "refresh-1", PROJECT))
+
+    async def test_a_redirect_that_does_not_check_out_makes_no_callback_request_and_leaves_the_pending_usable(self) -> None:
+        async with http_for(gateway := Gateway()) as http:
+            other, pending = await start(http), await start(http)  # the redirect of the first start is not the second's
+            for code, redirect in (
+                ("authorization_response_invalid", [returned(other), returned(pending, state="state-1x"), returned(pending, code=""), returned(pending) + "&code=ext-code"]),
+                ("access_denied", [returned(pending, error="access_denied", code="")]),
+                ("authorization_redirect_mismatch", [returned(pending).replace("app.example", "evil.example"), returned(pending).replace("/callback", "/other"), returned(pending) + "#x"]),
+            ):
+                for bad in redirect:
+                    with self.assertRaises(YogabaseAuthError) as raised:
+                        await complete_external_sign_in(pending, bad, http_client=http)
+                    self.assertEqual((raised.exception.status, raised.exception.code), (400, code), bad)
+            self.assertEqual(gateway.paths, ["/auth/external/google/start"] * 2)
+            self.assertEqual((await complete_external_sign_in(pending, returned(pending), http_client=http)).access_token, "access-1")
+
+    async def test_a_gateway_refusal_keeps_its_code_and_ends_before_the_code_flow(self) -> None:
+        for status, code in ((401, "external_identity_invalid"), (409, "external_identity_email_in_use"), (403, "external_email_unverified"), (403, "mfa_enrollment_required")):
+            gateway = Gateway(callback=(status, code))
+            error = await external_refusal(gateway)
+            self.assertEqual((error.status, error.code, error.correlation_id, gateway.paths[-1]), (status, code, "corr-1", "/auth/external/google/callback"))
+        gateway = Gateway()  # a wrong code is the gateway's 401, and the verifier is its own
+        self.assertEqual((await external_refusal(gateway, REDIRECT + "?code=forged&state=state-1")).code, "external_identity_invalid")
+
+    async def test_a_start_refusal_or_an_unusable_start_answer_is_named(self) -> None:
+        for refused in ((400, "external_redirect_uri_invalid"), (404, "external_provider_unknown"), (503, "external_provider_unavailable")):
+            async with http_for(Gateway(start=refused)) as http:
+                with self.assertRaises(YogabaseAuthError) as raised:
+                    await start(http)
+            self.assertEqual((raised.exception.status, raised.exception.code), refused)
+        for unusable in ({"authorizationUrl": "http://accounts.example.test/auth"}, {"authorizationUrl": ""}, {"state": ""}):
+            async with http_for(Gateway(start=unusable)) as http:
+                with self.assertRaises(YogabaseAuthError) as raised:
+                    await start(http)
+            self.assertEqual((raised.exception.status, raised.exception.code), (502, "external_start_invalid"))
+        with self.assertRaises(ValueError):
+            await start_external_sign_in("http://localhost:5080", "sy_pub_key", "google", REDIRECT)
+
+    async def test_mfa_required_completes_with_the_code_without_a_second_callback(self) -> None:
+        gateway = Gateway(callback=(202, None))
+        async with http_for(gateway) as first, http_for(gateway) as second:
+            pending = await start(first)
+            for options in ({}, {"mfa_code": "000000"}):  # the callback's 202 is told apart from a refusal, and the wrong code is the gateway's
+                with self.assertRaises(YogabaseAuthError) as raised:
+                    await complete_external_sign_in(pending, returned(pending), http_client=first, **options)
+                self.assertEqual(raised.exception.code, "mfa_required" if not options else "mfa_invalid")
+            self.assertNotIn("/connect/authorize", gateway.paths)
+            session = await complete_external_sign_in(pending, returned(pending), mfa_code="123456", http_client=second)  # the cookies travel in the pending
+        self.assertEqual((gateway.paths.count("/auth/external/google/callback"), session.access_token), (1, "access-1"))
+
+    async def test_a_failure_after_the_callback_is_retried_without_sending_the_spent_code_again(self) -> None:
+        gateway = Gateway(discovery={**DISCOVERY, "token_endpoint": "https://evil.example.test/connect/token"})
+        async with http_for(gateway) as http:
+            pending = await start(http)
+            with self.assertRaises(YogabaseAuthError) as raised:
+                await complete_external_sign_in(pending, returned(pending), http_client=http)
+            self.assertEqual(raised.exception.code, "oidc_discovery_invalid")
+            gateway.discovery = DISCOVERY
+            self.assertEqual((await complete_external_sign_in(pending, returned(pending), http_client=http)).access_token, "access-1")
+        self.assertEqual(gateway.paths.count("/auth/external/google/callback"), 1)
 
 
 if __name__ == "__main__":
