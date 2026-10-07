@@ -7,6 +7,8 @@ from typing import Any, Optional, TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from .callback.callback_request_builder import CallbackRequestBuilder
+    from .return_.return_request_builder import ReturnRequestBuilder
+    from .start.start_request_builder import StartRequestBuilder
 
 class WithProviderItemRequestBuilder(BaseRequestBuilder):
     """
@@ -29,5 +31,23 @@ class WithProviderItemRequestBuilder(BaseRequestBuilder):
         from .callback.callback_request_builder import CallbackRequestBuilder
 
         return CallbackRequestBuilder(self.request_adapter, self.path_parameters)
+    
+    @property
+    def return_(self) -> ReturnRequestBuilder:
+        """
+        The return property
+        """
+        from .return_.return_request_builder import ReturnRequestBuilder
+
+        return ReturnRequestBuilder(self.request_adapter, self.path_parameters)
+    
+    @property
+    def start(self) -> StartRequestBuilder:
+        """
+        The start property
+        """
+        from .start.start_request_builder import StartRequestBuilder
+
+        return StartRequestBuilder(self.request_adapter, self.path_parameters)
     
 

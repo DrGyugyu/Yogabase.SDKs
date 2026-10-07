@@ -13,6 +13,10 @@ public class ExternalIdentityCallbackRequest implements Parsable {
      */
     private String code;
     /**
+     * The codeVerifier property
+     */
+    private String codeVerifier;
+    /**
      * The state property
      */
     private String state;
@@ -35,13 +39,22 @@ public class ExternalIdentityCallbackRequest implements Parsable {
         return this.code;
     }
     /**
+     * Gets the codeVerifier property value. The codeVerifier property
+     * @return a {@link String}
+     */
+    @jakarta.annotation.Nullable
+    public String getCodeVerifier() {
+        return this.codeVerifier;
+    }
+    /**
      * The deserialization information for the current model
      * @return a {@link Map<String, java.util.function.Consumer<ParseNode>>}
      */
     @jakarta.annotation.Nonnull
     public Map<String, java.util.function.Consumer<ParseNode>> getFieldDeserializers() {
-        final HashMap<String, java.util.function.Consumer<ParseNode>> deserializerMap = new HashMap<String, java.util.function.Consumer<ParseNode>>(2);
+        final HashMap<String, java.util.function.Consumer<ParseNode>> deserializerMap = new HashMap<String, java.util.function.Consumer<ParseNode>>(3);
         deserializerMap.put("code", (n) -> { this.setCode(n.getStringValue()); });
+        deserializerMap.put("codeVerifier", (n) -> { this.setCodeVerifier(n.getStringValue()); });
         deserializerMap.put("state", (n) -> { this.setState(n.getStringValue()); });
         return deserializerMap;
     }
@@ -60,6 +73,7 @@ public class ExternalIdentityCallbackRequest implements Parsable {
     public void serialize(@jakarta.annotation.Nonnull final SerializationWriter writer) {
         Objects.requireNonNull(writer);
         writer.writeStringValue("code", this.getCode());
+        writer.writeStringValue("codeVerifier", this.getCodeVerifier());
         writer.writeStringValue("state", this.getState());
     }
     /**
@@ -68,6 +82,13 @@ public class ExternalIdentityCallbackRequest implements Parsable {
      */
     public void setCode(@jakarta.annotation.Nullable final String value) {
         this.code = value;
+    }
+    /**
+     * Sets the codeVerifier property value. The codeVerifier property
+     * @param value Value to set for the codeVerifier property.
+     */
+    public void setCodeVerifier(@jakarta.annotation.Nullable final String value) {
+        this.codeVerifier = value;
     }
     /**
      * Sets the state property value. The state property

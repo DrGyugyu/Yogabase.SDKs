@@ -3,6 +3,8 @@ package io.stackyoga.yogabase.auth.external.item;
 import com.microsoft.kiota.BaseRequestBuilder;
 import com.microsoft.kiota.RequestAdapter;
 import io.stackyoga.yogabase.auth.external.item.callback.CallbackRequestBuilder;
+import io.stackyoga.yogabase.auth.external.item.returnescaped.ReturnRequestBuilder;
+import io.stackyoga.yogabase.auth.external.item.start.StartRequestBuilder;
 import java.util.HashMap;
 import java.util.Objects;
 /**
@@ -17,6 +19,22 @@ public class WithProviderItemRequestBuilder extends BaseRequestBuilder {
     @jakarta.annotation.Nonnull
     public CallbackRequestBuilder callback() {
         return new CallbackRequestBuilder(pathParameters, requestAdapter);
+    }
+    /**
+     * The return property
+     * @return a {@link ReturnRequestBuilder}
+     */
+    @jakarta.annotation.Nonnull
+    public ReturnRequestBuilder returnEscaped() {
+        return new ReturnRequestBuilder(pathParameters, requestAdapter);
+    }
+    /**
+     * The start property
+     * @return a {@link StartRequestBuilder}
+     */
+    @jakarta.annotation.Nonnull
+    public StartRequestBuilder start() {
+        return new StartRequestBuilder(pathParameters, requestAdapter);
     }
     /**
      * Instantiates a new {@link WithProviderItemRequestBuilder} and sets the default values.

@@ -261,6 +261,24 @@ export function createExternalIdentityCallbackRequestFromDiscriminatorValue(pars
 /**
  * Creates a new instance of the appropriate class based on discriminator value
  * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {ExternalIdentityStartRequest}
+ */
+// @ts-ignore
+export function createExternalIdentityStartRequestFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoExternalIdentityStartRequest;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
+ * @returns {ExternalIdentityStartResponse}
+ */
+// @ts-ignore
+export function createExternalIdentityStartResponseFromDiscriminatorValue(parseNode: ParseNode | undefined) : ((instance?: Parsable) => Record<string, (node: ParseNode) => void>) {
+    return deserializeIntoExternalIdentityStartResponse;
+}
+/**
+ * Creates a new instance of the appropriate class based on discriminator value
+ * @param parseNode The parse node to use to read the discriminator value and create the object
  * @returns {GameServer}
  */
 // @ts-ignore
@@ -844,7 +862,32 @@ export function deserializeIntoEmailConfirmationRequest(emailConfirmationRequest
 export function deserializeIntoExternalIdentityCallbackRequest(externalIdentityCallbackRequest: Partial<ExternalIdentityCallbackRequest> | undefined = {}) : Record<string, (node: ParseNode) => void> {
     return {
         "code": n => { externalIdentityCallbackRequest.code = n.getStringValue(); },
+        "codeVerifier": n => { externalIdentityCallbackRequest.codeVerifier = n.getStringValue(); },
         "state": n => { externalIdentityCallbackRequest.state = n.getStringValue(); },
+    }
+}
+/**
+ * The deserialization information for the current model
+ * @param ExternalIdentityStartRequest The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoExternalIdentityStartRequest(externalIdentityStartRequest: Partial<ExternalIdentityStartRequest> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "codeChallenge": n => { externalIdentityStartRequest.codeChallenge = n.getStringValue(); },
+        "redirectUri": n => { externalIdentityStartRequest.redirectUri = n.getStringValue(); },
+    }
+}
+/**
+ * The deserialization information for the current model
+ * @param ExternalIdentityStartResponse The instance to deserialize into.
+ * @returns {Record<string, (node: ParseNode) => void>}
+ */
+// @ts-ignore
+export function deserializeIntoExternalIdentityStartResponse(externalIdentityStartResponse: Partial<ExternalIdentityStartResponse> | undefined = {}) : Record<string, (node: ParseNode) => void> {
+    return {
+        "authorizationUrl": n => { externalIdentityStartResponse.authorizationUrl = n.getStringValue(); },
+        "state": n => { externalIdentityStartResponse.state = n.getStringValue(); },
     }
 }
 /**
@@ -1252,6 +1295,30 @@ export interface ExternalIdentityCallbackRequest extends Parsable {
      * The code property
      */
     code?: string | null;
+    /**
+     * The codeVerifier property
+     */
+    codeVerifier?: string | null;
+    /**
+     * The state property
+     */
+    state?: string | null;
+}
+export interface ExternalIdentityStartRequest extends Parsable {
+    /**
+     * Base64url of the SHA-256 of the client's verifier, without padding.
+     */
+    codeChallenge?: string | null;
+    /**
+     * The redirectUri property
+     */
+    redirectUri?: string | null;
+}
+export interface ExternalIdentityStartResponse extends Parsable {
+    /**
+     * The authorizationUrl property
+     */
+    authorizationUrl?: string | null;
     /**
      * The state property
      */
@@ -1869,7 +1936,32 @@ export function serializeEmailConfirmationRequest(writer: SerializationWriter, e
 export function serializeExternalIdentityCallbackRequest(writer: SerializationWriter, externalIdentityCallbackRequest: Partial<ExternalIdentityCallbackRequest> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
     if (!externalIdentityCallbackRequest || isSerializingDerivedType) { return; }
     writer.writeStringValue("code", externalIdentityCallbackRequest.code);
+    writer.writeStringValue("codeVerifier", externalIdentityCallbackRequest.codeVerifier);
     writer.writeStringValue("state", externalIdentityCallbackRequest.state);
+}
+/**
+ * Serializes information the current object
+ * @param ExternalIdentityStartRequest The instance to serialize from.
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeExternalIdentityStartRequest(writer: SerializationWriter, externalIdentityStartRequest: Partial<ExternalIdentityStartRequest> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!externalIdentityStartRequest || isSerializingDerivedType) { return; }
+    writer.writeStringValue("codeChallenge", externalIdentityStartRequest.codeChallenge);
+    writer.writeStringValue("redirectUri", externalIdentityStartRequest.redirectUri);
+}
+/**
+ * Serializes information the current object
+ * @param ExternalIdentityStartResponse The instance to serialize from.
+ * @param isSerializingDerivedType A boolean indicating whether the serialization is for a derived type.
+ * @param writer Serialization writer to use to serialize this model
+ */
+// @ts-ignore
+export function serializeExternalIdentityStartResponse(writer: SerializationWriter, externalIdentityStartResponse: Partial<ExternalIdentityStartResponse> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
+    if (!externalIdentityStartResponse || isSerializingDerivedType) { return; }
+    writer.writeStringValue("authorizationUrl", externalIdentityStartResponse.authorizationUrl);
+    writer.writeStringValue("state", externalIdentityStartResponse.state);
 }
 /**
  * Serializes information the current object

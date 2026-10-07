@@ -36,12 +36,14 @@ public class CallbackRequestBuilder extends BaseRequestBuilder {
         super(requestAdapter, "{+baseurl}/auth/external/{provider}/callback", rawUrl);
     }
     /**
-     * Completes a configured external identity flow. The callback never auto-links by email and returns unavailable when no installation verifier exists.
+     * Completes a configured external identity flow and signs the user in. codeVerifier is the verifier whose challenge was sent to start: without it the code and state are refused as external_identity_invalid, so a redirect taken by another app signs nobody in. A provider-verified e-mail address no account uses starts an account (open-signup projects only); an address an account already uses is refused with 409 external_identity_email_in_use and nothing is linked.
      * @param body The request body
      * @return a {@link Problem}
      * @throws Problem When receiving a 400 status code
      * @throws Problem When receiving a 401 status code
      * @throws Problem When receiving a 403 status code
+     * @throws Problem When receiving a 404 status code
+     * @throws Problem When receiving a 409 status code
      * @throws Problem When receiving a 503 status code
      */
     @jakarta.annotation.Nullable
@@ -49,13 +51,15 @@ public class CallbackRequestBuilder extends BaseRequestBuilder {
         return post(body, null);
     }
     /**
-     * Completes a configured external identity flow. The callback never auto-links by email and returns unavailable when no installation verifier exists.
+     * Completes a configured external identity flow and signs the user in. codeVerifier is the verifier whose challenge was sent to start: without it the code and state are refused as external_identity_invalid, so a redirect taken by another app signs nobody in. A provider-verified e-mail address no account uses starts an account (open-signup projects only); an address an account already uses is refused with 409 external_identity_email_in_use and nothing is linked.
      * @param body The request body
      * @param requestConfiguration Configuration for the request such as headers, query parameters, and middleware options.
      * @return a {@link Problem}
      * @throws Problem When receiving a 400 status code
      * @throws Problem When receiving a 401 status code
      * @throws Problem When receiving a 403 status code
+     * @throws Problem When receiving a 404 status code
+     * @throws Problem When receiving a 409 status code
      * @throws Problem When receiving a 503 status code
      */
     @jakarta.annotation.Nullable
@@ -66,11 +70,13 @@ public class CallbackRequestBuilder extends BaseRequestBuilder {
         errorMapping.put("400", Problem::createFromDiscriminatorValue);
         errorMapping.put("401", Problem::createFromDiscriminatorValue);
         errorMapping.put("403", Problem::createFromDiscriminatorValue);
+        errorMapping.put("404", Problem::createFromDiscriminatorValue);
+        errorMapping.put("409", Problem::createFromDiscriminatorValue);
         errorMapping.put("503", Problem::createFromDiscriminatorValue);
         return this.requestAdapter.send(requestInfo, errorMapping, Problem::createFromDiscriminatorValue);
     }
     /**
-     * Completes a configured external identity flow. The callback never auto-links by email and returns unavailable when no installation verifier exists.
+     * Completes a configured external identity flow and signs the user in. codeVerifier is the verifier whose challenge was sent to start: without it the code and state are refused as external_identity_invalid, so a redirect taken by another app signs nobody in. A provider-verified e-mail address no account uses starts an account (open-signup projects only); an address an account already uses is refused with 409 external_identity_email_in_use and nothing is linked.
      * @param body The request body
      * @return a {@link RequestInformation}
      */
@@ -79,7 +85,7 @@ public class CallbackRequestBuilder extends BaseRequestBuilder {
         return toPostRequestInformation(body, null);
     }
     /**
-     * Completes a configured external identity flow. The callback never auto-links by email and returns unavailable when no installation verifier exists.
+     * Completes a configured external identity flow and signs the user in. codeVerifier is the verifier whose challenge was sent to start: without it the code and state are refused as external_identity_invalid, so a redirect taken by another app signs nobody in. A provider-verified e-mail address no account uses starts an account (open-signup projects only); an address an account already uses is refused with 409 external_identity_email_in_use and nothing is linked.
      * @param body The request body
      * @param requestConfiguration Configuration for the request such as headers, query parameters, and middleware options.
      * @return a {@link RequestInformation}

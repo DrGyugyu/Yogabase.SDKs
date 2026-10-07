@@ -4,6 +4,10 @@
 // @ts-ignore
 import { CallbackRequestBuilderRequestsMetadata, type CallbackRequestBuilder } from './callback/index.js';
 // @ts-ignore
+import { ReturnRequestBuilderRequestsMetadata, type ReturnRequestBuilder } from './returnEscaped/index.js';
+// @ts-ignore
+import { StartRequestBuilderRequestsMetadata, type StartRequestBuilder } from './start/index.js';
+// @ts-ignore
 import { type BaseRequestBuilder, type KeysToExcludeForNavigationMetadata, type NavigationMetadata } from '@microsoft/kiota-abstractions';
 
 /**
@@ -14,6 +18,14 @@ export interface WithProviderItemRequestBuilder extends BaseRequestBuilder<WithP
      * The callback property
      */
     get callback(): CallbackRequestBuilder;
+    /**
+     * The return property
+     */
+    get returnEscaped(): ReturnRequestBuilder;
+    /**
+     * The start property
+     */
+    get start(): StartRequestBuilder;
 }
 /**
  * Uri template for the request builder.
@@ -25,6 +37,12 @@ export const WithProviderItemRequestBuilderUriTemplate = "{+baseurl}/auth/extern
 export const WithProviderItemRequestBuilderNavigationMetadata: Record<Exclude<keyof WithProviderItemRequestBuilder, KeysToExcludeForNavigationMetadata>, NavigationMetadata> = {
     callback: {
         requestsMetadata: CallbackRequestBuilderRequestsMetadata,
+    },
+    returnEscaped: {
+        requestsMetadata: ReturnRequestBuilderRequestsMetadata,
+    },
+    start: {
+        requestsMetadata: StartRequestBuilderRequestsMetadata,
     },
 };
 /* tslint:enable */

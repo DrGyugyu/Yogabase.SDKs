@@ -23,11 +23,11 @@
   "contract": {
     "path": "contracts/yogabase-client-v1.openapi.json",
     "sourcePath": "Yogabase product repository: docs/api/yogabase-client-v1.openapi.json",
-    "sha256": "e2de1433c884098e33e867eef06e300e6dacb11aca462477557cdd97bb5787ed",
-    "pathCount": 33,
-    "operationCount": 36,
-    "schemaCount": 47,
-    "mirroredFrom": "Byte-identical, like the builds, delivery and runtime-host documents below, to the product document at main f9d57e29 (2026-10-03); this document last changed in a95d2347 (2026-10-03), the delivery document in ec3c58b5 (2026-10-03), the builds document in 1f7ad8a3 (2026-09-22) and the runtime-host document in 87469584 (2026-09-17), and all four were compared byte for byte with the product's files at f9d57e29. It carries the player-facing /v1/servers/* game-server surface, the requested-only realtime-presence and data-rest capability rows with the X-Yogabase-Accept-Capabilities request header, the restored client Data API (/v1/data/{table}/select|insert|upsert|update|delete, 9f14ca68, 2026-09-23) with its named 413 data_request_too_large (360a31c1), the storage refusal codes (858071ba, 2026-09-24), the inline payload limit with the 413 payload_too_large refusal on the function invoke route (9f653644, 2026-10-03) and on the actor invoke, workflow start and workflow cancel routes at 480 KiB (x-yogabase-orleans-payload, b1d8c286), the durable Jobs routes (/v1/projects/{projectId}/jobs, 1b925cc0, 2026-10-03, x-yogabase-jobs) and the schedule routes (/v1/projects/{projectId}/schedules/{scheduleId} and its /trigger, 552fdb4f, 2026-10-03, x-yogabase-schedules), which three later product commits of the same day tightened: a manual run of a schedule whose function version is no longer admitted is a 409 where it was a 503, and both policies are required (195b9845); a write holds scheduleId to one rule, the pattern ^[A-Za-z0-9][A-Za-z0-9._~:-]{0,127}$ (15ecb4ce); and the concurrency policies state what the scheduler does about an earlier occurrence that has not finished (a95d2347). Kiota therefore generates request builders for the Jobs and schedule routes in TypeScript, Python, Java and Dart, and the authored Jobs and schedule clients sit beside them (jobsSurface and schedulesSurface below)."
+    "sha256": "5fcbed400575ae191a577202a3548e41f7ef1b18f90971d7b58fc2e71fa867de",
+    "pathCount": 35,
+    "operationCount": 39,
+    "schemaCount": 49,
+    "mirroredFrom": "Byte-identical, like the builds, delivery and runtime-host documents below, to the product document at main beb61e56 (2026-10-08); this document last changed in b088fb38 (2026-10-08), the delivery document in ec3c58b5 (2026-10-03), the builds document in 1f7ad8a3 (2026-09-22) and the runtime-host document in 87469584 (2026-09-17), and all four were compared byte for byte with the product's files at beb61e56. It carries the player-facing /v1/servers/* game-server surface, the three external sign-in routes for a project's end users (/auth/external/{provider}/start, /return and /callback, db336487, 73b01e6f and b088fb38, 2026-10-07 and 2026-10-08; the callback now requires the codeVerifier whose challenge start received), the requested-only realtime-presence and data-rest capability rows with the X-Yogabase-Accept-Capabilities request header, the restored client Data API (/v1/data/{table}/select|insert|upsert|update|delete, 9f14ca68, 2026-09-23) with its named 413 data_request_too_large (360a31c1), the storage refusal codes (858071ba, 2026-09-24), the inline payload limit with the 413 payload_too_large refusal on the function invoke route (9f653644, 2026-10-03) and on the actor invoke, workflow start and workflow cancel routes at 480 KiB (x-yogabase-orleans-payload, b1d8c286), the durable Jobs routes (/v1/projects/{projectId}/jobs, 1b925cc0, 2026-10-03, x-yogabase-jobs) and the schedule routes (/v1/projects/{projectId}/schedules/{scheduleId} and its /trigger, 552fdb4f, 2026-10-03, x-yogabase-schedules), which three later product commits of the same day tightened: a manual run of a schedule whose function version is no longer admitted is a 409 where it was a 503, and both policies are required (195b9845); a write holds scheduleId to one rule, the pattern ^[A-Za-z0-9][A-Za-z0-9._~:-]{0,127}$ (15ecb4ce); and the concurrency policies state what the scheduler does about an earlier occurrence that has not finished (a95d2347). Kiota therefore generates request builders for the Jobs and schedule routes in TypeScript, Python, Java and Dart, and the authored Jobs and schedule clients sit beside them (jobsSurface and schedulesSurface below)."
   },
   "jobsSurface": {
     "declaredInContract": true,
@@ -128,8 +128,8 @@
     "regenerationScript": "scripts/regenerate-clients.sh",
     "descriptionHashes": {
       "application": {
-        "contractSha256": "e2de1433c884098e33e867eef06e300e6dacb11aca462477557cdd97bb5787ed",
-        "kiotaDescriptionHash": "80DAC30C8F8F39B1B8E5C904F5DEA72F19FD7047D5FC0F611767FA857ABDC8521AF636C700E1F69F0CE50762974BFB974C584A2C0C73EFE3CA9A9E4D12930283"
+        "contractSha256": "5fcbed400575ae191a577202a3548e41f7ef1b18f90971d7b58fc2e71fa867de",
+        "kiotaDescriptionHash": "74C72D5BD19B61E23FCF122ABD436766E29EE20937B519974E7F16486237A829C91803C3BF1F6CDD9D3141FC6FF9C8F96B3DEF2BA48B5F4D2B810BFEFA702E8F"
       },
       "delivery": {
         "contractSha256": "d44f95c0364d49071aa29e0d555687c942d91acbc9215cb71bd1eefb294d9c39",

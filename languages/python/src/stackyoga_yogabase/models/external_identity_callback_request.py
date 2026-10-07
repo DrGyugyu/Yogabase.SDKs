@@ -8,6 +8,8 @@ from typing import Any, Optional, TYPE_CHECKING, Union
 class ExternalIdentityCallbackRequest(Parsable):
     # The code property
     code: Optional[str] = None
+    # The codeVerifier property
+    code_verifier: Optional[str] = None
     # The state property
     state: Optional[str] = None
     
@@ -29,6 +31,7 @@ class ExternalIdentityCallbackRequest(Parsable):
         """
         fields: dict[str, Callable[[Any], None]] = {
             "code": lambda n : setattr(self, 'code', n.get_str_value()),
+            "codeVerifier": lambda n : setattr(self, 'code_verifier', n.get_str_value()),
             "state": lambda n : setattr(self, 'state', n.get_str_value()),
         }
         return fields
@@ -42,6 +45,7 @@ class ExternalIdentityCallbackRequest(Parsable):
         if writer is None:
             raise TypeError("writer cannot be null.")
         writer.write_str_value("code", self.code)
+        writer.write_str_value("codeVerifier", self.code_verifier)
         writer.write_str_value("state", self.state)
     
 

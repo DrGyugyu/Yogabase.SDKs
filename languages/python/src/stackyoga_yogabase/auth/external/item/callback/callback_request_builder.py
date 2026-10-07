@@ -32,7 +32,7 @@ class CallbackRequestBuilder(BaseRequestBuilder):
     
     async def post(self,body: ExternalIdentityCallbackRequest, request_configuration: Optional[RequestConfiguration[QueryParameters]] = None) -> Optional[Problem]:
         """
-        Completes a configured external identity flow. The callback never auto-links by email and returns unavailable when no installation verifier exists.
+        Completes a configured external identity flow and signs the user in. codeVerifier is the verifier whose challenge was sent to start: without it the code and state are refused as external_identity_invalid, so a redirect taken by another app signs nobody in. A provider-verified e-mail address no account uses starts an account (open-signup projects only); an address an account already uses is refused with 409 external_identity_email_in_use and nothing is linked.
         param body: The request body
         param request_configuration: Configuration for the request such as headers, query parameters, and middleware options.
         Returns: Optional[Problem]
@@ -48,6 +48,8 @@ class CallbackRequestBuilder(BaseRequestBuilder):
             "400": Problem,
             "401": Problem,
             "403": Problem,
+            "404": Problem,
+            "409": Problem,
             "503": Problem,
         }
         if not self.request_adapter:
@@ -58,7 +60,7 @@ class CallbackRequestBuilder(BaseRequestBuilder):
     
     def to_post_request_information(self,body: ExternalIdentityCallbackRequest, request_configuration: Optional[RequestConfiguration[QueryParameters]] = None) -> RequestInformation:
         """
-        Completes a configured external identity flow. The callback never auto-links by email and returns unavailable when no installation verifier exists.
+        Completes a configured external identity flow and signs the user in. codeVerifier is the verifier whose challenge was sent to start: without it the code and state are refused as external_identity_invalid, so a redirect taken by another app signs nobody in. A provider-verified e-mail address no account uses starts an account (open-signup projects only); an address an account already uses is refused with 409 external_identity_email_in_use and nothing is linked.
         param body: The request body
         param request_configuration: Configuration for the request such as headers, query parameters, and middleware options.
         Returns: RequestInformation

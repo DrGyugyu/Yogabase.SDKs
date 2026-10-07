@@ -477,10 +477,95 @@
         }
       }
     },
+    "/auth/external/{provider}/start": {
+      "post": {
+        "operationId": "startYogabaseExternalLogin",
+        "description": "Begins sign-in with a provider the project configured, under the id the project gave it. The redirectUri must be one of the project's registered redirect URIs. The client generates a random verifier (43 to 128 characters of the unreserved set), keeps it, and sends its S256 challenge as codeChallenge. It opens authorizationUrl, compares the state the redirect comes back with to the one returned here, and sends the code, state and verifier to the callback.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "pattern": "^[a-z0-9._-]{1,64}$" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/ExternalIdentityStartRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The provider's authorization URL and the state to compare. The provider redirects to the gateway's return address, which relays to redirectUri.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ExternalIdentityStartResponse" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/auth/external/{provider}/return": {
+      "get": {
+        "operationId": "receiveYogabaseExternalLogin",
+        "description": "The one address registered with a provider (https://<gateway>/auth/external/<id>/return); no application calls it. A provider that answers by query lands here. It redirects to the redirect URI given to start, carrying the code and state, or error=access_denied and the state when the provider sent no code. Nothing else of the answer is read.",
+        "security": [],
+        "parameters": [
+          { "name": "provider", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[a-z0-9._-]{1,64}$" } },
+          { "name": "code", "in": "query", "schema": { "type": "string", "maxLength": 8192 } },
+          { "name": "state", "in": "query", "schema": { "type": "string", "maxLength": 2048 } }
+        ],
+        "responses": {
+          "302": {
+            "description": "The redirect to the application's registered redirect URI.",
+            "headers": { "Location": { "schema": { "type": "string" } } }
+          },
+          "401": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      },
+      "post": {
+        "operationId": "returnYogabaseExternalLogin",
+        "description": "The same address for a provider that answers by form_post (Apple). Same redirect, same fields.",
+        "security": [],
+        "parameters": [
+          { "name": "provider", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[a-z0-9._-]{1,64}$" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": ["state"],
+                "properties": {
+                  "code": { "type": "string", "maxLength": 8192 },
+                  "state": { "type": "string", "minLength": 1, "maxLength": 2048 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "302": {
+            "description": "The redirect to the application's registered redirect URI.",
+            "headers": { "Location": { "schema": { "type": "string" } } }
+          },
+          "401": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "503": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
     "/auth/external/{provider}/callback": {
       "post": {
         "operationId": "completeYogabaseExternalLogin",
-        "description": "Completes a configured external identity flow. The callback never auto-links by email and returns unavailable when no installation verifier exists.",
+        "description": "Completes a configured external identity flow and signs the user in. codeVerifier is the verifier whose challenge was sent to start: without it the code and state are refused as external_identity_invalid, so a redirect taken by another app signs nobody in. A provider-verified e-mail address no account uses starts an account (open-signup projects only); an address an account already uses is refused with 409 external_identity_email_in_use and nothing is linked.",
         "security": [],
         "parameters": [
           {
@@ -502,6 +587,8 @@
           "400": { "$ref": "#/components/responses/Problem" },
           "401": { "$ref": "#/components/responses/Problem" },
           "403": { "$ref": "#/components/responses/Problem" },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "409": { "$ref": "#/components/responses/Problem" },
           "503": { "$ref": "#/components/responses/Problem" }
         }
       }
@@ -1602,13 +1689,32 @@
           "code": { "type": "string", "minLength": 1, "maxLength": 256 }
         }
       },
+      "ExternalIdentityStartRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["redirectUri", "codeChallenge"],
+        "properties": {
+          "redirectUri": { "type": "string", "minLength": 1, "maxLength": 2048 },
+          "codeChallenge": { "type": "string", "minLength": 43, "maxLength": 43, "description": "Base64url of the SHA-256 of the client's verifier, without padding." }
+        }
+      },
+      "ExternalIdentityStartResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["authorizationUrl", "state"],
+        "properties": {
+          "authorizationUrl": { "type": "string", "format": "uri" },
+          "state": { "type": "string", "minLength": 1, "maxLength": 2048 }
+        }
+      },
       "ExternalIdentityCallbackRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["code", "state"],
+        "required": ["code", "state", "codeVerifier"],
         "properties": {
           "code": { "type": "string", "minLength": 1, "maxLength": 8192 },
-          "state": { "type": "string", "minLength": 1, "maxLength": 2048 }
+          "state": { "type": "string", "minLength": 1, "maxLength": 2048 },
+          "codeVerifier": { "type": "string", "minLength": 43, "maxLength": 128 }
         }
       },
       "MfaSetupResponse": {

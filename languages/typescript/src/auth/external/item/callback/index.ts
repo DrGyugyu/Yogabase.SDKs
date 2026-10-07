@@ -11,18 +11,20 @@ import { type BaseRequestBuilder, type Parsable, type ParsableFactory, type Requ
  */
 export interface CallbackRequestBuilder extends BaseRequestBuilder<CallbackRequestBuilder> {
     /**
-     * Completes a configured external identity flow. The callback never auto-links by email and returns unavailable when no installation verifier exists.
+     * Completes a configured external identity flow and signs the user in. codeVerifier is the verifier whose challenge was sent to start: without it the code and state are refused as external_identity_invalid, so a redirect taken by another app signs nobody in. A provider-verified e-mail address no account uses starts an account (open-signup projects only); an address an account already uses is refused with 409 external_identity_email_in_use and nothing is linked.
      * @param body The request body
      * @param requestConfiguration Configuration for the request such as headers, query parameters, and middleware options.
      * @returns {Promise<Problem>}
      * @throws {Problem} error when the service returns a 400 status code
      * @throws {Problem} error when the service returns a 401 status code
      * @throws {Problem} error when the service returns a 403 status code
+     * @throws {Problem} error when the service returns a 404 status code
+     * @throws {Problem} error when the service returns a 409 status code
      * @throws {Problem} error when the service returns a 503 status code
      */
      post(body: ExternalIdentityCallbackRequest, requestConfiguration?: RequestConfiguration<object> | undefined) : Promise<Problem | undefined>;
     /**
-     * Completes a configured external identity flow. The callback never auto-links by email and returns unavailable when no installation verifier exists.
+     * Completes a configured external identity flow and signs the user in. codeVerifier is the verifier whose challenge was sent to start: without it the code and state are refused as external_identity_invalid, so a redirect taken by another app signs nobody in. A provider-verified e-mail address no account uses starts an account (open-signup projects only); an address an account already uses is refused with 409 external_identity_email_in_use and nothing is linked.
      * @param body The request body
      * @param requestConfiguration Configuration for the request such as headers, query parameters, and middleware options.
      * @returns {RequestInformation}
@@ -44,6 +46,8 @@ export const CallbackRequestBuilderRequestsMetadata: RequestsMetadata = {
             400: createProblemFromDiscriminatorValue as ParsableFactory<Parsable>,
             401: createProblemFromDiscriminatorValue as ParsableFactory<Parsable>,
             403: createProblemFromDiscriminatorValue as ParsableFactory<Parsable>,
+            404: createProblemFromDiscriminatorValue as ParsableFactory<Parsable>,
+            409: createProblemFromDiscriminatorValue as ParsableFactory<Parsable>,
             503: createProblemFromDiscriminatorValue as ParsableFactory<Parsable>,
         },
         adapterMethodName: "send",

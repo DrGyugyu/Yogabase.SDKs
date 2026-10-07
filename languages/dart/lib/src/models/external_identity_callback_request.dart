@@ -5,6 +5,8 @@ import 'package:microsoft_kiota_abstractions/microsoft_kiota_abstractions.dart';
 class ExternalIdentityCallbackRequest implements Parsable {
     ///  The code property
     String? code;
+    ///  The codeVerifier property
+    String? codeVerifier;
     ///  The state property
     String? state;
     /// Creates a new instance of the appropriate class based on discriminator value
@@ -17,6 +19,7 @@ class ExternalIdentityCallbackRequest implements Parsable {
     Map<String, void Function(ParseNode)> getFieldDeserializers() {
         var deserializerMap = <String, void Function(ParseNode)>{};
         deserializerMap['code'] = (node) => code = node.getStringValue();
+        deserializerMap['codeVerifier'] = (node) => codeVerifier = node.getStringValue();
         deserializerMap['state'] = (node) => state = node.getStringValue();
         return deserializerMap;
     }
@@ -25,6 +28,7 @@ class ExternalIdentityCallbackRequest implements Parsable {
     @override
     void serialize(SerializationWriter writer) {
         writer.writeStringValue('code', code);
+        writer.writeStringValue('codeVerifier', codeVerifier);
         writer.writeStringValue('state', state);
     }
 }
