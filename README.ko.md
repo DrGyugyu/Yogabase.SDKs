@@ -212,9 +212,13 @@ using Yogabase.Yogabase;
 await using var yogabase = await YogabaseClient.CreateAsync(
     new Uri("https://<installation-host>"),
     "<publishable-key>");
+
+await yogabase.Auth.SignInWithPasswordAsync("<user-email>", "<user-password>");
 ```
 
 `<installation-host>`와 `<publishable-key>`는 플레이스홀더이며, 이 저장소는 둘 중 어느 것도 정하지 않습니다. 자체 호스팅 설치의 호스트 이름과 해당 프로젝트의 publishable key는 모두 그 설치본의 소유자가 제공합니다. 실제 publishable key는 `sy_pub_`로 시작하며, 그렇지 않은 값은 `CreateAsync`가 거부합니다.
+
+`SignInWithPasswordAsync`는 브라우저 없이 사용자를 로그인시키고 다른 모든 호출이 쓰는 토큰을 보관합니다. 사용자는 이미 존재해야 합니다. 가입은 기본적으로 초대 전용이며 이메일 확인이 필요하고, 거절 목록은 [클라이언트 README](src/dotnet/Yogabase.Yogabase.Client/README.md#getting-started)에 있습니다. 게시된 패키지가 없으므로 이 저장소의 체크아웃에서 클라이언트 프로젝트를 참조하세요.
 
 publishable key는 Secret이 아닙니다. 이는 게이트웨이에 프로젝트를 식별시키는 값이며 클라이언트 코드에 포함해도 안전하고, 그 자체로는 아무것도 인증하지 않습니다. 이 키로 가져오는 bootstrap 문서에는 endpoint, 식별자, 기능 사실만 담깁니다. Yogabase는 클라이언트가 대신 보유할 수 있는 권한 있는 대응 키를 발급하지 않습니다. 인증이 필요한 모든 호출은 프로젝트의 OIDC authority에서 받은 사용자별 access token을 사용하므로, 클라이언트는 프로젝트 전체를 대변하는 자격 증명을 결코 포함하지 않습니다.
 

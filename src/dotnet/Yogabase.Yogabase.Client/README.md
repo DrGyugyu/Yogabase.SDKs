@@ -7,7 +7,7 @@ same sources, `src/unity/Yogabase.Yogabase.Client.Unity` (netstandard2.1, the Si
 System.Text.Json 8.0.5 line), because Unity 6000.5 binds its own 8.0 BCL extensions and a plugin
 built against 10.x is CS1705 there; `UnityBuildTests` pins that the Unity build references nothing
 at 9.x or above. The Unity build is unqualified until the demo's IL2CPP player has run it. It supports non-secret publishable-key bootstrap,
-OIDC authorization-code/PKCE, mediated object
+headless password sign-in, OIDC authorization-code/PKCE, mediated object
 storage, stateless Function invocation, Actor and Workflow Lambdas, durable background jobs, SignalR
 realtime, and game-server allocation.
 
@@ -19,16 +19,56 @@ authorization; authenticated calls use an OIDC access token. The default session
 only. Supply an `IYogabaseSessionStore` backed by the host platform's secure credential facility if
 sessions must survive process restarts.
 
+## Getting started
+
+Nothing is published, so reference the project from a checkout of this repository (it needs the .NET 10 SDK):
+
+```text
+dotnet add reference path/to/Yogabase.SDKs/src/dotnet/Yogabase.Yogabase.Client/Yogabase.Yogabase.Client.csproj
+```
+
+Apart from the bootstrap and the `Auth` calls, every call needs a signed-in user, so sign in before the first one:
+
 ```csharp
+using System.Text;
 using Yogabase.Yogabase;
 
 await using var yogabase = await YogabaseClient.CreateAsync(
-    new Uri("https://api.example.com"),
-    "sy_pub_example_project");
+    new Uri("https://api.example.com"),       // the installation's gateway origin
+    "sy_pub_example_project");                // the project's publishable key
 
-var server = await yogabase.Servers.StartAsync("battle");
-var game = server.FindPort("game");           // game.Endpoint is "node-ip:hostPort"
+await yogabase.Auth.SignInWithPasswordAsync("user@example.com", password);
+
+var result = await yogabase.Functions.InvokeAsync("hello-world", "1", new YogabaseInvocationRequest
+{
+    IdempotencyKey = Guid.NewGuid().ToString("N"),
+    CorrelationId = "first-call",
+    Deadline = DateTimeOffset.UtcNow.AddSeconds(20),
+    Mode = YogabaseInvocationMode.Synchronous,
+    InlinePayload = Encoding.UTF8.GetBytes("{}"),
+});
+Console.WriteLine($"{result.Outcome}: {Encoding.UTF8.GetString(result.InlineResult ?? [])}");
 ```
+
+`SignInWithPasswordAsync` keeps the tokens in the session store, so Functions, Storage, Realtime, Jobs and
+Servers use them from then on and refresh them. It needs no browser: it logs in for the identity cookie, then
+runs the PKCE code flow with that cookie, using the first redirect URI the bootstrap registers and never
+following it. A custom `TransportHandler` must keep cookies (`UseCookies = true`) and not follow redirects, or
+the authorize step answers `interactive_login_required`.
+
+- **The user must already exist.** Sign-up is invite-only and needs a confirmed e-mail unless the installation
+  turned either off: `Auth.SignUpAsync` without an invitation token is a `403 invitation_required`, and an
+  account whose confirmation link (`Auth.ConfirmEmailAsync`) was not followed cannot sign in. Where confirmation
+  is required but the installation has no e-mail transport, sign-up is a `503 authentication_email_unavailable`.
+- **A refusal is a `YogabaseApiException` with the gateway's code.** `401 invalid_credentials` is a wrong
+  password, an unknown account, an unconfirmed e-mail and a locked account alike, never told apart;
+  `403 mfa_enrollment_required` (the project requires MFA and the account has none) and
+  `429 authentication_rate_limited`. An account with MFA throws `202 mfa_required`; call again with the
+  authenticator code as `mfaCode`.
+- **A live check.** `LiveSmokeTests` signs in, invokes a function, writes and reads an object and, given a topic,
+  receives a realtime message. It is skipped unless `YOGABASE_SMOKE_GATEWAY`, `_PUBLISHABLE_KEY`, `_EMAIL`,
+  `_PASSWORD` (an existing, confirmed user without MFA), `_FUNCTION_ID` and `_FUNCTION_VERSION` are set;
+  `_TOPIC` adds the realtime step. No run against a live installation is recorded here yet.
 
 ## Reading and writing data
 
@@ -46,6 +86,11 @@ Realtime. Call a Lambda with `yogabase.Functions`, and write the Lambda itself a
 `Yogabase.Lambda` package in this repository.
 
 ## Game servers
+
+```csharp
+var server = await yogabase.Servers.StartAsync("battle");   // after signing in, as above
+var game = server.FindPort("game");                          // game.Endpoint is "node-ip:hostPort"
+```
 
 `yogabase.Servers` allocates hosted-service instances for the signed-in player against
 `/v1/servers/*` on the application gateway. `StartAsync` returns a `YogabaseServer` whose

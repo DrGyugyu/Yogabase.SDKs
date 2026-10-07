@@ -224,9 +224,13 @@ using Yogabase.Yogabase;
 await using var yogabase = await YogabaseClient.CreateAsync(
     new Uri("https://<installation-host>"),
     "<publishable-key>");
+
+await yogabase.Auth.SignInWithPasswordAsync("<user-email>", "<user-password>");
 ```
 
 `<installation-host>` and `<publishable-key>` are placeholders; this repository does not choose either. The hostname of a self-hosted installation and the publishable key for a given project are both supplied by that installation's owner. A real publishable key begins with `sy_pub_`, and `CreateAsync` rejects one that does not.
+
+`SignInWithPasswordAsync` signs the user in with no browser and keeps the tokens every other call uses. The user must already exist: sign-up is invite-only and e-mail-confirmed by default, and the [client's README](src/dotnet/Yogabase.Yogabase.Client/README.md#getting-started) lists the refusals. Nothing is published, so reference the client's project from a checkout of this repository.
 
 A publishable key is not a secret. It identifies the project to the gateway and is safe to ship in client code, and it authenticates nothing: the bootstrap document it fetches carries endpoints, identifiers, and capability facts only. Yogabase issues no privileged counterpart key that a client could hold instead. Every authenticated call carries a per-user access token obtained from the project's OIDC authority, so a client never ships a credential that speaks for the project as a whole.
 
