@@ -1,8 +1,9 @@
 # Yogabase Dart client preview
 
 Generated with Microsoft Kiota 1.34.1 from the current Yogabase v1-preview contract (Dart output is
-experimental in this generator version), with authored parts beside it: a password sign-in, durable
-Jobs, schedules, a workload Delivery client and a hierarchical storage-key adapter. It runs on the Dart
+experimental in this generator version), with authored parts beside it: a password sign-in, sign-in with
+an external provider, durable Jobs, schedules, a workload Delivery client and a hierarchical storage-key
+adapter. It runs on the Dart
 VM (a command line, a server, Flutter on mobile or desktop), not in a browser.
 
 The generated REST surface includes bootstrap, signup and interactive auth endpoints,
@@ -102,6 +103,46 @@ Future<void> main() async {
   `YOGABASE_SMOKE_FUNCTION_VERSION` (a deployed stateless function that accepts `{}`) are all set. Its
   invoke, put and get requests were checked against in-memory gateways; no run against a live installation is
   recorded here yet.
+
+## Signing in with a provider
+
+A project that configured Google, Microsoft or Apple signs its users in through the gateway. The browser step
+belongs to your application, so there are two calls around it:
+
+```dart
+// The redirect URI must be one the project registered (the oidcRedirectUris of its client configuration).
+final pending = await startExternalSignIn(gateway, 'sy_pub_example_project', 'google', 'com.example.app:/oauth/callback');
+
+// Open this in the system browser, and receive the address the browser is redirected to.
+final Uri redirect = await openInBrowserAndWaitForRedirect(pending.authorizationUrl); // yours to write
+
+final session = await completeExternalSignIn(pending, redirect); // the session signInWithPassword returns
+```
+
+- **The provider id** is the one the project gave the provider (`google` above).
+- **The one address a developer registers with each provider** is `https://<gateway>/auth/external/<provider id>/return`.
+  The provider sends the browser there; the gateway sends it on to your redirect URI with `code` and `state`, or with
+  `error=access_denied` and `state`.
+- **The client checks the redirect itself.** A redirect with another address, another `state`, a repeated parameter,
+  an `error` or no `code` is a `YogabaseAuthException` (`authorization_redirect_mismatch`,
+  `authorization_response_invalid`, `access_denied`) before any request. Only the S256 challenge of the verifier is
+  sent to `start`; the verifier goes to the callback alone. Complete a `pending` once, with the redirect of its own start.
+- **A refusal is a `YogabaseAuthException` with the gateway's code**: `external_identity_invalid` (401),
+  `external_identity_email_in_use` (409: an account already uses the address and nothing is linked),
+  `external_email_unverified`, `external_identity_not_enrolled`, `mfa_enrollment_required` and `invitation_required`
+  (403), `external_provider_unknown` (404), `external_redirect_uri_invalid` and `external_callback_invalid` (400) and,
+  when the installation or the provider cannot be reached, `external_identity_unavailable` or
+  `external_provider_unavailable` (503). An account with MFA is `202 mfa_required` after the callback; call
+  `completeExternalSignIn` again with the same `pending` and the authenticator code as `mfaCode:`, and the spent code
+  is not sent again.
+- **There is no loopback listener and no browser launcher in the package.** Opening the address and receiving the
+  redirect (a custom URI scheme, an app link, a loopback listener of your own) is the application's.
+- **The HTTP client.** `pending` holds none. A `httpClient:` you pass to `startExternalSignIn` is used for both calls and
+  kept by the session for refreshing, as with `signInWithPassword`, and is yours to close; without one, each call opens
+  a client and closes it before it returns.
+- **Dart VM only**, for the reason `signInWithPassword` is: the code flow needs the redirect and the `Cookie` a browser hides.
+- **It has never run against a real provider.** Only the fake-gateway checks cover it, with the gateway's answers
+  written from its route code.
 
 ## The Data API and game servers are generated; builds are not
 
@@ -368,14 +409,18 @@ expectation. Every request goes to an in-memory `RequestAdapter` or `MockClient`
   belong, each named login refusal, a missing cookie, a state mismatch, a missing code, an `error`
   parameter and a foreign redirect (none followed by a token request), MFA by name and with the code, a
   discovery document naming another origin, the token reaching the gateway's origin and no other, and one
-  shared refresh that spends the rotated token.
+  shared refresh that spends the rotated token. For the external sign-in: only the challenge reaching `start`, the
+  verifier going to the callback, a redirect with another state, an `error`, a repeated parameter, no code,
+  another address, a fragment or another start's state (nothing sent after the start), the gateway's refusal
+  codes, an invalid start answer, and MFA completed with the code without the callback sent twice.
 - **storage**: a put and a get of bytes that are not valid UTF-8 come back unchanged, the contract's two
   headers reach the request, and a JSON body still goes through the JSON writer.
 
-Last run on 2026-10-07 with Dart 3.13.5 (stable, macOS arm64, Homebrew `dart-sdk`): `pub get
+Last run on 2026-10-08 with Dart 3.13.5 (stable, macOS arm64, Homebrew `dart-sdk`): `pub get
 --enforce-lockfile` left `pubspec.lock` unchanged, analysis found no issues with infos and warnings fatal,
-and the five programs passed. The first such run of the source regenerated on 2026-10-03 (the Data API, Jobs
+and the five programs passed (the sign-in program now includes the external sign-in); the smoke program
+printed SKIPPED. The first such run of the source regenerated on 2026-10-03 (the Data API, Jobs
 and schedule builders, the authored Jobs and schedules clients) found four unneeded `dart:typed_data`
 imports and nothing else. The earlier run, on 2026-09-17 with Dart 3.13.2, predates that source. The
 pubspec allows Dart `^3.9.0`; only 3.13.2 and 3.13.5 have run. Not exercised: Flutter, a streaming adapter
-and any live gateway (the sign-in, the Storage calls and the smoke program included).
+and any live gateway or real identity provider (the sign-ins, the Storage calls and the smoke program included).
