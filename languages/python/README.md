@@ -141,8 +141,9 @@ session = await complete_external_sign_in(pending, redirect)   # the same Yogaba
   `external_email_unverified`, `external_identity_not_enrolled`, `mfa_enrollment_required` and `invitation_required` (403),
   `external_provider_unknown` (404), `external_redirect_uri_invalid` and `external_callback_invalid` (400) and, when the
   installation or the provider cannot be reached, `external_identity_unavailable` or `external_provider_unavailable` (503).
-  An account with MFA raises `202 mfa_required` after the callback; call `complete_external_sign_in` again with the same
-  `pending` and redirect and the authenticator code as `mfa_code=`: the spent code is not sent a second time.
+  A `start` answer that is not an https address with a state is `external_start_invalid`. An account with MFA raises
+  `202 mfa_required` after the callback; call `complete_external_sign_in` again with the same `pending` and redirect and
+  the authenticator code as `mfa_code=`: the spent code is not sent a second time.
 - **`pending` holds no HTTP client.** It keeps the verifier and the cookies the gateway sets (the second factor's, between
   the callback and the code), so one you never complete has nothing to close. Each call opens its own client and closes it,
   or uses the `http_client=` you pass, which must keep cookies, not follow redirects, and stay open: the session
@@ -450,8 +451,8 @@ or MFA without a code; the PKCE challenge is the S256 of a verifier the authoriz
 carries; the bearer reaches only the gateway; and a rotating refresh token is spent once however many
 calls wait. It also pins the provider sign-in's negatives: a redirect with another state (another start's included), an `error`,
 a repeated parameter or another host, path or fragment makes no callback request and leaves the `pending` usable; the verifier never
-reaches `start` and its S256 challenge matches; MFA completes without a second callback, through another client; and a retry after
-a later failure does not send the spent code again. `test_live_smoke.py` is skipped unless its variables are set (see Getting started).
+reaches `start` and its S256 challenge matches; a discovery document naming another origin ends the call before the callback; MFA completes
+without a second callback, through another client; and a retry after a later failure does not send the spent code again. `test_live_smoke.py` is skipped unless its variables are set (see Getting started).
 
 Last run on 2026-09-22 on CPython 3.13.12 and 3.12.13 (macOS arm64, pip 26.0): both locks installed
 with `--require-hashes`; 23 tests passed from source under `-X dev` with `ResourceWarning` as an
@@ -495,6 +496,7 @@ from source under `-X dev` with `ResourceWarning` as an error. The wheel and sdi
 (`pip check` clean) and the same 111 ran against that copy with `python -P`.
 
 Run on 2026-10-08 on CPython 3.13.12 and 3.12.13, each in an environment made from the locks with `--require-hashes`, from source
-under `-X dev` with `ResourceWarning` as an error, after sign-in with an external provider was added and the password sign-in's
-steps were shared with it: 117 tests, 116 passed and the live smoke test skipped, on both. Six are the provider sign-in's. The wheel
+under `-X dev` with `ResourceWarning` as an error, after sign-in with an external provider was added, the password sign-in's
+steps were shared with it, and the provider sign-in began to read the discovery document before sending the callback: 118 tests,
+117 passed and the live smoke test skipped, on both. Seven are the provider sign-in's. The wheel
 and sdist were not rebuilt, and nothing here has run against a live installation or a real provider.

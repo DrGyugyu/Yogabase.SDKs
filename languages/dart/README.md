@@ -132,7 +132,8 @@ final session = await completeExternalSignIn(pending, redirect); // the session 
   `external_email_unverified`, `external_identity_not_enrolled`, `mfa_enrollment_required` and `invitation_required`
   (403), `external_provider_unknown` (404), `external_redirect_uri_invalid` and `external_callback_invalid` (400) and,
   when the installation or the provider cannot be reached, `external_identity_unavailable` or
-  `external_provider_unavailable` (503). An account with MFA is `202 mfa_required` after the callback; call
+  `external_provider_unavailable` (503). A `start` answer that is not an https address with a state is
+  `external_start_invalid`. An account with MFA is `202 mfa_required` after the callback; call
   `completeExternalSignIn` again with the same `pending` and the authenticator code as `mfaCode:`, and the spent code
   is not sent again.
 - **There is no loopback listener and no browser launcher in the package.** Opening the address and receiving the

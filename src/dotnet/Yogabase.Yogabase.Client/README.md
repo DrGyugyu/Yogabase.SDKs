@@ -94,16 +94,18 @@ await yogabase.Auth.CompleteExternalSignInAsync(pending, redirect);   // the tok
 - **The one address a developer registers with each provider** is `https://<gateway>/auth/external/<provider id>/return`.
   The provider sends the browser there; the gateway sends it on to your redirect URI with `code` and `state`, or with
   `error=access_denied` and `state`.
-- **The client checks the redirect itself.** A redirect with another `state`, an `error`, no `code` or another address
-  throws a `YogabaseApiException` (`authorization_response_invalid`, `access_denied`, `authorization_redirect_mismatch`)
+- **The client checks the redirect itself.** A redirect with another `state`, an `error`, no `code`, a repeated
+  parameter or another address throws a `YogabaseApiException` (`authorization_response_invalid`, `access_denied`, `authorization_redirect_mismatch`)
   before any request. The verifier stays in `pending`; only its S256 challenge is sent to `start`, and the verifier goes
   to the callback alone. Complete a `pending` from the redirect of its own start, once.
 - **A refusal is a `YogabaseApiException` with the gateway's code**: `external_identity_invalid` (401),
   `external_identity_email_in_use` (409: an account already uses the address and nothing is linked),
-  `external_email_unverified`, `external_identity_not_enrolled` and `mfa_enrollment_required` (403),
-  `external_provider_unknown` (404), `external_redirect_uri_invalid` (400) and, when the installation or the provider
-  cannot be reached, `external_identity_unavailable` or `external_provider_unavailable` (503). An account with MFA throws
-  `202 mfa_required` after the callback; call again with the same `pending` and the authenticator code as `mfaCode`.
+  `external_email_unverified`, `external_identity_not_enrolled`, `mfa_enrollment_required` and `invitation_required` (403),
+  `external_provider_unknown` (404), `external_redirect_uri_invalid` and `external_callback_invalid` (400) and, when the
+  installation or the provider cannot be reached, `external_identity_unavailable` or `external_provider_unavailable`
+  (503). A `start` answer that is not an https address with a state is `external_start_invalid`. An account with MFA
+  throws `202 mfa_required` after the callback; call again with the same `pending` and the authenticator code as
+  `mfaCode`, and the spent code is not sent a second time.
 - **There is no loopback listener and no browser launcher in the package.** Opening the address and receiving the redirect
   (a custom URI scheme, an app link, a loopback listener of your own) is the application's.
 - **It has never run against a real provider.** Only fake-transport tests cover it, with the gateway's answers written from
