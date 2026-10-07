@@ -74,7 +74,9 @@ The following convenience adapters are authored and deliberately preserved durin
 - `languages/dart/lib/src/yogabase_delivery_*.dart`
 - `languages/dart/lib/src/yogabase_gateway_support.dart`
 - `languages/dart/lib/src/yogabase_jobs_client.dart`
+- `languages/dart/lib/src/yogabase_octet_stream.dart`
 - `languages/dart/lib/src/yogabase_schedules_client.dart`
+- `languages/dart/lib/src/yogabase_sign_in.dart`
 - `languages/dart/lib/src/yogabase_storage_logical_key.dart`
 
 The TypeScript root export, Python package initializer, and Dart package library are likewise
@@ -121,13 +123,13 @@ fails a test instead of passing quietly:
   because a schedule written before the rule is still read, run and deleted by its id).
 - `JobsSurfaceParityTests` and `SchedulesSurfaceParityTests` keep the five authored clients spelling the same
   route tails, request members, error codes and bounds, and `SchedulesSurfaceParityTests` holds the pattern each
-  client compiles for a schedule write's id to the contract's text; they read the sources as text, which is the
-  only check Dart can have where no Dart SDK is installed. The .NET, TypeScript, Python and Java tests also run
+  client compiles for a schedule write's id to the contract's text; they read the sources as text, which is how
+  the .NET suite holds Dart to them without a Dart SDK. The .NET, TypeScript, Python and Java tests also run
   every Latin-1 character and the edge lengths through both a write and the pattern read from the mirrored
   document.
 
 When a Kiota upgrade or a contract change renames a generated builder, the Java and Dart clients stop
-compiling (or, for Dart, the source test stops matching) at that exact call, which is the point of wrapping
+compiling at that exact call, which is the point of wrapping
 them; the TypeScript and Python equivalence tests fail the same way. Keep the authored names clear of the
 generated ones: the TypeScript root export re-exports both modules, so a duplicate export name is a compile
 error. `MANIFEST.json` records, per mirrored document, the contract digest beside the Kiota description hash
