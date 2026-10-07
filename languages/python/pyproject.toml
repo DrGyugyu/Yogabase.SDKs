@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stackyoga-yogabase-client-preview"
-version = "0.3.0.dev1"
+version = "0.4.0.dev1"
 description = "Unpublished application and workload-delivery client preview for Yogabase"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"

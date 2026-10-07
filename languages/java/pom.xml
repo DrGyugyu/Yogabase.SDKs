@@ -5,7 +5,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>io.stackyoga</groupId>
   <artifactId>yogabase-client-preview</artifactId>
-  <version>0.3.0-preview.1</version>
+  <version>0.4.0-preview.1</version>
   <packaging>jar</packaging>
   <properties>
     <maven.compiler.release>17</maven.compiler.release>

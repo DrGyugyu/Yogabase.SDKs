@@ -228,7 +228,7 @@
       "yogabase.serverpathprobe": {
         "type": "Project",
         "dependencies": {
-          "Yogabase.Yogabase.Client": "[0.3.0-preview.1, )"
+          "Yogabase.Yogabase.Client": "[0.4.0-preview.1, )"
         }
       },
       "yogabase.yogabase.client": {

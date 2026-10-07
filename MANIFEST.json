@@ -158,7 +158,7 @@
       "language": "CSharp",
       "source": "src/dotnet/Yogabase.Yogabase.Client",
       "packageId": "Yogabase.Yogabase.Client",
-      "version": "0.3.0-preview.1",
+      "version": "0.4.0-preview.1",
       "localArtifact": {
         "path": "artifacts/local/Yogabase.Yogabase.Client.0.3.0-preview.1.nupkg",
         "sha256": "038ccd2d935cc56a6ed1d6d0f2b259d22f665fdee576c3fd0c02299f0b8d8bbd"
@@ -169,28 +169,28 @@
       "language": "TypeScript",
       "source": "languages/typescript",
       "packageId": "@stackyoga/yogabase-client-preview",
-      "version": "0.3.0-preview.1",
+      "version": "0.4.0-preview.1",
       "qualification": "npm-clean-install-typescript-build-and-13-tests-passed-2026-09-22-dry-run-pack-not-rerun; typescript-build-and-88-tests-passed-2026-10-03-over-a-copied-locked-node_modules-tree-not-a-fresh-npm-ci-including-the-jobs-and-schedule-clients-with-their-generated-builder-equivalence-cases-the-regenerated-413-and-data-surface-and-the-schedule-id-rule-held-to-the-pattern-read-from-the-mirrored-contract; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-main-92ac1ced-route-code-26-and-41-checks"
     },
     {
       "language": "Python",
       "source": "languages/python",
       "packageId": "stackyoga-yogabase-client-preview",
-      "version": "0.3.0.dev1",
+      "version": "0.4.0.dev1",
       "qualification": "hash-locked-install-and-23-tests-from-source-under-dev-mode-passed-2026-09-22-on-cpython-3.13.12-and-3.12.13; build-no-isolation-wheel-and-sdist-built-with-the-exactly-pinned-setuptools-84.0.0-backend; fresh-venv-offline-wheel-install-pip-check-clean-and-the-same-23-tests-passed-against-the-installed-wheel; 101-tests-passed-from-source-2026-10-03-on-cpython-3.13.12-and-3.12.13-under--X-dev-with-ResourceWarning-as-an-error-including-the-jobs-and-schedule-cases-with-their-generated-builder-equivalence-cases-and-the-schedule-id-rule-held-to-the-pattern-read-from-the-mirrored-contract-and-the-wheel-not-rebuilt-since-2026-09-22; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-main-92ac1ced-route-code-24-and-36-checks-on-both-interpreters; 2026-10-07-110-of-111-tests-passed-and-the-live-smoke-skipped-on-both-interpreters-after-the-headless-password-sign-in-was-added; only-python-3.12-and-3.13-are-claimed-and-3.10-and-3.11-were-never-run; own-clients-trust-the-platform-store-but-certifi-stays-in-the-closure-because-httpx-and-httpcore-require-it; no-live-gateway-and-no-published-index"
     },
     {
       "language": "Java",
       "source": "languages/java",
       "packageId": "io.stackyoga:yogabase-client-preview",
-      "version": "0.3.0-preview.1",
+      "version": "0.4.0-preview.1",
       "qualification": "jdk-21-release-17-full-source-compile-and-two-executable-conformance-tests-passed-2026-09-09-maven-unavailable; full-source-compile-at-release-17-and-five-executable-conformance-programs-passed-2026-10-03-against-the-local-maven-repository-jars-including-the-336-check-jobs-program-the-1988-check-schedules-program-including-the-schedule-id-rule-held-to-the-pattern-read-from-the-mirrored-contract-and-the-26-check-generated-surface-program-maven-still-unavailable; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-main-92ac1ced-route-code-24-and-36-checks"
     },
     {
       "language": "Dart",
       "source": "languages/dart",
       "packageId": "stackyoga_yogabase_client_preview",
-      "version": "0.3.0-dev.1",
+      "version": "0.4.0-dev.1",
       "qualification": "checksum-verified-dart-3.13.2-pub-get-enforce-lockfile-analyze-with-fatal-infos-and-the-standalone-authored-source-program-passed-2026-09-17-on-the-2026-09-09-regenerated-source; the-2026-10-03-regenerated-source-twice-the-jobs-client-rebuilt-over-the-generated-builders-the-new-schedules-client-with-its-schedule-id-rule-added-the-same-day-and-their-standalone-programs-were-NOT-analyzed-or-run-no-dart-sdk-on-the-machine; dart-test-runner-not-wired; flutter-streaming-adapter-and-live-gateway-unqualified"
     },
     {
@@ -218,7 +218,7 @@
       "language": "CSharp",
       "source": "src/unity/Yogabase.Yogabase.Client.Unity",
       "packageId": "(not packaged: the Unity build of Yogabase.Yogabase.Client)",
-      "version": "0.3.0-preview.1",
+      "version": "0.4.0-preview.1",
       "unityBuild": {
         "targetFramework": "netstandard2.1",
         "packageLine": "src/unity/Directory.Packages.props: Microsoft.AspNetCore.SignalR.Client 8.0.15, System.Text.Json 8.0.5",

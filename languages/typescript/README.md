@@ -20,8 +20,8 @@ this repository and install the tarball into your app (an ES module project, `"t
 ```text
 cd Yogabase.SDKs/languages/typescript
 npm ci        # installs the locked dependencies and compiles dist/ (the prepare script)
-npm pack      # writes stackyoga-yogabase-client-preview-0.3.0-preview.1.tgz
-cd path/to/your-app && npm install path/to/stackyoga-yogabase-client-preview-0.3.0-preview.1.tgz
+npm pack      # writes stackyoga-yogabase-client-preview-0.4.0-preview.1.tgz
+cd path/to/your-app && npm install path/to/stackyoga-yogabase-client-preview-0.4.0-preview.1.tgz
 ```
 
 Apart from the bootstrap and the `auth` calls, every call needs a signed-in user, so sign in before the first one:

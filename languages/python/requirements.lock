@@ -1,4 +1,4 @@
-# Hash-pinned runtime dependencies of stackyoga-yogabase-client-preview 0.3.0.dev1.
+# Hash-pinned runtime dependencies of stackyoga-yogabase-client-preview 0.4.0.dev1.
 #
 # Resolved on 2026-09-17 with pip 26.0 on CPython 3.13.12 (macOS arm64) from the two direct pins in
 # pyproject.toml (microsoft-kiota-bundle==1.9.10, httpx==0.28.1), using
