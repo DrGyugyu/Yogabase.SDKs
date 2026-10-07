@@ -83,6 +83,44 @@ clients below.
   `YOGABASE_SMOKE_PASSWORD` (an existing, confirmed user without MFA), `YOGABASE_SMOKE_FUNCTION_ID` and
   `YOGABASE_SMOKE_FUNCTION_VERSION` are set. No run against a live installation is recorded here yet.
 
+## Signing in with a provider
+
+A project that configured Google, Microsoft or Apple signs its users in through the gateway. The browser step belongs
+to your application, so there are two calls around it (Node only, like `signInWithPassword`):
+
+```ts
+// The redirect URI must be one the project registered (the bootstrap's `oidcRedirectUris`).
+const pending = await session.startExternalSignIn("google", "com.example.app:/oauth/callback");
+
+// Open this in the system browser, and receive the address the browser is redirected to.
+const redirect: string = await openInBrowserAndWaitForRedirect(pending.authorizationUrl);
+
+await session.completeExternalSignIn(pending, redirect);   // the tokens are in the session now
+```
+
+- **The provider id** is the one the project gave the provider (`google` above).
+- **The one address a developer registers with each provider** is `https://<gateway>/auth/external/<provider id>/return`.
+  The provider sends the browser there; the gateway sends it on to your redirect URI with `code` and `state`, or with
+  `error=access_denied` and `state`.
+- **The client checks the redirect itself.** A redirect with another `state`, an `error`, no `code`, a repeated
+  parameter or another address is a `YogabaseAuthError` (`authorization_response_invalid`, `access_denied`,
+  `authorization_redirect_mismatch`) before any request. Only the S256 challenge of the verifier is sent to `start`; the
+  verifier goes to the callback alone. `pending` holds the state and the verifier out of reach and completes the
+  redirect of its own start.
+- **A refusal is a `YogabaseAuthError` with the gateway's code**: `external_identity_invalid` (401),
+  `external_identity_email_in_use` (409: an account already uses the address and nothing is linked),
+  `external_email_unverified`, `external_identity_not_enrolled`, `mfa_enrollment_required` and `invitation_required`
+  (403), `external_provider_unknown` (404), `external_redirect_uri_invalid` and `external_callback_invalid` (400) and,
+  when the installation or the provider cannot be reached, `external_identity_unavailable` or
+  `external_provider_unavailable` (503). A `start` answer that is not an https address with a state is
+  `external_start_invalid`. An account with MFA throws `202 mfa_required` after the callback; call
+  `completeExternalSignIn` again with the same `pending` and the authenticator code as the third argument, and the
+  spent code is not sent a second time.
+- **There is no loopback listener and no browser launcher in the package.** Opening the address and receiving the
+  redirect (a custom URI scheme, an app link, a loopback listener of your own) is the application's.
+- **It has never run against a real provider.** Only fake-fetch tests cover it, with the gateway's answers written from
+  its route code.
+
 ## The Data API and game servers are generated; builds are not
 
 The mirrored contract declares the restored client Data API: `POST /v1/data/{table}/select|insert|upsert|update|delete`
@@ -327,4 +365,4 @@ by the client. As the SSE grammar says, exactly one space after a field's colon 
 further leading whitespace stays in the value, so an id round-trips unchanged; until 2026-09-22 this
 client trimmed every leading space, as the Python client did before 2026-09-17.
 
-`npm ci && npm test` passed 13 tests on 2026-09-22 (Node 25.9.0, npm 11.12.1). On 2026-10-03 `npm test` passed 88 tests (the 13 of the first run and the cases added since for delivery, Jobs, schedules, the generated surface and the schedule id rule held to the contract's pattern) on the same Node and npm, over a `node_modules` tree copied from that locked install rather than a fresh `npm ci`. On 2026-10-07, after a fresh `npm ci`, `npm test` ran 98 tests: 97 passed and the live smoke test was skipped (the 88, nine for the password sign-in, and the smoke test).
+`npm ci && npm test` passed 13 tests on 2026-09-22 (Node 25.9.0, npm 11.12.1). On 2026-10-03 `npm test` passed 88 tests (the 13 of the first run and the cases added since for delivery, Jobs, schedules, the generated surface and the schedule id rule held to the contract's pattern) on the same Node and npm, over a `node_modules` tree copied from that locked install rather than a fresh `npm ci`. On 2026-10-07, after a fresh `npm ci`, `npm test` ran 98 tests: 97 passed and the live smoke test was skipped (the 88, nine for the password sign-in, and the smoke test). On 2026-10-08, after a fresh `npm ci`, `npm test` ran 104 tests: 103 passed and the live smoke test was skipped (the 98 and six for external sign-in).
