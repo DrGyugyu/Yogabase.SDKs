@@ -263,6 +263,7 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
         if (pending.Outcome is null)
         {
             var code = ReadAuthorizationResponse(new Uri(pending.RedirectUri, UriKind.Absolute), redirect, pending.State);
+            await GetEndpointsAsync(cancellationToken).ConfigureAwait(false); // a bad discovery document ends the call before the one-time code is sent
             pending.Outcome = await PostSignInAsync(
                 YogabaseRoutes.AuthExternalCallback(pending.Provider),
                 new { code, state = pending.State, codeVerifier = pending.CodeVerifier },

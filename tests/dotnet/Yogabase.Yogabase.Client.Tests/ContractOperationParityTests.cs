@@ -44,7 +44,7 @@ public sealed class ContractOperationParityTests
 
     /// <summary>
     /// One .NET call that must send an operation's request first; an operation may have several. <paramref name="Prepared"/>
-    /// is how many requests the invocation makes to get ready (completing a sign-in needs the one that started it).
+    /// is how many requests the invocation makes to get ready (completing a sign-in needs the one that started it and the discovery document).
     /// </summary>
     private sealed record DotNetCall(string Symbol, Func<YogabaseClient, Task> Invoke, int Prepared = 0);
 
@@ -180,7 +180,7 @@ public sealed class ContractOperationParityTests
             {
                 var pending = await c.Auth.StartExternalSignInAsync("example", Redirect);
                 await c.Auth.CompleteExternalSignInAsync(pending, new Uri(Redirect + "?code=code&state=state-1"));
-            }, Prepared: 1),
+            }, Prepared: 2),
         ],
         ["putYogabaseObject"] = [new("IYogabaseStorage.PutBytesAsync", c => c.Storage.PutBytesAsync("slot1", [1], "application/octet-stream", "request-1"))],
         ["getYogabaseObject"] = [new("IYogabaseStorage.GetAsync", c => c.Storage.GetAsync("slot1"))],
@@ -606,13 +606,15 @@ public sealed class ContractOperationParityTests
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             recorded.Add((request.Method.Method, request.RequestUri!.AbsolutePath));
-            // A sign-in start must answer for the completion that follows it to send its request.
+            // A sign-in start and the discovery document must answer for the completion that follows them to send its request.
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(
                     request.RequestUri.AbsolutePath.EndsWith("/start", StringComparison.Ordinal)
                         ? "{\"authorizationUrl\":\"https://accounts.example/auth\",\"state\":\"state-1\"}"
-                        : "{}",
+                        : request.RequestUri.AbsolutePath == "/.well-known/openid-configuration"
+                            ? "{\"issuer\":\"http://localhost/p/11111111-1111-4111-8111-111111111111\",\"authorization_endpoint\":\"http://localhost/connect/authorize\",\"token_endpoint\":\"http://localhost/connect/token\"}"
+                            : "{}",
                     Encoding.UTF8,
                     "application/json"),
             });
