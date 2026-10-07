@@ -1,7 +1,7 @@
 # Yogabase Python client preview
 
 Generated with Microsoft Kiota 1.34.1 from the current Yogabase v1-preview contract, with authored
-parts beside it: a password sign-in, durable Jobs, schedules, a workload Delivery client and a
+parts beside it: a password sign-in, sign-in with an external provider, durable Jobs, schedules, a workload Delivery client and a
 hierarchical storage-key adapter. It supports Python 3.12 and 3.13, the two versions it has been run
 on (`requires-python = ">=3.12,<3.14"`); the pinned Kiota runtime would accept older ones, but 3.10
 and 3.11 have never been run, so they are not claimed.
@@ -112,6 +112,45 @@ asyncio.run(main())
   `YOGABASE_SMOKE_FUNCTION_ID` and `YOGABASE_SMOKE_FUNCTION_VERSION` (a deployed stateless function that
   accepts `{}`) are all set. The requests it builds were checked against a fake gateway; no run against a
   live installation is recorded here yet.
+
+## Signing in with a provider
+
+A project that configured Google, Microsoft or Apple signs its users in through the gateway. The browser step belongs
+to your application, so there are two calls around it:
+
+```python
+# The redirect URI must be one the project registered (the bootstrap's oidcRedirectUris).
+pending = await start_external_sign_in(GATEWAY, "sy_pub_example_project", "google", "com.example.app:/oauth/callback")
+
+# Open this in the system browser, and receive the address the browser is redirected to.
+redirect = await open_in_browser_and_wait_for_redirect(pending.authorization_url)
+
+session = await complete_external_sign_in(pending, redirect)   # the same YogabaseSession sign_in_with_password returns
+```
+
+- **The provider id** is the one the project gave the provider (`google` above).
+- **The one address a developer registers with each provider** is `https://<gateway>/auth/external/<provider id>/return`.
+  The provider sends the browser there; the gateway sends it on to your redirect URI with `code` and `state`, or with
+  `error=access_denied` and `state`.
+- **The client checks the redirect itself.** A redirect with another `state` (including one from a different start), an
+  `error`, no `code`, a repeated parameter or another address is a `YogabaseAuthError` (`authorization_response_invalid`,
+  `access_denied`, `authorization_redirect_mismatch`) before any request. Only the S256 challenge of the verifier goes to
+  `start`; the verifier goes to the callback alone. Complete a `pending` from the redirect of its own start, once.
+- **A refusal is a `YogabaseAuthError` with the gateway's code**: `external_identity_invalid` (401),
+  `external_identity_email_in_use` (409: an account already uses the address and nothing is linked),
+  `external_email_unverified`, `external_identity_not_enrolled`, `mfa_enrollment_required` and `invitation_required` (403),
+  `external_provider_unknown` (404), `external_redirect_uri_invalid` and `external_callback_invalid` (400) and, when the
+  installation or the provider cannot be reached, `external_identity_unavailable` or `external_provider_unavailable` (503).
+  An account with MFA raises `202 mfa_required` after the callback; call `complete_external_sign_in` again with the same
+  `pending` and redirect and the authenticator code as `mfa_code=`: the spent code is not sent a second time.
+- **`pending` holds no HTTP client.** It keeps the verifier and the cookies the gateway sets (the second factor's, between
+  the callback and the code), so one you never complete has nothing to close. Each call opens its own client and closes it,
+  or uses the `http_client=` you pass, which must keep cookies, not follow redirects, and stay open: the session
+  refreshes through it.
+- **There is no loopback listener and no browser launcher in the package.** Opening the address and receiving the redirect
+  (a custom URI scheme, an app link, a loopback listener of your own) is the application's.
+- **It has never run against a real provider.** Only fake-gateway tests cover it, with the gateway's answers written from
+  its route code.
 
 ## The Data API and game servers are generated; builds are not
 
@@ -409,7 +448,10 @@ certifi's bundle.
 follows a login refusal, a missing cookie, a redirect, state, code or `error` that does not check out,
 or MFA without a code; the PKCE challenge is the S256 of a verifier the authorize request never
 carries; the bearer reaches only the gateway; and a rotating refresh token is spent once however many
-calls wait. `test_live_smoke.py` is skipped unless its variables are set (see Getting started).
+calls wait. It also pins the provider sign-in's negatives: a redirect with another state (another start's included), an `error`,
+a repeated parameter or another host, path or fragment makes no callback request and leaves the `pending` usable; the verifier never
+reaches `start` and its S256 challenge matches; MFA completes without a second callback, through another client; and a retry after
+a later failure does not send the spent code again. `test_live_smoke.py` is skipped unless its variables are set (see Getting started).
 
 Last run on 2026-09-22 on CPython 3.13.12 and 3.12.13 (macOS arm64, pip 26.0): both locks installed
 with `--require-hashes`; 23 tests passed from source under `-X dev` with `ResourceWarning` as an
@@ -451,3 +493,8 @@ Run again later on 2026-10-07 at version 0.4.0.dev1, in new environments made fr
 from source under `-X dev` with `ResourceWarning` as an error. The wheel and sdist were built with
 `build --no-isolation`, and on 3.13.12 the wheel was installed offline over the runtime lock alone
 (`pip check` clean) and the same 111 ran against that copy with `python -P`.
+
+Run on 2026-10-08 on CPython 3.13.12 and 3.12.13, each in an environment made from the locks with `--require-hashes`, from source
+under `-X dev` with `ResourceWarning` as an error, after sign-in with an external provider was added and the password sign-in's
+steps were shared with it: 117 tests, 116 passed and the live smoke test skipped, on both. Six are the provider sign-in's. The wheel
+and sdist were not rebuilt, and nothing here has run against a live installation or a real provider.
