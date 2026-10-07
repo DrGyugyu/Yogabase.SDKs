@@ -91,28 +91,104 @@ Future<YogabaseSession> signInWithPassword(
   String? mfaCode,
   http.Client? httpClient,
 }) async {
-  if (gateway.scheme != 'https' || gateway.host.isEmpty || gateway.userInfo.isNotEmpty || gateway.hasQuery ||
-      gateway.hasFragment || gateway.path.length > 1) {
-    throw ArgumentError.value(gateway, 'gateway', 'must be an origin-only https URL');
+  _requireOrigin(gateway);
+  return _signIn(gateway, publishableKey, httpClient, {}, (call) async {
+    var login = await call('POST', gateway.replace(path: '/auth/login'), {'email': email, 'password': password});
+    if (login.statusCode == 202) login = await _verifyMfa(call, gateway, mfaCode);
+    if (login.statusCode != 204) throw _refusal(login);
+  });
+}
+
+/// A started sign-in with an external provider (Google, Microsoft or Apple): open [authorizationUrl] in the system
+/// browser, then give the redirect it ends in to [completeExternalSignIn]. It holds the verifier, the state and the
+/// gateway's cookie, so complete it once, with the redirect of its own start. It holds no HTTP client: the one passed to
+/// [startExternalSignIn], if any, is the caller's to close; otherwise each call opens one and closes it before it returns.
+class YogabaseExternalSignIn {
+  YogabaseExternalSignIn._(this.authorizationUrl, this._gateway, this._publishableKey, this._provider, this._redirectUri,
+      this._state, this._verifier, this._cookies, this._httpClient);
+
+  /// The provider's address, always https.
+  final Uri authorizationUrl;
+  final Uri _gateway, _redirectUri;
+  final String _publishableKey, _provider, _state, _verifier;
+  final Map<String, String> _cookies;
+  final http.Client? _httpClient;
+  int? _status; // the callback's answer once the gateway accepted it: 204, or 202 while the authenticator code is owed
+}
+
+/// Starts a sign-in with [provider], the id the project gave it. [redirectUri] is one of the project's registered
+/// redirect URIs, where the browser ends up. Only the S256 challenge of the verifier is sent. Every refusal is a
+/// [YogabaseAuthException] with the gateway's code (`external_redirect_uri_invalid`, `external_provider_unknown`,
+/// `external_identity_unavailable`, ...), or `external_start_invalid` for an answer that is not an https address and a state.
+Future<YogabaseExternalSignIn> startExternalSignIn(
+  Uri gateway,
+  String publishableKey,
+  String provider,
+  String redirectUri, {
+  http.Client? httpClient,
+}) async {
+  _requireOrigin(gateway);
+  if (!RegExp(r'^(?!\.{1,2}$)[a-z0-9._-]{1,64}$').hasMatch(provider)) {
+    throw ArgumentError.value(provider, 'provider', 'must be 1 to 64 lowercase letters, digits, ".", "_" or "-"');
   }
+  final registered = Uri.tryParse(redirectUri) ?? (throw ArgumentError.value(redirectUri, 'redirectUri', 'must be a URI'));
+  final verifier = _random(48), cookies = <String, String>{};
   final client = httpClient ?? http.Client();
   try {
-    // The gateway's cookies are kept here and go to the gateway's origin only (every URL below is checked).
-    final cookies = <String, String>{};
-    Future<http.Response> call(String method, Uri url, [Object? json]) async {
-      final request = http.Request(method, url)..followRedirects = false;
-      if (cookies.isNotEmpty) request.headers['cookie'] = cookies.entries.map((e) => '${e.key}=${e.value}').join('; ');
-      if (json != null) {
-        request.headers['content-type'] = 'application/json';
-        request.body = jsonEncode(json);
+    final url = gateway.replace(pathSegments: ['auth', 'external', provider, 'start']);
+    final answer = await _send(client, cookies, 'POST', url, {'redirectUri': redirectUri, 'codeChallenge': _s256(verifier)});
+    if (answer.statusCode != 200) throw _refusal(answer);
+    if (_json(answer.body) case {'authorizationUrl': final String address, 'state': final String state} when state.isNotEmpty) {
+      final authorization = Uri.tryParse(address);
+      if (authorization != null && authorization.isScheme('https') && authorization.host.isNotEmpty) {
+        return YogabaseExternalSignIn._(authorization, gateway, publishableKey, provider, registered, state, verifier, cookies, httpClient);
       }
-      final response = await http.Response.fromStream(await client.send(request).timeout(_timeout));
-      for (final line in response.headersSplitValues['set-cookie'] ?? const <String>[]) {
-        final cookie = RegExp(r'^\s*([^=;\s]+)=([^;]*)').firstMatch(line); // an empty value is a deletion
-        if (cookie != null) cookie[2]!.isEmpty ? cookies.remove(cookie[1]) : cookies[cookie[1]!] = cookie[2]!;
-      }
-      return response;
     }
+    throw YogabaseAuthException(502, 'external_start_invalid', 'Yogabase returned an invalid external sign-in start.');
+  } finally {
+    if (httpClient == null) client.close();
+  }
+}
+
+/// Completes [pending] with the [redirect] the application received. Nothing is sent for a redirect with another
+/// address, another state, a repeated parameter, an `error` (a refusal whose code is its value) or no code. Then the
+/// callback and the same code flow as [signInWithPassword], whose session it returns. Refusals are
+/// [YogabaseAuthException]s with the gateway's code (`external_identity_invalid`, `external_identity_email_in_use`, ...).
+/// An account with MFA is `202 mfa_required`, the code already spent: call again with the same [pending] and the
+/// authenticator code as [mfaCode], and the callback is not sent again.
+Future<YogabaseSession> completeExternalSignIn(YogabaseExternalSignIn pending, Uri redirect, {String? mfaCode}) async {
+  final code = pending._status == null ? _authorizationCode(pending._redirectUri, redirect, pending._state) : '';
+  final gateway = pending._gateway;
+  return _signIn(gateway, pending._publishableKey, pending._httpClient, pending._cookies, (call) async {
+    if (pending._status == null) {
+      final url = gateway.replace(pathSegments: ['auth', 'external', pending._provider, 'callback']);
+      final answer = await call('POST', url, {'code': code, 'state': pending._state, 'codeVerifier': pending._verifier});
+      if (answer.statusCode != 204 && answer.statusCode != 202) throw _refusal(answer);
+      pending._status = answer.statusCode;
+    }
+    if (pending._status == 202) {
+      final answer = await _verifyMfa(call, gateway, mfaCode);
+      if (answer.statusCode != 204) throw _refusal(answer);
+      pending._status = 204;
+    }
+  });
+}
+
+typedef _Call = Future<http.Response> Function(String method, Uri url, [Object? json]);
+
+// What both sign-ins share. Discovery comes first, so a document naming another origin stops the flow before
+// [authenticate] sends a password or spends a code; it leaves the identity cookie in [cookies]; then the PKCE code
+// flow runs with that cookie answering the authorize endpoint, whose redirect is read and never followed.
+Future<YogabaseSession> _signIn(
+  Uri gateway,
+  String publishableKey,
+  http.Client? httpClient,
+  Map<String, String> cookies,
+  Future<void> Function(_Call call) authenticate,
+) async {
+  final client = httpClient ?? http.Client();
+  try {
+    Future<http.Response> call(String method, Uri url, [Object? json]) => _send(client, cookies, method, url, json);
 
     Future<Object?> read(Uri url) async {
       final response = await call('GET', url);
@@ -143,39 +219,76 @@ Future<YogabaseSession> signInWithPassword(
       _ => throw unusable('a discovery document without its endpoints'),
     };
 
-    var login = await call('POST', gateway.replace(path: '/auth/login'), {'email': email, 'password': password});
-    if (login.statusCode == 202) {
-      if (mfaCode == null) throw YogabaseAuthException(202, 'mfa_required', 'Complete the second authentication factor: pass mfaCode.');
-      login = await call('POST', gateway.replace(path: '/auth/mfa/verify'), {'code': mfaCode});
-    }
-    if (login.statusCode != 204) throw _refusal(login);
+    await authenticate(call);
 
-    final secure = Random.secure();
-    String random(int count) => base64Url.encode(List.generate(count, (_) => secure.nextInt(256))).replaceAll('=', '');
-    final verifier = random(48), state = random(32);
-    final challenge = base64Url.encode(sha256.convert(ascii.encode(verifier)).bytes).replaceAll('=', '');
+    final verifier = _random(48), state = _random(32);
     final authorize = await call('GET', authorizeUrl.replace(queryParameters: {
       'response_type': 'code', 'client_id': clientId, 'redirect_uri': redirect, 'scope': scope,
-      'code_challenge': challenge, 'code_challenge_method': 'S256', 'state': state,
+      'code_challenge': _s256(verifier), 'code_challenge_method': 'S256', 'state': state,
     }));
     final location = authorize.headers['location'];
     if (authorize.statusCode != 302 || location == null) throw _refusal(authorize); // no cookie: 401 interactive_login_required
-    final back = registered.resolveUri(parse(location));
-    if ((back.scheme, back.authority, back.path) != (registered.scheme, registered.authority, registered.path)) {
-      throw YogabaseAuthException(400, 'authorization_redirect_mismatch', 'The authorization response used another redirect URI.');
-    }
-    final query = back.queryParameters;
-    if (query['error'] case final error?) throw YogabaseAuthException(400, error, 'The authorization server rejected sign-in.');
-    if ((query['code'] ?? '').isEmpty || query['state'] != state) {
-      throw YogabaseAuthException(400, 'authorization_response_invalid', 'The authorization response lacks a code or came back with another state.');
-    }
+    final code = _authorizationCode(registered, registered.resolveUri(parse(location)), state);
 
     final session = YogabaseSession._(gateway, projectId, clientId, tokenUrl, httpClient);
-    await session._exchange({'grant_type': 'authorization_code', 'code': query['code']!, 'redirect_uri': redirect, 'code_verifier': verifier});
+    await session._exchange({'grant_type': 'authorization_code', 'code': code, 'redirect_uri': redirect, 'code_verifier': verifier});
     return session;
   } finally {
     if (httpClient == null) client.close();
   }
+}
+
+void _requireOrigin(Uri gateway) {
+  if (gateway.scheme != 'https' || gateway.host.isEmpty || gateway.userInfo.isNotEmpty || gateway.hasQuery ||
+      gateway.hasFragment || gateway.path.length > 1) {
+    throw ArgumentError.value(gateway, 'gateway', 'must be an origin-only https URL');
+  }
+}
+
+// One request with a JSON body, redirects never followed. The gateway's cookies are kept in [cookies] and go to the
+// gateway's origin only (every URL used is checked).
+Future<http.Response> _send(http.Client client, Map<String, String> cookies, String method, Uri url, [Object? json]) async {
+  final request = http.Request(method, url)..followRedirects = false;
+  if (cookies.isNotEmpty) request.headers['cookie'] = cookies.entries.map((e) => '${e.key}=${e.value}').join('; ');
+  if (json != null) {
+    request.headers['content-type'] = 'application/json';
+    request.body = jsonEncode(json);
+  }
+  final response = await http.Response.fromStream(await client.send(request).timeout(_timeout));
+  for (final line in response.headersSplitValues['set-cookie'] ?? const <String>[]) {
+    final cookie = RegExp(r'^\s*([^=;\s]+)=([^;]*)').firstMatch(line); // an empty value is a deletion
+    if (cookie != null) cookie[2]!.isEmpty ? cookies.remove(cookie[1]) : cookies[cookie[1]!] = cookie[2]!;
+  }
+  return response;
+}
+
+// 202 from a route that sets the identity cookie: the account has MFA, so the authenticator code completes it.
+Future<http.Response> _verifyMfa(_Call call, Uri gateway, String? mfaCode) {
+  if (mfaCode == null) throw YogabaseAuthException(202, 'mfa_required', 'Complete the second authentication factor: pass mfaCode.');
+  return call('POST', gateway.replace(path: '/auth/mfa/verify'), {'code': mfaCode});
+}
+
+String _random(int count) {
+  final secure = Random.secure();
+  return base64Url.encode(List.generate(count, (_) => secure.nextInt(256))).replaceAll('=', '');
+}
+
+String _s256(String verifier) => base64Url.encode(sha256.convert(ascii.encode(verifier)).bytes).replaceAll('=', '');
+
+// The code a redirect carries, once it is held to the registered address (no userinfo or fragment), to the state sent
+// and to one value per parameter. The `error` is only believed with the right state.
+String _authorizationCode(Uri registered, Uri back, String state) {
+  if ((back.scheme, back.host, back.port, back.path) != (registered.scheme, registered.host, registered.port, registered.path) ||
+      back.userInfo.isNotEmpty || back.hasFragment) {
+    throw YogabaseAuthException(400, 'authorization_redirect_mismatch', 'The authorization response used another redirect URI.');
+  }
+  final query = back.queryParametersAll;
+  if (query.values.any((values) => values.length > 1) || query['state']?.first != state) {
+    throw YogabaseAuthException(400, 'authorization_response_invalid', 'The authorization response repeats a parameter or came back with another state.');
+  }
+  if (query['error'] case [final error]) throw YogabaseAuthException(400, error, 'The authorization server rejected sign-in.');
+  if (query['code'] case [final code] when code.isNotEmpty) return code;
+  throw YogabaseAuthException(400, 'authorization_response_invalid', 'The authorization response lacks a code.');
 }
 
 bool _sameOrigin(Uri a, Uri b) => a.scheme == b.scheme && a.host == b.host && a.port == b.port;
