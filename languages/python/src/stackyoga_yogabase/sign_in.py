@@ -81,6 +81,53 @@ async def _read(http: httpx.AsyncClient, url: str, *names: str) -> list[Any]:
         raise YogabaseAuthError(f"{url} did not return {', '.join(names)}.", 502, "response_invalid") from None
 
 
+def _s256(verifier: str) -> str:
+    return base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest()).rstrip(b"=").decode()
+
+
+async def _discover(http: httpx.AsyncClient, gateway: str, publishable_key: str) -> tuple[Any, ...]:
+    """The bootstrap's project, client, redirect URIs and scopes, and the two endpoints the code flow calls."""
+    project_id, client_id, redirect_uris, scopes, discovery = await _read(
+        http, f"{gateway}/v1/client-config/{quote(publishable_key, safe='')}",
+        "projectId", "oidcPublicClientId", "oidcRedirectUris", "oidcScopes", "oidcDiscoveryEndpoint")
+    authorize_url, token_url = await _read(http, discovery, "authorization_endpoint", "token_endpoint")
+    if not (authorize_url.startswith(gateway + "/") and token_url.startswith(gateway + "/")):
+        raise YogabaseAuthError("The discovery document points outside the gateway.", 502, "oidc_discovery_invalid")
+    return project_id, client_id, redirect_uris, scopes, authorize_url, token_url
+
+
+def _read_redirect(redirect: str, registered: str, state: str) -> str:
+    """The code in what came back to ``registered``, held to that address and to the ``state`` sent."""
+    location, expected = urlsplit(redirect), urlsplit(registered)
+    if (location.scheme, location.netloc.lower(), location.path) != (expected.scheme, expected.netloc.lower(), expected.path) or location.fragment:
+        raise YogabaseAuthError("The authorization response used another redirect URI.", 400, "authorization_redirect_mismatch")
+    pairs = parse_qsl(location.query, keep_blank_values=True)
+    query = dict(pairs)
+    if len(query) != len(pairs) or not hmac.compare_digest(query.get("state", "").encode(), state.encode()):
+        raise YogabaseAuthError("The authorization response repeats a parameter or came back with another state.", 400, "authorization_response_invalid")
+    if "error" in query:
+        raise YogabaseAuthError("The authorization server rejected sign-in.", 400, query["error"])
+    if not query.get("code"):
+        raise YogabaseAuthError("The authorization response lacks a code.", 400, "authorization_response_invalid")
+    return query["code"]
+
+
+async def _authorize(http: httpx.AsyncClient, gateway: str, found: tuple[Any, ...], http_client: httpx.AsyncClient | None) -> YogabaseSession:
+    """The PKCE code flow, the identity cookie just set answering ``/connect/authorize`` whose redirect is read, never followed."""
+    project_id, client_id, redirect_uris, scopes, authorize_url, token_url = found
+    redirect_uri = redirect_uris[0]
+    verifier, state = secrets.token_urlsafe(48), secrets.token_urlsafe(32)
+    response = await http.get(authorize_url, follow_redirects=False, params={
+        "response_type": "code", "client_id": client_id, "redirect_uri": redirect_uri, "scope": " ".join(scopes),
+        "code_challenge": _s256(verifier), "code_challenge_method": "S256", "state": state})
+    if response.status_code != 302 or "location" not in response.headers:
+        raise _refusal(response)  # without the cookie this is 401 interactive_login_required
+    code = _read_redirect(response.headers["location"], redirect_uri, state)
+    session = YogabaseSession(gateway, project_id, client_id, token_url, http_client)
+    await session._token_request(http, {"grant_type": "authorization_code", "code": code, "redirect_uri": redirect_uri, "code_verifier": verifier})
+    return session
+
+
 async def sign_in_with_password(
     gateway_host: str,
     publishable_key: str,
@@ -99,12 +146,7 @@ async def sign_in_with_password(
     not follow redirects (httpx's default)."""
     gateway = normalize_host(gateway_host, False)
     async with _open(http_client) as http:
-        project_id, client_id, redirect_uris, scopes, discovery = await _read(
-            http, f"{gateway}/v1/client-config/{quote(publishable_key, safe='')}",
-            "projectId", "oidcPublicClientId", "oidcRedirectUris", "oidcScopes", "oidcDiscoveryEndpoint")
-        authorize_url, token_url = await _read(http, discovery, "authorization_endpoint", "token_endpoint")
-        if not (authorize_url.startswith(gateway + "/") and token_url.startswith(gateway + "/")):
-            raise YogabaseAuthError("The discovery document points outside the gateway.", 502, "oidc_discovery_invalid")
+        found = await _discover(http, gateway, publishable_key)
 
         response = await http.post(f"{gateway}/auth/login", json={"email": email, "password": password})
         if response.status_code == 202:
@@ -114,24 +156,4 @@ async def sign_in_with_password(
         if response.status_code != 204:
             raise _refusal(response)
 
-        redirect_uri = redirect_uris[0]
-        verifier, state = secrets.token_urlsafe(48), secrets.token_urlsafe(32)
-        challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest()).rstrip(b"=").decode()
-        response = await http.get(authorize_url, follow_redirects=False, params={
-            "response_type": "code", "client_id": client_id, "redirect_uri": redirect_uri, "scope": " ".join(scopes),
-            "code_challenge": challenge, "code_challenge_method": "S256", "state": state})
-        if response.status_code != 302 or "location" not in response.headers:
-            raise _refusal(response)  # without the cookie this is 401 interactive_login_required
-
-        location, registered = urlsplit(response.headers["location"]), urlsplit(redirect_uri)
-        if (location.scheme, location.netloc, location.path) != (registered.scheme, registered.netloc, registered.path):
-            raise YogabaseAuthError("The authorization response used another redirect URI.", 400, "authorization_redirect_mismatch")
-        query = dict(parse_qsl(location.query, keep_blank_values=True))
-        if "error" in query:
-            raise YogabaseAuthError("The authorization server rejected sign-in.", 400, query["error"])
-        if not query.get("code") or not hmac.compare_digest(query.get("state", "").encode(), state.encode()):
-            raise YogabaseAuthError("The authorization response lacks a code or came back with another state.", 400, "authorization_response_invalid")
-
-        session = YogabaseSession(gateway, project_id, client_id, token_url, http_client)
-        await session._token_request(http, {"grant_type": "authorization_code", "code": query["code"], "redirect_uri": redirect_uri, "code_verifier": verifier})
-        return session
+        return await _authorize(http, gateway, found, http_client)
