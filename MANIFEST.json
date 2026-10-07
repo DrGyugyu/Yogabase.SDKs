@@ -18,12 +18,6 @@
     "referenceReview": {
       "path": "docs/REFERENCE_REVIEW.md",
       "boundary": "PlayFlow, Nakama, Firebase, and Supabase remain reference-only, with no reference API, source, dependency, or wire contract copied. Agones is no longer reference-only: its client loop shape (sdks/csharp/sdk/AgonesSDK.cs and sdks/unity/AgonesSdk.cs at v1.60.0, commit 67b44a783218f7811084adaa5d9b334fb28e44ba) is adopted under Apache-2.0 as a marked modified derivative in Yogabase.Yogabase.RuntimeHost and its Unity package, retargeted to Yogabase's own self-scoped runtime-host routes. No Agones name, proto/sdk wire contract, resource concept, or host-port policy was adopted. The unmodified licence ships at licenses/Apache-2.0-Agones.txt; the full copying boundary is recorded in docs/REFERENCE_REVIEW.md"
-    },
-    "importedArtifactManifest": {
-      "path": "artifacts/imported/MANIFEST.json",
-      "sha256": "61f62ecffd0905c2fb72e7308cb3ed6dbc0f62ff3cee91c6ea03a64e12d8f989",
-      "allRecordedArtifactDigestsVerified": true,
-      "historicalAndUnmodified": true
     }
   },
   "contract": {
@@ -159,10 +153,6 @@
       "source": "src/dotnet/Yogabase.Yogabase.Client",
       "packageId": "Yogabase.Yogabase.Client",
       "version": "0.4.0-preview.1",
-      "localArtifact": {
-        "path": "artifacts/local/Yogabase.Yogabase.Client.0.3.0-preview.1.nupkg",
-        "sha256": "038ccd2d935cc56a6ed1d6d0f2b259d22f665fdee576c3fd0c02299f0b8d8bbd"
-      },
       "qualification": "locked-restore-release-dual-target-build-and-448-client-tests-and-737-tests-across-the-solution-passed-2026-10-03-including-the-jobs-and-schedule-surfaces-the-operation-parity-gate-over-the-mirrored-application-contract-the-413-limits-the-schedule-id-rule-held-to-the-contract-pattern-in-every-language-the-delivery-jobsMaxRunSeconds-and-the-cross-language-parity-pins-pack-not-rerun-since-2026-09-09; clean-package-consumer-not-rerun; wire-shapes-pinned-against-the-mirrored-contracts-by-fake-transport-tests-and-realtime-presence-against-a-loopback-signalr-hub; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-main-92ac1ced-route-code-25-and-36-checks-no-live-installation"
     },
     {
