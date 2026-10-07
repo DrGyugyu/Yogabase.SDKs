@@ -7,7 +7,7 @@ import 'package:stackyoga_yogabase_client_preview/src/models/invocation_request.
 import 'package:stackyoga_yogabase_client_preview/stackyoga_yogabase_client_preview.dart';
 import 'package:uuid/uuid.dart';
 
-/// Signs in to a real installation and invokes a function; run with
+/// Signs in to a real installation, invokes a function, then puts and gets an object; run with
 /// `dart run test/yogabase_live_smoke.dart`. It does nothing unless these are set: YOGABASE_SMOKE_GATEWAY (the
 /// gateway origin), _PUBLISHABLE_KEY, _EMAIL and _PASSWORD (an existing, confirmed user without MFA), _FUNCTION_ID
 /// and _FUNCTION_VERSION (a deployed stateless function that accepts `{}`).
@@ -39,6 +39,14 @@ Future<void> main() async {
         ..payloadDigest = 'sha256:${sha256.convert(payload)}'
         ..inlinePayloadBase64 = base64.encode(payload));
   if (invoked?.outcome != 4) throw StateError('invoke outcome ${invoked?.outcome}, expected 4 (Completed)');
+
+  final bytes = Uint8List.fromList(utf8.encode('live smoke ${const Uuid().v4()}'));
+  final object = storageObjectForLogicalKey(api.v1.storage.objects, gateway.origin, 'smoke/${const Uuid().v4()}.txt');
+  await object.putAsync(bytes, (request) {
+    request.headers.put('X-Yogabase-Content-Sha256', 'sha256:${sha256.convert(bytes)}');
+    request.headers.put('Idempotency-Key', const Uuid().v4());
+  });
+  if (utf8.decode((await object.getAsync())!.toList()) != utf8.decode(bytes)) throw StateError('the stored object differs');
 
   print('dart live smoke: PASS');
 }

@@ -1,6 +1,7 @@
 import 'package:microsoft_kiota_abstractions/microsoft_kiota_abstractions.dart';
 import 'yogabase_api_client.dart';
 import 'yogabase_jobs_client.dart';
+import 'yogabase_octet_stream.dart';
 import 'yogabase_schedules_client.dart';
 
 /// Application-plane facade with its own origin and request adapter.
@@ -14,7 +15,9 @@ class YogabaseApplicationClient {
           requestAdapter,
           _requireOrigin(applicationOrigin, 'applicationOrigin'),
         ),
-        api = YogabaseApiClient(requestAdapter);
+        api = YogabaseApiClient(requestAdapter) {
+    registerOctetStreamFactories();
+  }
 
   final Uri origin;
   final RequestAdapter requestAdapter;

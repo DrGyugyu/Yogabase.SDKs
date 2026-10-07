@@ -6,7 +6,7 @@ Jobs, schedules, a workload Delivery client and a hierarchical storage-key adapt
 VM (a command line, a server, Flutter on mobile or desktop), not in a browser.
 
 The generated REST surface includes bootstrap, signup and interactive auth endpoints,
-Storage (its object calls do not run yet; see below), stateless Function invocation, Actor Lambda invocation, Workflow start/cancel, and the
+Storage, stateless Function invocation, Actor Lambda invocation, Workflow start/cancel, and the
 request builders of the Jobs and schedule routes. The
 contract returns a separate realtime origin, but this package does not yet include or qualify a
 Dart/Flutter SignalR wrapper. This source preview is local, unpublished, and not
@@ -96,11 +96,11 @@ Future<void> main() async {
   `502 oidc_discovery_invalid` before the password is sent, an `error` the authorization server sends
   back is the code, and the token endpoint keeps its own (`invalid_grant`). No token request follows any
   of these.
-- **A live check.** `test/yogabase_live_smoke.dart` signs in and invokes a function. It prints SKIPPED
+- **A live check.** `test/yogabase_live_smoke.dart` signs in, invokes a function, then puts and gets an object. It prints SKIPPED
   unless `YOGABASE_SMOKE_GATEWAY`, `YOGABASE_SMOKE_PUBLISHABLE_KEY`, `YOGABASE_SMOKE_EMAIL`,
   `YOGABASE_SMOKE_PASSWORD` (an existing, confirmed user without MFA), `YOGABASE_SMOKE_FUNCTION_ID` and
   `YOGABASE_SMOKE_FUNCTION_VERSION` (a deployed stateless function that accepts `{}`) are all set. Its
-  invoke request was checked against an in-memory gateway; no run against a live installation is
+  invoke, put and get requests were checked against in-memory gateways; no run against a live installation is
   recorded here yet.
 
 ## The Data API and game servers are generated; builds are not
@@ -149,17 +149,22 @@ final item = storageObjectForLogicalKey(
   gateway.origin,
   'avatars/user-1/photo.png',
 );
+final bytes = await File('photo.png').readAsBytes();
+await item.putAsync(bytes, (request) {
+  request.headers.put('X-Yogabase-Content-Sha256', 'sha256:${sha256.convert(bytes)}'); // 64 lowercase hex
+  request.headers.put('Idempotency-Key', const Uuid().v4()); // bounded
+});
+final stored = await item.getAsync(); // the same bytes
 ```
 
 The adapter is authored Yogabase code, not Kiota output; its standalone check passes (see Local
-verification below).
+verification below). A `PUT` needs the contract's two headers, which Kiota does not emit as method
+arguments, and its body must be a `Uint8List` (any other list is `Unsupported scalar value type`).
 
-**Object reads and writes do not run in this client yet.** The generated `getAsync` and `putAsync`
-carry the object as `application/octet-stream`, and the pinned Kiota Dart runtime registers no
-serializer or parser for it, so both throw `Unsupported operation: Content type application/octet-stream
-does not have a factory registered` (seen on 2026-10-07 against an in-memory gateway). A `PUT` also needs
-the contract's `X-Yogabase-Content-Sha256: sha256:<64 lowercase hex>` and `Idempotency-Key` headers, which
-Kiota does not emit as method arguments.
+Objects travel as `application/octet-stream`, for which the pinned Kiota Dart runtime registers no
+serializer or parser. The first `YogabaseApplicationClient` registers a pair that passes the bytes through
+(`lib/src/yogabase_octet_stream.dart`, process-wide like the JSON one). Before that, both calls threw
+`Content type application/octet-stream does not have a factory registered`.
 
 ## Durable Jobs
 
@@ -345,6 +350,7 @@ dart run test/yogabase_delivery_source_test.dart
 dart run test/yogabase_jobs_source_test.dart
 dart run test/yogabase_schedules_source_test.dart
 dart run test/yogabase_sign_in_source_test.dart
+dart run test/yogabase_storage_source_test.dart
 ```
 
 The package declares no `dev_dependencies` (`package:test` is not in the lockfile), so `dart test` is not
@@ -363,11 +369,13 @@ expectation. Every request goes to an in-memory `RequestAdapter` or `MockClient`
   parameter and a foreign redirect (none followed by a token request), MFA by name and with the code, a
   discovery document naming another origin, the token reaching the gateway's origin and no other, and one
   shared refresh that spends the rotated token.
+- **storage**: a put and a get of bytes that are not valid UTF-8 come back unchanged, the contract's two
+  headers reach the request, and a JSON body still goes through the JSON writer.
 
 Last run on 2026-10-07 with Dart 3.13.5 (stable, macOS arm64, Homebrew `dart-sdk`): `pub get
 --enforce-lockfile` left `pubspec.lock` unchanged, analysis found no issues with infos and warnings fatal,
-and the four programs passed. The first such run of the source regenerated on 2026-10-03 (the Data API, Jobs
+and the five programs passed. The first such run of the source regenerated on 2026-10-03 (the Data API, Jobs
 and schedule builders, the authored Jobs and schedules clients) found four unneeded `dart:typed_data`
 imports and nothing else. The earlier run, on 2026-09-17 with Dart 3.13.2, predates that source. The
 pubspec allows Dart `^3.9.0`; only 3.13.2 and 3.13.5 have run. Not exercised: Flutter, a streaming adapter
-and any live gateway (the sign-in and the smoke program included); the Storage object calls fail, as above.
+and any live gateway (the sign-in, the Storage calls and the smoke program included).
