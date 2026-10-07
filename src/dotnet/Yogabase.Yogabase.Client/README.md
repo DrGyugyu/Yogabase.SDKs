@@ -56,10 +56,15 @@ runs the PKCE code flow with that cookie, using the first redirect URI the boots
 following it. A custom `TransportHandler` must keep cookies (`UseCookies = true`) and not follow redirects, or
 the authorize step answers `interactive_login_required`.
 
-- **The user must already exist.** Sign-up is invite-only and needs a confirmed e-mail unless the installation
-  turned either off: `Auth.SignUpAsync` without an invitation token is a `403 invitation_required`, and an
-  account whose confirmation link (`Auth.ConfirmEmailAsync`) was not followed cannot sign in. Where confirmation
-  is required but the installation has no e-mail transport, sign-up is a `503 authentication_email_unavailable`.
+- **The user must already exist, and have confirmed their e-mail address.** A user signs up with an e-mail address
+  and a password (`Auth.SignUpAsync(email, password)`) and must confirm the address (`Auth.ConfirmEmailAsync`
+  completes the link in the confirmation e-mail) before signing in. A project's gateway runs with open sign-up and
+  nothing in the product creates an invitation, so `invitationToken` is not needed: only an invite-only mode that
+  no installation setting selects reads it (`403 invitation_required`). On an installation with no e-mail transport
+  configured, sign-up is a `503 authentication_email_unavailable`; a self-hosted installation can instead set
+  `yogabase.authenticationEmail.confirmation: disabled`, and accounts are then created already confirmed. An
+  address that already has an account is a `409 account_exists`, and account data the gateway rejects a
+  `400 account_invalid`.
 - **A refusal is a `YogabaseApiException` with the gateway's code.** `401 invalid_credentials` is a wrong
   password, an unknown account, an unconfirmed e-mail and a locked account alike, never told apart;
   `403 mfa_enrollment_required` (the project requires MFA and the account has none) and

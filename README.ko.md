@@ -218,7 +218,7 @@ await yogabase.Auth.SignInWithPasswordAsync("<user-email>", "<user-password>");
 
 `<installation-host>`와 `<publishable-key>`는 플레이스홀더이며, 이 저장소는 둘 중 어느 것도 정하지 않습니다. 자체 호스팅 설치의 호스트 이름과 해당 프로젝트의 publishable key는 모두 그 설치본의 소유자가 제공합니다. 실제 publishable key는 `sy_pub_`로 시작하며, 그렇지 않은 값은 `CreateAsync`가 거부합니다.
 
-`SignInWithPasswordAsync`는 브라우저 없이 사용자를 로그인시키고 다른 모든 호출이 쓰는 토큰을 보관합니다. 사용자는 이미 존재해야 합니다. 가입은 기본적으로 초대 전용이며 이메일 확인이 필요하고, 거절 목록은 [클라이언트 README](src/dotnet/Yogabase.Yogabase.Client/README.md#getting-started)에 있습니다. 게시된 패키지가 없으므로 이 저장소의 체크아웃에서 클라이언트 프로젝트를 참조하세요. TypeScript 클라이언트도 `YogabaseSession.signInWithPassword`로 같은 방식으로 로그인하며 Node에서만 동작합니다. [README](languages/typescript/README.md#getting-started)를 참고하세요.
+`SignInWithPasswordAsync`는 브라우저 없이 사용자를 로그인시키고 다른 모든 호출이 쓰는 토큰을 보관합니다. 사용자는 이미 존재해야 합니다. 사용자는 이메일 주소와 비밀번호로 가입하고(프로젝트의 게이트웨이는 열린 가입으로 실행됩니다), 자체 호스팅 설치가 확인을 끄지 않았다면 로그인하기 전에 주소를 확인해야 하며, 이때 이메일 전송 수단이 없으면 가입은 `503 authentication_email_unavailable`로 답합니다. 거절 목록은 [클라이언트 README](src/dotnet/Yogabase.Yogabase.Client/README.md#getting-started)에 있습니다. 게시된 패키지가 없으므로 이 저장소의 체크아웃에서 클라이언트 프로젝트를 참조하세요. TypeScript 클라이언트도 `YogabaseSession.signInWithPassword`로 같은 방식으로 로그인하며 Node에서만 동작합니다. [README](languages/typescript/README.md#getting-started)를 참고하세요.
 
 Python 클라이언트도 같은 방식으로 로그인합니다. `session = await sign_in_with_password("https://<installation-host>", "<publishable-key>", "<user-email>", "<user-password>")`는 Kiota 인증 공급자이자 Jobs·schedules 클라이언트의 토큰 원천인 세션을 반환하며, 거절은 같은 코드의 `YogabaseAuthError`입니다. [Getting started](languages/python/README.md#getting-started)를 참고하세요. 게시되지 않았으며, 실제로 실행해 본 Python 3.12와 3.13만 지원합니다.
 

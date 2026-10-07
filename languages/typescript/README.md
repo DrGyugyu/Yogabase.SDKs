@@ -61,9 +61,15 @@ them a minute before they expire; a refresh token that no longer works is an `in
 authenticating the generated client, `session.accessToken` is the `accessToken` of the Jobs and Schedules
 clients below.
 
-- **The user must already exist.** Sign-up is invite-only and needs a confirmed e-mail unless the installation
-  turned either off: a sign-up without an invitation token is a `403 invitation_required`, and an account whose
-  confirmation link was not followed cannot sign in.
+- **The user must already exist, and have confirmed their e-mail address.** A user signs up with an e-mail address
+  and a password (`yogabase.auth.signup.post({ email, password })`) and must follow the link in the confirmation
+  e-mail (`yogabase.auth.email.confirm`) before signing in. A project's gateway runs with open sign-up and nothing in
+  the product creates an invitation, so `invitationToken` is not needed: only an invite-only mode that no
+  installation setting selects reads it (`403 invitation_required`). On an installation with no e-mail transport
+  configured, sign-up is a `503 authentication_email_unavailable`; a self-hosted installation can instead set
+  `yogabase.authenticationEmail.confirmation: disabled`, and accounts are then created already confirmed. An
+  address that already has an account is a `409 account_exists`, and account data the gateway rejects a
+  `400 account_invalid`.
 - **A refusal is a `YogabaseAuthError`** with the gateway's `status` and `code` (and `correlationId`):
   `401 invalid_credentials` is a wrong password, an unknown account, an unconfirmed e-mail and a locked account
   alike, never told apart; `403 mfa_enrollment_required` (the project requires MFA and the account has none),

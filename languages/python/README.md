@@ -89,11 +89,15 @@ asyncio.run(main())
 - **`HttpxRequestAdapter` ignores its `base_url` argument** in the pinned Kiota version (it reads the
   http client's), so set `adapter.base_url` after constructing it. Left unset, the generated client
   falls back to the placeholder `https://{gatewayHost}`.
-- **The user must already exist.** Sign-up is invite-only and needs a confirmed e-mail unless the
-  installation turned either off: `client.auth.signup.post` without an invitation token is a
-  `403 invitation_required`, and an account whose confirmation link (`client.auth.email.confirm`) was
-  not followed cannot sign in. Where confirmation is required but the installation has no e-mail
-  transport, sign-up is a `503 authentication_email_unavailable`.
+- **The user must already exist, and have confirmed their e-mail address.** A user signs up with an e-mail
+  address and a password (`client.auth.signup.post`) and must follow the link in the confirmation e-mail
+  (`client.auth.email.confirm`) before signing in. A project's gateway runs with open sign-up and nothing in
+  the product creates an invitation, so `invitation_token` is not needed: only an invite-only mode that no
+  installation setting selects reads it (`403 invitation_required`). On an installation with no e-mail
+  transport configured, sign-up is a `503 authentication_email_unavailable`; a self-hosted installation can
+  instead set `yogabase.authenticationEmail.confirmation: disabled`, and accounts are then created already
+  confirmed. An address that already has an account is a `409 account_exists`, and account data the gateway
+  rejects a `400 account_invalid`.
 - **A refusal is a `YogabaseAuthError`** with the gateway's `status`, `code` and `correlation_id` (quote
   it when reporting a problem). `401 invalid_credentials` is a wrong password, an unknown account, an
   unconfirmed e-mail and a locked account alike, never told apart; `403 mfa_enrollment_required` means
