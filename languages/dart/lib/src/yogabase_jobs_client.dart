@@ -248,9 +248,8 @@ class YogabaseJobsException implements Exception {
 /// ([YogabaseApplicationClient.jobs]), and so with its authentication and
 /// origin. What it adds is what a generated builder does not give: it
 /// validates each call before it is sent, refuses an answer that is not what
-/// the route declares, and names every refusal by its code. Neither this class
-/// nor its standalone source check has been run or analyzed: no Dart SDK was
-/// available when it was written.
+/// the route declares, and names every refusal by its code. No live gateway
+/// has served it.
 ///
 /// No capability gates it: the bootstrap document carries no capability
 /// identifier for Jobs, so the client does not pretend to know whether an

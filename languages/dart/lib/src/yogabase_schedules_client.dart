@@ -348,8 +348,7 @@ class YogabaseSchedulesException implements Exception {
 /// is conditional on the schedule's ETag, which it sends as the header the route
 /// wants and builds from the schedule it reads back; it validates each call
 /// before it is sent, refuses an answer that is not what the route declares,
-/// and names every refusal. Neither this class nor its standalone source check
-/// has been run or analyzed: no Dart SDK was available when it was written.
+/// and names every refusal. No live gateway has served it.
 ///
 /// The write is conditional. [create] sends `If-None-Match: *`; [update],
 /// [delete] and [trigger] send the ETag last read as `If-Match`. A stale ETag,

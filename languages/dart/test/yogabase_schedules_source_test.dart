@@ -11,9 +11,8 @@ import 'package:stackyoga_yogabase_client_preview/src/models/problem.dart';
 /// reaches a network. The shapes pinned here are the ones the mirrored client
 /// OpenAPI document declares for the schedule routes (`x-yogabase-schedules`
 /// and the four operations) and the product's gateway writes, and each request
-/// is the one the generated Kiota builder builds. This program was written
-/// without a Dart SDK on hand and has not been run or analyzed; the response
-/// parsing is not covered here because it needs a real adapter, which the other
+/// is the one the generated Kiota builder builds. The response parsing
+/// is not covered here because it needs a real adapter, which the other
 /// languages' tests do cover.
 Future<void> main() async {
   await _checkCreateAndUpdateAreConditionalPutsOfTheExactBody();
