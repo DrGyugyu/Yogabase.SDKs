@@ -68,6 +68,8 @@ public static class YogabaseRoutes
     public const string AuthMfaRecoveryUse = "auth/mfa/recovery/use";
     /// <inheritdoc cref="AuthSignUp"/>
     public const string AuthExternalCallbackTemplate = "auth/external/{provider}/callback";
+    /// <inheritdoc cref="AuthSignUp"/>
+    public const string AuthExternalStartTemplate = "auth/external/{provider}/start";
 
     /// <summary>OIDC discovery, relative to the gateway origin.</summary>
     public const string OidcDiscoveryPath = "/.well-known/openid-configuration";
@@ -191,6 +193,10 @@ public static class YogabaseRoutes
     /// <summary>Bootstrap document route for one publishable key.</summary>
     public static string ClientConfig(string publishableKey) =>
         "v1/client-config/" + Uri.EscapeDataString(publishableKey);
+
+    /// <summary>External-identity start route for one provider.</summary>
+    public static string AuthExternalStart(string provider) =>
+        "auth/external/" + Uri.EscapeDataString(provider) + "/start";
 
     /// <summary>External-identity callback route for one provider.</summary>
     public static string AuthExternalCallback(string provider) =>

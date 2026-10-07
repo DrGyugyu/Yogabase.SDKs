@@ -113,12 +113,13 @@ Three checks keep the clients and the document together, and a re-mirrored contr
 fails a test instead of passing quietly:
 
 - `ContractOperationParityTests` lists every operation of the mirrored application contract with the SDK surface
-  that serves it in each shipped language. The .NET column is exercised (the first request of each of the 31
+  that serves it in each shipped language. The .NET column is exercised (the first request of each of the 32
   non-excluded operations is compared with the contract's verb and path); the TypeScript, Python, Java and Dart
   generated trees are scanned for exactly the contract's verbs and paths; each language's authored Jobs and
   schedule client must still spell the operation. The only exclusions are the five Data operations of the .NET
-  client, with the reason recorded in its README. A new operation in a re-mirrored document therefore fails
-  until every language has a surface for it or an explicit, reasoned exclusion.
+  client, with the reason recorded in its README, and the two provider return routes (`/auth/external/{provider}/return`,
+  a GET and a POST), which a browser or a provider calls and an application never does. A new operation in a
+  re-mirrored document therefore fails until every language has a surface for it or an explicit, reasoned exclusion.
 - `ContractLimitsAndCodesTests` compares the contract's bounds, statuses and refusal codes with each client's
   constants (the schedule write's `schedule_payload_too_large` and its limits, the job codes, the policy names,
   the ETag pattern, and the schedule id: the definition member's pattern, and the path parameter's lack of one,

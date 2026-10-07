@@ -264,16 +264,10 @@ public sealed class YogabaseClientTests
         await client.Auth.VerifyMfaAsync("123456", TestContext.Current.CancellationToken);
         var recoveryCodes = await client.Auth.RegenerateRecoveryCodesAsync(TestContext.Current.CancellationToken);
         await client.Auth.UseRecoveryCodeAsync("code-one", TestContext.Current.CancellationToken);
-        var external = await client.Auth.CompleteExternalLoginAsync(
-            "google",
-            "provider-code",
-            "provider-state",
-            TestContext.Current.CancellationToken);
 
         Assert.Equal(YogabaseInteractiveSignInOutcome.MfaRequired, login);
         Assert.Equal("enrollment-secret", setup.SharedKey);
         Assert.Equal(["code-one", "code-two"], recoveryCodes);
-        Assert.Equal(YogabaseInteractiveSignInOutcome.SignedIn, external);
         Assert.Equal(
             [
                 "/auth/signup",
@@ -287,13 +281,11 @@ public sealed class YogabaseClientTests
                 "/auth/mfa/verify",
                 "/auth/mfa/recovery/regenerate",
                 "/auth/mfa/recovery/use",
-                "/auth/external/google/callback",
             ],
             observed.Select(item => item.Path));
         Assert.All(observed, item => Assert.Null(item.Authorization));
         Assert.Contains("\"invitationToken\":\"invitation-token\"", observed[0].Body, StringComparison.Ordinal);
         Assert.Contains("\"userId\":\"66666666-6666-4666-8666-666666666666\"", observed[3].Body, StringComparison.Ordinal);
-        Assert.Contains("\"code\":\"provider-code\"", observed[^1].Body, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -581,6 +573,111 @@ public sealed class YogabaseClientTests
         });
         var refused = await Assert.ThrowsAsync<YogabaseApiException>(() => noCookies.Auth.SignInWithPasswordAsync("user@example.com", "pw", cancellationToken: TestContext.Current.CancellationToken));
         Assert.Equal((401, "interactive_login_required", 1), (refused.StatusCode, refused.Code, tokenCalls));
+    }
+
+    [Fact]
+    public async Task ExternalSignInSendsAChallengeThenTheVerifierAndStoresTheTokens()
+    {
+        var seen = new List<(string Path, string Query, string Body)>();
+        var store = new InMemoryYogabaseSessionStore();
+        await using var client = Client(SignInGateway(seen, () => new(HttpStatusCode.NoContent), state => Found($"{Callback}?code=code-1&state={state}")), store);
+
+        var pending = await client.Auth.StartExternalSignInAsync("google", Callback, TestContext.Current.CancellationToken);
+        var session = await client.Auth.CompleteExternalSignInAsync(pending, new Uri($"{Callback}?code=provider-code&state=gw-state-1"), cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal("https://accounts.example/auth?state=gw-state-1", pending.AuthorizationUrl.AbsoluteUri);
+        Assert.Equal(("access-1", "refresh-1"), (session.AccessToken, (await store.LoadAsync(TestContext.Current.CancellationToken))!.RefreshToken));
+        Assert.Equal(
+            ["/auth/external/google/start", "/auth/external/google/callback", "/.well-known/openid-configuration", "/connect/authorize", "/connect/token"],
+            seen.Select(call => call.Path).ToArray());
+        var start = JsonSerializer.Deserialize<Dictionary<string, string>>(seen[0].Body)!;
+        var callback = JsonSerializer.Deserialize<Dictionary<string, string>>(seen[1].Body)!;
+        var verifier = callback["codeVerifier"];
+        Assert.InRange(verifier.Length, 43, 128);
+        Assert.Equal((Callback, S256(verifier)), (start["redirectUri"], start["codeChallenge"]));
+        Assert.DoesNotContain(verifier, seen[0].Body, StringComparison.Ordinal);
+        Assert.Equal(("provider-code", "gw-state-1"), (callback["code"], callback["state"]));
+    }
+
+    [Theory]
+    [InlineData("com.stackyoga.app:/oauth/callback?code=c&state=forged", "authorization_response_invalid")]
+    [InlineData("com.stackyoga.app:/oauth/callback?error=access_denied&state=gw-state-1", "access_denied")]
+    [InlineData("com.stackyoga.app:/oauth/callback?state=gw-state-1", "authorization_response_invalid")]
+    [InlineData("https://other.example/cb?code=c&state=gw-state-1", "authorization_redirect_mismatch")]
+    public async Task ExternalSignInMakesNoCallbackRequestForAForgedOrRefusedRedirect(string redirect, string code)
+    {
+        var seen = new List<(string Path, string Query, string Body)>();
+        var store = new InMemoryYogabaseSessionStore();
+        await using var client = Client(SignInGateway(seen, () => new(HttpStatusCode.NoContent), state => Found($"{Callback}?code=code-1&state={state}")), store);
+        var pending = await client.Auth.StartExternalSignInAsync("google", Callback, TestContext.Current.CancellationToken);
+
+        var refused = await Assert.ThrowsAsync<YogabaseApiException>(() => client.Auth.CompleteExternalSignInAsync(pending, new Uri(redirect), cancellationToken: TestContext.Current.CancellationToken));
+
+        Assert.Equal(code, refused.Code);
+        Assert.Equal(["/auth/external/google/start"], seen.Select(call => call.Path).ToArray());
+        Assert.Null(await store.LoadAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ExternalSignInOnlyCompletesFromTheRedirectOfItsOwnStart()
+    {
+        var seen = new List<(string Path, string Query, string Body)>();
+        await using var client = Client(SignInGateway(seen, () => new(HttpStatusCode.NoContent), state => Found($"{Callback}?code=code-1&state={state}")), new InMemoryYogabaseSessionStore());
+        var first = await client.Auth.StartExternalSignInAsync("google", Callback, TestContext.Current.CancellationToken);
+        var second = await client.Auth.StartExternalSignInAsync("google", Callback, TestContext.Current.CancellationToken);
+
+        var crossed = await Assert.ThrowsAsync<YogabaseApiException>(() => client.Auth.CompleteExternalSignInAsync(first, new Uri($"{Callback}?code=c&state=gw-state-2"), cancellationToken: TestContext.Current.CancellationToken));
+
+        Assert.Equal("authorization_response_invalid", crossed.Code);
+        Assert.DoesNotContain(seen, call => call.Path.EndsWith("/callback", StringComparison.Ordinal));
+        Assert.Equal("access-1", (await client.Auth.CompleteExternalSignInAsync(second, new Uri($"{Callback}?code=c&state=gw-state-2"), cancellationToken: TestContext.Current.CancellationToken)).AccessToken);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized, "external_identity_invalid")]
+    [InlineData(HttpStatusCode.Conflict, "external_identity_email_in_use")]
+    [InlineData(HttpStatusCode.Forbidden, "external_email_unverified")]
+    public async Task ExternalSignInSurfacesTheCallbackRefusalAndGoesNoFurther(HttpStatusCode status, string code)
+    {
+        var seen = new List<(string Path, string Query, string Body)>();
+        var store = new InMemoryYogabaseSessionStore();
+        await using var client = Client(SignInGateway(seen, () => Json(status, $"{{\"code\":\"{code}\"}}"), _ => Found(Callback)), store);
+        var pending = await client.Auth.StartExternalSignInAsync("google", Callback, TestContext.Current.CancellationToken);
+
+        var refused = await Assert.ThrowsAsync<YogabaseApiException>(() => client.Auth.CompleteExternalSignInAsync(pending, new Uri($"{Callback}?code=c&state=gw-state-1"), cancellationToken: TestContext.Current.CancellationToken));
+
+        Assert.Equal(((int)status, code), (refused.StatusCode, refused.Code));
+        Assert.Equal(["/auth/external/google/start", "/auth/external/google/callback"], seen.Select(call => call.Path).ToArray());
+        Assert.Null(await store.LoadAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ExternalSignInNamesMfaAndFinishesWithoutTheSpentCodeWhenTheAuthenticatorCodeIsPassed()
+    {
+        var seen = new List<(string Path, string Query, string Body)>();
+        await using var client = Client(SignInGateway(seen, () => Json(HttpStatusCode.Accepted, "{\"code\":\"mfa_required\"}"), state => Found($"{Callback}?code=code-1&state={state}")), new InMemoryYogabaseSessionStore());
+        var pending = await client.Auth.StartExternalSignInAsync("google", Callback, TestContext.Current.CancellationToken);
+        var redirect = new Uri($"{Callback}?code=c&state=gw-state-1");
+
+        var required = await Assert.ThrowsAsync<YogabaseApiException>(() => client.Auth.CompleteExternalSignInAsync(pending, redirect, cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Equal((202, "mfa_required"), (required.StatusCode, required.Code));
+        Assert.Equal(["/auth/external/google/start", "/auth/external/google/callback"], seen.Select(call => call.Path).ToArray());
+
+        var session = await client.Auth.CompleteExternalSignInAsync(pending, redirect, "123456", TestContext.Current.CancellationToken);
+        Assert.Equal("access-1", session.AccessToken);
+        Assert.Equal(["/auth/mfa/verify", "/.well-known/openid-configuration", "/connect/authorize", "/connect/token"], seen.Skip(2).Select(call => call.Path).ToArray());
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest, "{\"code\":\"external_redirect_uri_invalid\"}", "external_redirect_uri_invalid")]
+    [InlineData(HttpStatusCode.OK, "{\"authorizationUrl\":\"http://accounts.example/auth\",\"state\":\"s\"}", "external_start_invalid")]
+    public async Task ExternalSignInStartSurfacesARefusalAndNeverHandsBackAnInsecureAddress(HttpStatusCode status, string body, string code)
+    {
+        await using var client = Client(new ScriptedHandler((_, _) => Task.FromResult(Json(status, body))), new InMemoryYogabaseSessionStore());
+
+        var refused = await Assert.ThrowsAsync<YogabaseApiException>(() => client.Auth.StartExternalSignInAsync("google", Callback, TestContext.Current.CancellationToken));
+
+        Assert.Equal(code, refused.Code);
     }
 
     [Fact]
@@ -1156,23 +1253,35 @@ public sealed class YogabaseClientTests
     private const string Callback = "com.stackyoga.app:/oauth/callback";
     private const string TokenBody = "{\"access_token\":\"access-1\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"refresh_token\":\"refresh-1\"}";
 
-    // The gateway's headless sign-in routes, recording each call. `authorize` receives the state it was sent.
+    // The gateway's headless sign-in routes, recording each call. `authorize` receives the state it was sent. `login`
+    // answers /auth/login and the external callback alike (both set the cookie); each external start gets the next state.
     private static ScriptedHandler SignInGateway(
         List<(string Path, string Query, string Body)> seen,
         Func<HttpResponseMessage> login,
-        Func<string, HttpResponseMessage> authorize) => new(async (request, cancellationToken) =>
+        Func<string, HttpResponseMessage> authorize)
+    {
+        var starts = 0;
+        return new(async (request, cancellationToken) =>
         {
             var uri = request.RequestUri!;
             seen.Add((uri.AbsolutePath, uri.Query, request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken)));
             return uri.AbsolutePath switch
             {
-                "/auth/login" => login(),
+                "/auth/external/google/start" => Json(HttpStatusCode.OK, ExternalStart($"gw-state-{++starts}")),
+                "/auth/login" or "/auth/external/google/callback" => login(),
                 "/auth/mfa/verify" => new HttpResponseMessage(HttpStatusCode.NoContent),
                 "/.well-known/openid-configuration" => Json(HttpStatusCode.OK, Discovery()),
                 "/connect/authorize" => authorize(ParseQuery(uri.Query)["state"]),
                 _ => Json(HttpStatusCode.OK, TokenBody),
             };
         });
+    }
+
+    private static string ExternalStart(string state) =>
+        $"{{\"authorizationUrl\":\"https://accounts.example/auth?state={state}\",\"state\":\"{state}\"}}";
+
+    private static string S256(string verifier) =>
+        Convert.ToBase64String(SHA256.HashData(Encoding.ASCII.GetBytes(verifier))).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
     private static HttpResponseMessage Found(string location) => new(HttpStatusCode.Found) { Headers = { Location = new Uri(location) } };
 

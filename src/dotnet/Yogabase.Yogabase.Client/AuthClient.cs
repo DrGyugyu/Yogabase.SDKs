@@ -80,22 +80,24 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
         YogabaseClient.EnsureCapability(configuration, "auth");
         ValidateEmail(email);
         ValidatePassword(password);
+        return await PostSignInAsync(YogabaseRoutes.AuthLogin, new { email, password }, cancellationToken).ConfigureAwait(false);
+    }
+
+    // The two routes that set the identity cookie answer 204, or 202 when the account has MFA.
+    private async Task<YogabaseInteractiveSignInOutcome> PostSignInAsync(string path, object body, CancellationToken cancellationToken)
+    {
         var response = await RequireTransport().SendAsync(
             HttpMethod.Post,
-            YogabaseRoutes.AuthLogin,
-            new { email, password },
+            path,
+            body,
             authenticated: false,
             cancellationToken,
             ensureSuccess: false).ConfigureAwait(false);
-        if ((int)response.StatusCode == 204)
+        var status = (int)response.StatusCode;
+        if (status is 204 or 202)
         {
             response.Dispose();
-            return YogabaseInteractiveSignInOutcome.SignedIn;
-        }
-        if ((int)response.StatusCode == 202)
-        {
-            response.Dispose();
-            return YogabaseInteractiveSignInOutcome.MfaRequired;
+            return status == 204 ? YogabaseInteractiveSignInOutcome.SignedIn : YogabaseInteractiveSignInOutcome.MfaRequired;
         }
 
         await YogabaseHttpTransport.ThrowApiExceptionAsync(response, cancellationToken).ConfigureAwait(false);
@@ -220,36 +222,63 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
             cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<YogabaseInteractiveSignInOutcome> CompleteExternalLoginAsync(
+    public async Task<YogabaseExternalSignIn> StartExternalSignInAsync(
         string provider,
-        string code,
-        string state,
+        string redirectUri,
         CancellationToken cancellationToken = default)
     {
         YogabaseClient.EnsureCapability(configuration, "auth");
         ValidateProvider(provider);
-        ValidateRequiredBoundedValue(code, 8192, nameof(code));
-        ValidateRequiredBoundedValue(state, 2048, nameof(state));
+        ValidateRequiredBoundedValue(redirectUri, 2048, nameof(redirectUri));
+        var verifier = Base64Url(RandomBytes(48));
         var response = await RequireTransport().SendAsync(
             HttpMethod.Post,
-            YogabaseRoutes.AuthExternalCallback(provider),
-            new { code, state },
+            YogabaseRoutes.AuthExternalStart(provider),
+            new { redirectUri, codeChallenge = S256(verifier) },
             authenticated: false,
-            cancellationToken,
-            ensureSuccess: false).ConfigureAwait(false);
-        if ((int)response.StatusCode == 204)
+            cancellationToken).ConfigureAwait(false);
+        var started = await YogabaseHttpTransport.ReadJsonAsync<ExternalStartResponse>(response, cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(started.State)
+            || started.State!.Length > 2048
+            || !Uri.TryCreate(started.AuthorizationUrl, UriKind.Absolute, out var url)
+            || url.Scheme != Uri.UriSchemeHttps && !(options.AllowInsecureLoopback && url.Scheme == Uri.UriSchemeHttp && url.IsLoopback))
         {
-            response.Dispose();
-            return YogabaseInteractiveSignInOutcome.SignedIn;
-        }
-        if ((int)response.StatusCode == 202)
-        {
-            response.Dispose();
-            return YogabaseInteractiveSignInOutcome.MfaRequired;
+            throw new YogabaseApiException(502, "external_start_invalid", "Yogabase returned an invalid external sign-in start.");
         }
 
-        await YogabaseHttpTransport.ThrowApiExceptionAsync(response, cancellationToken).ConfigureAwait(false);
-        throw new InvalidOperationException("The external authentication response was not handled.");
+        return new YogabaseExternalSignIn(url, provider, redirectUri, started.State, verifier);
+    }
+
+    public async Task<YogabaseSession> CompleteExternalSignInAsync(
+        YogabaseExternalSignIn pending,
+        Uri redirect,
+        string? mfaCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        YogabaseClient.EnsureCapability(configuration, "auth");
+        if (pending is null)
+        {
+            throw new ArgumentNullException(nameof(pending));
+        }
+        if (pending.Outcome is null)
+        {
+            var code = ReadAuthorizationResponse(new Uri(pending.RedirectUri, UriKind.Absolute), redirect, pending.State);
+            pending.Outcome = await PostSignInAsync(
+                YogabaseRoutes.AuthExternalCallback(pending.Provider),
+                new { code, state = pending.State, codeVerifier = pending.CodeVerifier },
+                cancellationToken).ConfigureAwait(false);
+        }
+        if (pending.Outcome == YogabaseInteractiveSignInOutcome.MfaRequired)
+        {
+            if (mfaCode is null)
+            {
+                throw new YogabaseApiException(202, "mfa_required", "Complete the second authentication factor: call again with mfaCode.");
+            }
+            await VerifyMfaAsync(mfaCode, cancellationToken).ConfigureAwait(false);
+            pending.Outcome = YogabaseInteractiveSignInOutcome.SignedIn;
+        }
+
+        return await SignInWithCookieAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<YogabaseSession> SignInWithPkceAsync(
@@ -277,11 +306,7 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
         var expectedSessionGeneration = Volatile.Read(ref sessionGeneration);
         var oidc = await GetEndpointsAsync(cancellationToken).ConfigureAwait(false);
         var verifier = Base64Url(RandomBytes(48));
-        string challenge;
-        using (var sha = SHA256.Create())
-        {
-            challenge = Base64Url(sha.ComputeHash(Encoding.ASCII.GetBytes(verifier)));
-        }
+        var challenge = S256(verifier);
         var state = Base64Url(RandomBytes(32));
         var scopes = NormalizeScopes(options.Scopes);
         var authorize = Query(oidc.AuthorizationEndpoint, new Dictionary<string, string>
@@ -295,28 +320,7 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
             ["state"] = state,
         });
         var callback = await options.OpenBrowserAsync(authorize, cancellationToken).ConfigureAwait(false);
-        ValidateRedirect(options.RedirectUri, callback);
-        Dictionary<string, string> query;
-        try
-        {
-            query = ParseQuery(callback.Query);
-        }
-        catch (UriFormatException)
-        {
-            throw new YogabaseApiException(400, "authorization_response_invalid", "The authorization response is malformed.");
-        }
-        if (!query.TryGetValue("state", out var returnedState) || !FixedTimeEquals(state, returnedState))
-        {
-            throw new YogabaseApiException(400, "authorization_response_invalid", "The authorization response failed state validation.");
-        }
-        if (query.TryGetValue("error", out var error))
-        {
-            throw new YogabaseApiException(400, error, "The authorization server rejected sign-in.");
-        }
-        if (!query.TryGetValue("code", out var code) || string.IsNullOrWhiteSpace(code))
-        {
-            throw new YogabaseApiException(400, "authorization_response_invalid", "The authorization response did not contain a code.");
-        }
+        var code = ReadAuthorizationResponse(options.RedirectUri, callback, state);
 
         return await ExchangeNewSessionAsync(
             oidc.TokenEndpoint,
@@ -348,14 +352,17 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
             await VerifyMfaAsync(mfaCode, cancellationToken).ConfigureAwait(false);
         }
 
-        return await SignInWithPkceAsync(
-            new YogabasePkceOptions
-            {
-                RedirectUri = new Uri(configuration.OidcRedirectUris[0], UriKind.Absolute),
-                OpenBrowserAsync = AuthorizeWithCookieAsync,
-            },
-            cancellationToken).ConfigureAwait(false);
+        return await SignInWithCookieAsync(cancellationToken).ConfigureAwait(false);
     }
+
+    // The code flow with the identity cookie the gateway has just set standing in for the browser.
+    private Task<YogabaseSession> SignInWithCookieAsync(CancellationToken cancellationToken) => SignInWithPkceAsync(
+        new YogabasePkceOptions
+        {
+            RedirectUri = new Uri(configuration.OidcRedirectUris[0], UriKind.Absolute),
+            OpenBrowserAsync = AuthorizeWithCookieAsync,
+        },
+        cancellationToken);
 
     // Stands in for the browser: the transport's cookie jar answers /connect/authorize with a 302 to the
     // redirect URI, which is read here and never followed. Without the cookie it is a 401.
@@ -680,6 +687,40 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
         .Replace('+', '-')
         .Replace('/', '_');
 
+    private static string S256(string verifier)
+    {
+        using var sha = SHA256.Create();
+        return Base64Url(sha.ComputeHash(Encoding.ASCII.GetBytes(verifier)));
+    }
+
+    // What came back to the redirect URI, held to the one it was sent to and the state sent: its code, or a refusal.
+    private static string ReadAuthorizationResponse(Uri expected, Uri callback, string state)
+    {
+        ValidateRedirect(expected, callback);
+        Dictionary<string, string> query;
+        try
+        {
+            query = ParseQuery(callback.Query);
+        }
+        catch (UriFormatException)
+        {
+            throw new YogabaseApiException(400, "authorization_response_invalid", "The authorization response is malformed.");
+        }
+        if (!query.TryGetValue("state", out var returnedState) || !FixedTimeEquals(state, returnedState))
+        {
+            throw new YogabaseApiException(400, "authorization_response_invalid", "The authorization response failed state validation.");
+        }
+        if (query.TryGetValue("error", out var error))
+        {
+            throw new YogabaseApiException(400, error, "The authorization server rejected sign-in.");
+        }
+        if (!query.TryGetValue("code", out var code) || string.IsNullOrWhiteSpace(code))
+        {
+            throw new YogabaseApiException(400, "authorization_response_invalid", "The authorization response did not contain a code.");
+        }
+        return code;
+    }
+
     private static Uri Query(Uri endpoint, IReadOnlyDictionary<string, string> fields)
     {
         var builder = new UriBuilder(endpoint)
@@ -801,6 +842,12 @@ internal sealed class YogabaseAuthClient : IYogabaseAuth, IDisposable
 
         internal Uri AuthorizationEndpoint { get; }
         internal Uri TokenEndpoint { get; }
+    }
+
+    private sealed class ExternalStartResponse
+    {
+        public string? AuthorizationUrl { get; set; }
+        public string? State { get; set; }
     }
 
     private sealed class RecoveryCodesResponse

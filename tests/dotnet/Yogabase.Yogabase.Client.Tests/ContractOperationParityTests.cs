@@ -42,8 +42,11 @@ public sealed class ContractOperationParityTests
 
     private sealed record ContractOperation(string OperationId, string Verb, string Path);
 
-    /// <summary>One .NET call that must send an operation's request first; an operation may have several.</summary>
-    private sealed record DotNetCall(string Symbol, Func<YogabaseClient, Task> Invoke);
+    /// <summary>
+    /// One .NET call that must send an operation's request first; an operation may have several. <paramref name="Prepared"/>
+    /// is how many requests the invocation makes to get ready (completing a sign-in needs the one that started it).
+    /// </summary>
+    private sealed record DotNetCall(string Symbol, Func<YogabaseClient, Task> Invoke, int Prepared = 0);
 
     /// <summary>A token that proves an authored client declares an operation: a file and the text its method has.</summary>
     private sealed record AuthoredToken(string Language, string File, string Token);
@@ -139,8 +142,14 @@ public sealed class ContractOperationParityTests
         ["upsertYogabaseData"] = DataReason,
         ["updateYogabaseData"] = DataReason,
         ["deleteYogabaseData"] = DataReason,
+        ["receiveYogabaseExternalLogin"] = ReturnReason,
+        ["returnYogabaseExternalLogin"] = ReturnReason,
     };
 
+    private const string ReturnReason =
+        "The provider's return address is called by the user's browser (a GET) or by the provider's form_post (Apple), never by "
+        + "an application: the .NET package starts the sign-in, the application opens the address in the browser, and the "
+        + "gateway relays the browser to the application's redirect URI, which CompleteExternalSignInAsync reads.";
     private const string DataReason =
         "The .NET package has no Data API client by decision, recorded in its README under 'Reading and writing data': "
         + "a .NET application reaches its project's data through a Lambda, Auth, Storage and Realtime, and the package does "
@@ -164,7 +173,15 @@ public sealed class ContractOperationParityTests
         ["verifyYogabaseMfa"] = [new("IYogabaseAuth.VerifyMfaAsync", c => c.Auth.VerifyMfaAsync("123456"))],
         ["regenerateYogabaseRecoveryCodes"] = [new("IYogabaseAuth.RegenerateRecoveryCodesAsync", c => c.Auth.RegenerateRecoveryCodesAsync())],
         ["useYogabaseRecoveryCode"] = [new("IYogabaseAuth.UseRecoveryCodeAsync", c => c.Auth.UseRecoveryCodeAsync("abcd-efgh"))],
-        ["completeYogabaseExternalLogin"] = [new("IYogabaseAuth.CompleteExternalLoginAsync", c => c.Auth.CompleteExternalLoginAsync("example", "code", "state"))],
+        ["startYogabaseExternalLogin"] = [new("IYogabaseAuth.StartExternalSignInAsync", c => c.Auth.StartExternalSignInAsync("example", Redirect))],
+        ["completeYogabaseExternalLogin"] =
+        [
+            new("IYogabaseAuth.CompleteExternalSignInAsync", async c =>
+            {
+                var pending = await c.Auth.StartExternalSignInAsync("example", Redirect);
+                await c.Auth.CompleteExternalSignInAsync(pending, new Uri(Redirect + "?code=code&state=state-1"));
+            }, Prepared: 1),
+        ],
         ["putYogabaseObject"] = [new("IYogabaseStorage.PutBytesAsync", c => c.Storage.PutBytesAsync("slot1", [1], "application/octet-stream", "request-1"))],
         ["getYogabaseObject"] = [new("IYogabaseStorage.GetAsync", c => c.Storage.GetAsync("slot1"))],
         ["invokeYogabaseFunction"] = [new("IYogabaseFunctions.InvokeAsync", c => c.Functions.InvokeAsync("resize", "1", Invocation()))],
@@ -190,6 +207,7 @@ public sealed class ContractOperationParityTests
     };
 
     private const string ConfigurationOperation = "getYogabaseClientConfiguration";
+    private const string Redirect = "com.stackyoga.app:/oauth/callback";
 
     // ---------------------------------------------------------------------------------------
     // Every operation is accounted for
@@ -223,11 +241,11 @@ public sealed class ContractOperationParityTests
     }
 
     [Fact]
-    public void EveryExclusionStatesItsReasonAndTheOnlyOnesAreTheDotNetDataOperations()
+    public void EveryExclusionStatesItsReasonAndTheOnlyOnesAreTheDotNetDataAndBrowserReturnOperations()
     {
         Assert.All(DotNetExclusions.Values, static reason => Assert.True(reason.Length > 80, "An exclusion must say why."));
         Assert.Equal(
-            ["deleteYogabaseData", "insertYogabaseData", "selectYogabaseData", "updateYogabaseData", "upsertYogabaseData"],
+            ["deleteYogabaseData", "insertYogabaseData", "receiveYogabaseExternalLogin", "returnYogabaseExternalLogin", "selectYogabaseData", "updateYogabaseData", "upsertYogabaseData"],
             DotNetExclusions.Keys.Order(StringComparer.Ordinal));
     }
 
@@ -253,7 +271,7 @@ public sealed class ContractOperationParityTests
                 await using var client = await ClientAsync(handler);
                 recorded.Clear();
                 await InvokeIgnoringTheOutcomeAsync(() => call.Invoke(client));
-                Check(failures, operation, call.Symbol, recorded.Count == 0 ? null : recorded[0]);
+                Check(failures, operation, call.Symbol, recorded.Count <= call.Prepared ? null : recorded[call.Prepared]);
             }
         }
 
@@ -588,9 +606,15 @@ public sealed class ContractOperationParityTests
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             recorded.Add((request.Method.Method, request.RequestUri!.AbsolutePath));
+            // A sign-in start must answer for the completion that follows it to send its request.
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent("{}", Encoding.UTF8, "application/json"),
+                Content = new StringContent(
+                    request.RequestUri.AbsolutePath.EndsWith("/start", StringComparison.Ordinal)
+                        ? "{\"authorizationUrl\":\"https://accounts.example/auth\",\"state\":\"state-1\"}"
+                        : "{}",
+                    Encoding.UTF8,
+                    "application/json"),
             });
         }
     }

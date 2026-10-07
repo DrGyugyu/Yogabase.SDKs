@@ -177,6 +177,28 @@ public sealed class YogabasePkceOptions
     public Func<Uri, CancellationToken, Task<Uri>>? OpenBrowserAsync { get; set; }
 }
 
+/// <summary>An external sign-in that has started: the address to open, and what the client keeps until the browser returns.</summary>
+public sealed class YogabaseExternalSignIn
+{
+    internal YogabaseExternalSignIn(Uri authorizationUrl, string provider, string redirectUri, string state, string codeVerifier)
+    {
+        AuthorizationUrl = authorizationUrl;
+        Provider = provider;
+        RedirectUri = redirectUri;
+        State = state;
+        CodeVerifier = codeVerifier;
+    }
+
+    /// <summary>The provider's address, to open in the system browser.</summary>
+    public Uri AuthorizationUrl { get; }
+    internal string Provider { get; }
+    internal string RedirectUri { get; }
+    internal string State { get; }
+    internal string CodeVerifier { get; }
+    // Set once the gateway answered the callback: the code is spent, so a call after MfaRequired skips it.
+    internal YogabaseInteractiveSignInOutcome? Outcome { get; set; }
+}
+
 public sealed class YogabaseApiException : Exception
 {
     public YogabaseApiException(int statusCode, string code, string message, string? traceId = null)
@@ -241,11 +263,25 @@ public interface IYogabaseAuth
     Task VerifyMfaAsync(string code, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<string>> RegenerateRecoveryCodesAsync(CancellationToken cancellationToken = default);
     Task UseRecoveryCodeAsync(string code, CancellationToken cancellationToken = default);
-    Task<YogabaseInteractiveSignInOutcome> CompleteExternalLoginAsync(
-        string provider,
-        string code,
-        string state,
-        CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Starts sign-in with a provider the project configured (<c>google</c>, <c>microsoft</c>, <c>apple</c>, under the
+    /// id the project gave it). <paramref name="redirectUri"/> must be one of the bootstrap's registered redirect URIs
+    /// (<c>OidcRedirectUris</c>). Open <see cref="YogabaseExternalSignIn.AuthorizationUrl"/> in the system browser, and
+    /// pass the address the browser returns to <see cref="CompleteExternalSignInAsync"/>. A refusal is a
+    /// <see cref="YogabaseApiException"/> with the gateway's code (<c>external_redirect_uri_invalid</c>,
+    /// <c>external_provider_unknown</c>, <c>external_provider_unavailable</c>).
+    /// </summary>
+    Task<YogabaseExternalSignIn> StartExternalSignInAsync(string provider, string redirectUri, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Completes the sign-in <paramref name="pending"/> started, from <paramref name="redirect"/>, the full address the
+    /// browser was redirected to. A redirect with another state, an <c>error</c> (<c>access_denied</c>) or no code
+    /// ends the call before any request. Otherwise it signs in as <see cref="SignInWithPasswordAsync"/> does and leaves
+    /// the tokens in the session store. A refusal is a <see cref="YogabaseApiException"/> with the gateway's code:
+    /// <c>external_identity_invalid</c> (401), <c>external_identity_email_in_use</c> (409), <c>external_email_unverified</c>,
+    /// <c>external_identity_not_enrolled</c> and <c>mfa_enrollment_required</c> (403). An account with MFA throws
+    /// <c>mfa_required</c> (202); call again with the same <paramref name="pending"/> and the authenticator code.
+    /// </summary>
+    Task<YogabaseSession> CompleteExternalSignInAsync(YogabaseExternalSignIn pending, Uri redirect, string? mfaCode = null, CancellationToken cancellationToken = default);
     Task<YogabaseSession> SignInWithPkceAsync(YogabasePkceOptions options, CancellationToken cancellationToken = default);
     /// <summary>
     /// Signs in with e-mail and password and leaves a bearer session in the store, with no browser: it logs
