@@ -73,7 +73,8 @@ the authorize step answers `interactive_login_required`.
 - **A live check.** `LiveSmokeTests` signs in, invokes a function, writes and reads an object and, given a topic,
   receives a realtime message. It is skipped unless `YOGABASE_SMOKE_GATEWAY`, `_PUBLISHABLE_KEY`, `_EMAIL`,
   `_PASSWORD` (an existing, confirmed user without MFA), `_FUNCTION_ID` and `_FUNCTION_VERSION` are set;
-  `_TOPIC` adds the realtime step. No run against a live installation is recorded here yet.
+  `_TOPIC` adds the realtime step, and `_CA_FILE` names a PEM certificate to trust when the gateway's own is not
+  one the operating system knows. No run against a live installation is recorded here yet.
 
 ## Signing in with a provider
 

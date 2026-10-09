@@ -1,3 +1,5 @@
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using Yogabase.Yogabase;
 
@@ -8,7 +10,9 @@ namespace Yogabase.Tests;
 /// YOGABASE_SMOKE_GATEWAY (the gateway origin), YOGABASE_SMOKE_PUBLISHABLE_KEY, YOGABASE_SMOKE_EMAIL and
 /// YOGABASE_SMOKE_PASSWORD (an existing, confirmed user without MFA), YOGABASE_SMOKE_FUNCTION_ID and
 /// YOGABASE_SMOKE_FUNCTION_VERSION (a deployed stateless function that accepts <c>{}</c>). Optional:
-/// YOGABASE_SMOKE_TOPIC, a realtime topic that function publishes to, adds a subscribe-and-receive step.
+/// YOGABASE_SMOKE_TOPIC, a realtime topic that function publishes to, adds a subscribe-and-receive step;
+/// YOGABASE_SMOKE_CA_FILE, a PEM certificate, is trusted as the only root when the gateway's certificate
+/// is not one the operating system knows (macOS and Windows take no such file from the environment).
 /// </summary>
 public sealed class LiveSmokeTests
 {
@@ -20,7 +24,9 @@ public sealed class LiveSmokeTests
         Assert.SkipWhen(required.Any(name => string.IsNullOrEmpty(Env(name))), "Set the YOGABASE_SMOKE_* variables to run against an installation.");
         var cancellationToken = TestContext.Current.CancellationToken;
 
-        await using var client = await YogabaseClient.CreateAsync(new Uri(Env("GATEWAY")!), Env("PUBLISHABLE_KEY")!, cancellationToken: cancellationToken);
+        using var transport = Env("CA_FILE") is { Length: > 0 } authorityFile ? TrustingOnly(authorityFile) : null;
+        var options = new YogabaseClientOptions { TransportHandler = transport };
+        await using var client = await YogabaseClient.CreateAsync(new Uri(Env("GATEWAY")!), Env("PUBLISHABLE_KEY")!, options, cancellationToken);
         var session = await client.Auth.SignInWithPasswordAsync(Env("EMAIL")!, Env("PASSWORD")!, cancellationToken: cancellationToken);
         Assert.False(string.IsNullOrEmpty(session.AccessToken));
 
@@ -63,5 +69,27 @@ public sealed class LiveSmokeTests
         {
             await received.Task.WaitAsync(TimeSpan.FromSeconds(20), cancellationToken);
         }
+    }
+
+    /// <summary>The client's own transport, except that the one certificate in the file is the only root. The host name is still checked.</summary>
+    private static HttpClientHandler TrustingOnly(string authorityFile)
+    {
+        var authority = X509CertificateLoader.LoadCertificateFromFile(authorityFile);
+        return new HttpClientHandler
+        {
+            AllowAutoRedirect = false,
+            ServerCertificateCustomValidationCallback = (_, certificate, _, errors) =>
+            {
+                if (certificate is null || errors.HasFlag(SslPolicyErrors.RemoteCertificateNameMismatch))
+                {
+                    return false;
+                }
+                using var chain = new X509Chain();
+                chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
+                chain.ChainPolicy.CustomTrustStore.Add(authority);
+                chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+                return chain.Build(certificate);
+            },
+        };
     }
 }
