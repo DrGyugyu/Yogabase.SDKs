@@ -110,8 +110,7 @@ asyncio.run(main())
   object. It is skipped unless `YOGABASE_SMOKE_GATEWAY`, `YOGABASE_SMOKE_PUBLISHABLE_KEY`,
   `YOGABASE_SMOKE_EMAIL`, `YOGABASE_SMOKE_PASSWORD` (an existing, confirmed user without MFA),
   `YOGABASE_SMOKE_FUNCTION_ID` and `YOGABASE_SMOKE_FUNCTION_VERSION` (a deployed stateless function that
-  accepts `{}`) are all set. The requests it builds were checked against a fake gateway; no run against a
-  live installation is recorded here yet.
+  accepts `{}`) are all set. The requests it builds were checked against a fake gateway. It passed on 2026-10-10 against a local installation: the gateway of a throwaway cluster behind a local HTTPS address, a user signed up there, and a released hello function. It has not run through a public gateway name. Python trusted that address's certificate through `SSL_CERT_FILE`.
 
 ## Signing in with a provider
 

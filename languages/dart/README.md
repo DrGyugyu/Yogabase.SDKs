@@ -100,9 +100,7 @@ Future<void> main() async {
 - **A live check.** `test/yogabase_live_smoke.dart` signs in, invokes a function, then puts and gets an object. It prints SKIPPED
   unless `YOGABASE_SMOKE_GATEWAY`, `YOGABASE_SMOKE_PUBLISHABLE_KEY`, `YOGABASE_SMOKE_EMAIL`,
   `YOGABASE_SMOKE_PASSWORD` (an existing, confirmed user without MFA), `YOGABASE_SMOKE_FUNCTION_ID` and
-  `YOGABASE_SMOKE_FUNCTION_VERSION` (a deployed stateless function that accepts `{}`) are all set. Its
-  invoke, put and get requests were checked against in-memory gateways; no run against a live installation is
-  recorded here yet.
+  `YOGABASE_SMOKE_FUNCTION_VERSION` (a deployed stateless function that accepts `{}`) are all set. Its invoke, put and get requests were checked against in-memory gateways. It passed on 2026-10-10 against a local installation: the gateway of a throwaway cluster behind a local HTTPS address, a user signed up there, and a released hello function. It has not run through a public gateway name. Dart trusted that address's certificate through `dart --root-certs-file=<pem> run …`.
 
 ## Signing in with a provider
 

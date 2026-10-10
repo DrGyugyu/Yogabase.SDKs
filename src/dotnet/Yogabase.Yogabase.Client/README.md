@@ -74,7 +74,7 @@ the authorize step answers `interactive_login_required`.
   receives a realtime message. It is skipped unless `YOGABASE_SMOKE_GATEWAY`, `_PUBLISHABLE_KEY`, `_EMAIL`,
   `_PASSWORD` (an existing, confirmed user without MFA), `_FUNCTION_ID` and `_FUNCTION_VERSION` are set;
   `_TOPIC` adds the realtime step, and `_CA_FILE` names a PEM certificate to trust when the gateway's own is not
-  one the operating system knows. No run against a live installation is recorded here yet.
+  one the operating system knows (that run used it). It passed on 2026-10-10 against a local installation: the gateway of a throwaway cluster behind a local HTTPS address, a user signed up there, and a released hello function. It has not run through a public gateway name. The realtime step did not run.
 
 ## Signing in with a provider
 
