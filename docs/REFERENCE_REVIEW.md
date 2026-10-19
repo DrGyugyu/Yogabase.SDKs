@@ -36,11 +36,11 @@ Kubernetes mutation authority.
 | Nakama .NET/Unity client | locally installed `3.21.2+437fb84f0d6ce48aaf7bb8aa42a0b6ac034256de`; assembly SHA-256 `8f04cb17affceb10a4958b51573429458ca631deb522cc2750d307f1a4c20218` | Apache-2.0 | Session refresh ownership, HTTP/socket separation, reconnect state, cancellation, and Unity main-thread adapter boundaries. |
 | Nakama Plus runtime modules | `18e4d2cd53d5f546d5684d6f70996c08234afc45` | Apache-2.0 | Fail-closed module discovery, RPC failure boundaries, and lifecycle visibility only; it is not a client SDK. |
 
-The repository checkouts remain under the Yogabase product repository's ignored `.references`
-directory and are not package inputs. The Nakama client observation comes from the owner's existing
-local Unity installation; only its assembly metadata, digest, licence headers, and externally
-visible client lifecycle were reviewed. It is not copied, linked, bundled, or added as a package
-dependency.
+Each reference is pinned by the tag and commit in the table above and was studied read-only; none
+is a package input, and no checkout of one lives in this repository. The Nakama client observation
+comes from a local Unity installation; only its assembly metadata, digest, licence headers, and
+externally visible client lifecycle were reviewed. It is not copied, linked, bundled, or added as a
+package dependency.
 
 ## Applied design rules
 
@@ -106,6 +106,5 @@ publish call, the caller's identity, a logger, and per-invocation facts — is t
 | Marking | `src/dotnet/Yogabase.Lambda/THIRD-PARTY-NOTICES.md`, packed into the package. |
 | Replacement strategy | The surface is an authored wrapper over an HTTP contract and a BCL type Yogabase owns. Were the Apache grant ever unusable, it could be rewritten from `LambdaRoutes` and the entry contract alone. |
 
-The same pinned revision is already recorded in the product repository's `references.lock.json` for
-its separate, source-level C# translation of runtime-module registration. That translation lives in
-the product repository and does not enter this one.
+This repository holds no translation of Nakama's runtime-module *registration* surface; the pinned
+revision above covers only the shape of the context object a Lambda is handed.

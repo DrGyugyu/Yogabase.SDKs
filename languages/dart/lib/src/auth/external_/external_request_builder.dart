@@ -5,7 +5,7 @@ import './item/with_provider_item_request_builder.dart';
 /// auto generated
 /// Builds and executes requests for operations under \auth\external
 class ExternalRequestBuilder extends BaseRequestBuilder<ExternalRequestBuilder> {
-    /// Gets an item from the stackyoga_yogabase.auth.external.item collection
+    /// Gets an item from the yogabase_client.auth.external.item collection
     ///  [provider] Unique identifier of the item
     WithProviderItemRequestBuilder byProvider(String provider) {
         var urlTplParams = Map.of(pathParameters);

@@ -34,18 +34,18 @@ public sealed class JobsSurfaceParityTests
         ],
         ["Python"] =
         [
-            "languages/python/src/stackyoga_yogabase/jobs.py",
-            "languages/python/src/stackyoga_yogabase/_gateway.py",
+            "languages/python/src/yogabase_client/jobs.py",
+            "languages/python/src/yogabase_client/_gateway.py",
         ],
         ["Java"] =
         [
-            "languages/java/src/main/java/io/stackyoga/yogabase/YogabaseJobsClient.java",
-            "languages/java/src/main/java/io/stackyoga/yogabase/YogabaseJobStatus.java",
-            "languages/java/src/main/java/io/stackyoga/yogabase/YogabaseJobErrorCodes.java",
-            "languages/java/src/main/java/io/stackyoga/yogabase/YogabaseStatusErrorCodes.java",
-            "languages/java/src/main/java/io/stackyoga/yogabase/YogabaseGatewayChannel.java",
-            "languages/java/src/main/java/io/stackyoga/yogabase/v1/projects/item/jobs/",
-            "languages/java/src/main/java/io/stackyoga/yogabase/models/JobSubmitRequest.java",
+            "languages/java/src/main/java/io/yogabase/client/YogabaseJobsClient.java",
+            "languages/java/src/main/java/io/yogabase/client/YogabaseJobStatus.java",
+            "languages/java/src/main/java/io/yogabase/client/YogabaseJobErrorCodes.java",
+            "languages/java/src/main/java/io/yogabase/client/YogabaseStatusErrorCodes.java",
+            "languages/java/src/main/java/io/yogabase/client/YogabaseGatewayChannel.java",
+            "languages/java/src/main/java/io/yogabase/client/v1/projects/item/jobs/",
+            "languages/java/src/main/java/io/yogabase/client/models/JobSubmitRequest.java",
         ],
         ["Dart"] =
         [

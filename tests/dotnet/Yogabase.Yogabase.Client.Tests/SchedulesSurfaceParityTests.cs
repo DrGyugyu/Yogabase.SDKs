@@ -29,20 +29,20 @@ public sealed class SchedulesSurfaceParityTests
         ],
         ["Python"] =
         [
-            "languages/python/src/stackyoga_yogabase/schedules.py",
-            "languages/python/src/stackyoga_yogabase/_gateway.py",
+            "languages/python/src/yogabase_client/schedules.py",
+            "languages/python/src/yogabase_client/_gateway.py",
         ],
         ["Java"] =
         [
-            "languages/java/src/main/java/io/stackyoga/yogabase/YogabaseSchedulesClient.java",
-            "languages/java/src/main/java/io/stackyoga/yogabase/YogabaseScheduleErrorCodes.java",
-            "languages/java/src/main/java/io/stackyoga/yogabase/YogabaseScheduleMisfirePolicy.java",
-            "languages/java/src/main/java/io/stackyoga/yogabase/YogabaseScheduleConcurrencyPolicy.java",
-            "languages/java/src/main/java/io/stackyoga/yogabase/YogabaseStatusErrorCodes.java",
-            "languages/java/src/main/java/io/stackyoga/yogabase/YogabaseGatewayChannel.java",
-            "languages/java/src/main/java/io/stackyoga/yogabase/v1/projects/item/schedules/",
-            "languages/java/src/main/java/io/stackyoga/yogabase/models/ScheduleDefinitionRequest.java",
-            "languages/java/src/main/java/io/stackyoga/yogabase/models/ScheduleTriggerRequest.java",
+            "languages/java/src/main/java/io/yogabase/client/YogabaseSchedulesClient.java",
+            "languages/java/src/main/java/io/yogabase/client/YogabaseScheduleErrorCodes.java",
+            "languages/java/src/main/java/io/yogabase/client/YogabaseScheduleMisfirePolicy.java",
+            "languages/java/src/main/java/io/yogabase/client/YogabaseScheduleConcurrencyPolicy.java",
+            "languages/java/src/main/java/io/yogabase/client/YogabaseStatusErrorCodes.java",
+            "languages/java/src/main/java/io/yogabase/client/YogabaseGatewayChannel.java",
+            "languages/java/src/main/java/io/yogabase/client/v1/projects/item/schedules/",
+            "languages/java/src/main/java/io/yogabase/client/models/ScheduleDefinitionRequest.java",
+            "languages/java/src/main/java/io/yogabase/client/models/ScheduleTriggerRequest.java",
         ],
         ["Dart"] =
         [

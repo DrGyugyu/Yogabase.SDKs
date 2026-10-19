@@ -81,7 +81,7 @@ public sealed class UnityBuildTests
 
         // Exactly the 8.0 line the AI Game Developer package restores, so the demo's own copies and
         // that package's copies are the same bytes (the demo's plugin lock records both digests).
-        Assert.Equal("8.0.15", pins["Microsoft.AspNetCore.SignalR.Client"]);
+        Assert.Equal("8.0.32", pins["Microsoft.AspNetCore.SignalR.Client"]); // CVE-2026-70159: patched 8.0 line (2026-10-19)
         Assert.Equal("8.0.5", pins["System.Text.Json"]);
         Assert.All(pins.Values, version => Assert.StartsWith("8.", version, StringComparison.Ordinal));
 

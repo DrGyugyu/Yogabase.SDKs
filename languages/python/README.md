@@ -1,4 +1,4 @@
-# Yogabase Python client preview
+# Yogabase Python client
 
 Generated with Microsoft Kiota 1.34.1 from the current Yogabase v1-preview contract, with authored
 parts beside it: a password sign-in, sign-in with an external provider, durable Jobs, schedules, a workload Delivery client and a
@@ -10,11 +10,11 @@ The generated REST surface includes bootstrap, signup and interactive auth endpo
 Storage, stateless Function invocation, Actor Lambda invocation, Workflow start/cancel, and the
 request builders of the Jobs and schedule routes. The
 contract returns a separate realtime origin, but this package does not yet include or qualify a
-Python SignalR wrapper. This source preview is local, unpublished, and not production-qualified.
+Python SignalR wrapper. The package is not yet on a package registry; install it from source as below.
 
 ## Getting started
 
-Nothing is published, so install from a checkout of this repository, into a virtual environment on
+The package is not yet on a package registry, so install it from a checkout of this repository, into a virtual environment on
 Python 3.12 or 3.13, from the hash-locked dependencies:
 
 ```text
@@ -38,8 +38,8 @@ from datetime import datetime, timedelta, timezone
 import httpx
 from kiota_http.httpx_request_adapter import HttpxRequestAdapter
 from kiota_http.kiota_client_factory import KiotaClientFactory
-from stackyoga_yogabase import YogabaseApiClient, platform_ssl_context, sign_in_with_password
-from stackyoga_yogabase.models.invocation_request import InvocationRequest
+from yogabase_client import YogabaseApiClient, platform_ssl_context, sign_in_with_password
+from yogabase_client.models.invocation_request import InvocationRequest
 
 GATEWAY = "https://api.example.com"            # the installation's gateway origin
 
@@ -188,7 +188,7 @@ Two other surfaces were added when the Data API was withdrawn:
 ## Hierarchical storage keys
 
 Generated `objects.by_key(...)` is single-segment-only. For a logical key containing `/`, import
-`storage_object_for_logical_key` from `stackyoga_yogabase` and pass the generated objects builder,
+`storage_object_for_logical_key` from `yogabase_client` and pass the generated objects builder,
 the gateway origin, and the logical key (`client` and `GATEWAY` are those of Getting started). The authored adapter validates the C# key grammar,
 encodes each segment separately, and returns the generated builder through `with_url(...)`.
 
@@ -226,7 +226,7 @@ contract change that moves a route or a member fails there. `GATEWAY` and `sessi
 
 ```python
 import asyncio
-from stackyoga_yogabase import AsyncJobsClient
+from yogabase_client import AsyncJobsClient
 
 async with AsyncJobsClient(
     gateway_host=GATEWAY,                     # the session from Getting started signed in to it
@@ -291,7 +291,7 @@ added by hand; `tests/test_schedules.py` pins every shape and holds each request
 
 ```python
 from datetime import datetime, timedelta, timezone
-from stackyoga_yogabase import AsyncSchedulesClient, YogabaseScheduleDefinition
+from yogabase_client import AsyncSchedulesClient, YogabaseScheduleDefinition
 
 definition = YogabaseScheduleDefinition(
     schedule_id="nightly",
@@ -367,7 +367,7 @@ preview/submit workflow for environments, artifact admissions, releases, promoti
 decommissions, and operation abandonment:
 
 ```python
-from stackyoga_yogabase import AsyncDeliveryClient
+from yogabase_client import AsyncDeliveryClient
 
 async with AsyncDeliveryClient(
     delivery_host="https://delivery.example.test",
@@ -413,7 +413,7 @@ An interpreter whose OpenSSL has no default store configured (some macOS install
 empty until a certificate step is run) then fails verification instead of silently trusting
 certifi's copy; install the platform's certificates rather than switching verification off.
 
-`certifi` (MPL-2.0) is still installed. The owner decided on 2026-09-17 to drop it, but httpx
+`certifi` (MPL-2.0) is still installed, although this package does not trust its bundle: httpx
 0.28.1 and httpcore 1.0.9 — the HTTP stack under the Kiota Python runtime — both declare
 `Requires-Dist: certifi` unconditionally and import it, so `requirements.lock` keeps it and a
 hash-checked install cannot leave it out. Removing it would mean replacing httpx beneath Kiota,
@@ -432,7 +432,7 @@ PYTHONPATH=src .venv/bin/python -m unittest discover -s tests
 `requirements.lock` hash-pins the runtime closure of the two direct pins (22 wheels, one of them
 only for Python below 3.11, so never installed on the two supported versions). `pyproject.toml` pins the build backend exactly (`setuptools==84.0.0`),
 and `build-requirements.lock` hash-pins `build` 1.6.1 and that backend, so the wheel and sdist are
-built with exactly those tools rather than whatever an isolated build environment resolves. The tests import whichever `stackyoga_yogabase` is on the path:
+built with exactly those tools rather than whatever an isolated build environment resolves. The tests import whichever `yogabase_client` is on the path:
 with `PYTHONPATH=src` they check this source tree; in a fresh environment holding only
 `requirements.lock` and the built wheel (`pip install --no-index dist/*.whl`), running
 `python -P -m unittest discover -s tests` from this folder checks the installed wheel instead.
@@ -485,7 +485,7 @@ variable was set). Nine are `test_sign_in.py`'s. On 3.13 the package was also in
 111 ran against that copy. Getting started's example was run verbatim against the same fake gateway, and the
 smoke test's body once against it, to prove the requests are well formed. The wheel and sdist were not rebuilt,
 and no run against a live installation is recorded: the one probe made, an anonymous
-`GET /connect/authorize` on the owner's CloudFront gateway, answered OpenIddict's own `400 invalid_request`
+`GET /connect/authorize` on a hosted installation's gateway, answered OpenIddict's own `400 invalid_request`
 (an unregistered `client_id`), not a Yogabase sign-in refusal.
 
 Run again later on 2026-10-07 at version 0.4.0.dev1, in new environments made from the locks with
@@ -499,3 +499,7 @@ under `-X dev` with `ResourceWarning` as an error, after sign-in with an externa
 steps were shared with it, and the provider sign-in began to read the discovery document before sending the callback: 118 tests,
 117 passed and the live smoke test skipped, on both. Seven are the provider sign-in's. The wheel
 and sdist were not rebuilt, and nothing here has run against a live installation or a real provider.
+
+## Licence
+
+Apache-2.0; see [LICENSE.md](LICENSE.md).

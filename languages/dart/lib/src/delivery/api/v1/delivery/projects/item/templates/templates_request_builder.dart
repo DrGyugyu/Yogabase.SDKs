@@ -9,7 +9,7 @@ import './templates_request_builder_get_query_parameters.dart';
 /// auto generated
 /// Builds and executes requests for operations under \api\v1\delivery\projects\{projectId}\templates
 class TemplatesRequestBuilder extends BaseRequestBuilder<TemplatesRequestBuilder> {
-    /// Gets an item from the stackyoga_yogabase_delivery.api.v1.delivery.projects.item.templates.item collection
+    /// Gets an item from the yogabase_client_delivery.api.v1.delivery.projects.item.templates.item collection
     ///  [templateId] Unique identifier of the item
     WithTemplateItemRequestBuilder byTemplateId(UuidValue templateId) {
         var urlTplParams = Map.of(pathParameters);

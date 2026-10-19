@@ -53,10 +53,10 @@ public sealed class ContractOperationParityTests
 
     private const string TsJobs = "languages/typescript/src/jobs.ts";
     private const string TsSchedules = "languages/typescript/src/schedules.ts";
-    private const string PyJobs = "languages/python/src/stackyoga_yogabase/jobs.py";
-    private const string PySchedules = "languages/python/src/stackyoga_yogabase/schedules.py";
-    private const string JavaJobs = "languages/java/src/main/java/io/stackyoga/yogabase/YogabaseJobsClient.java";
-    private const string JavaSchedules = "languages/java/src/main/java/io/stackyoga/yogabase/YogabaseSchedulesClient.java";
+    private const string PyJobs = "languages/python/src/yogabase_client/jobs.py";
+    private const string PySchedules = "languages/python/src/yogabase_client/schedules.py";
+    private const string JavaJobs = "languages/java/src/main/java/io/yogabase/client/YogabaseJobsClient.java";
+    private const string JavaSchedules = "languages/java/src/main/java/io/yogabase/client/YogabaseSchedulesClient.java";
     private const string DartJobs = "languages/dart/lib/src/yogabase_jobs_client.dart";
     private const string DartSchedules = "languages/dart/lib/src/yogabase_schedules_client.dart";
 
@@ -207,7 +207,7 @@ public sealed class ContractOperationParityTests
     };
 
     private const string ConfigurationOperation = "getYogabaseClientConfiguration";
-    private const string Redirect = "com.stackyoga.app:/oauth/callback";
+    private const string Redirect = "io.yogabase.app:/oauth/callback";
 
     // ---------------------------------------------------------------------------------------
     // Every operation is accounted for
@@ -364,15 +364,15 @@ public sealed class ContractOperationParityTests
                 "application",
                 [
                     "languages/typescript/src/kiota-lock.json",
-                    "languages/python/src/stackyoga_yogabase/kiota-lock.json",
-                    "languages/java/src/main/java/io/stackyoga/yogabase/kiota-lock.json",
+                    "languages/python/src/yogabase_client/kiota-lock.json",
+                    "languages/java/src/main/java/io/yogabase/client/kiota-lock.json",
                     "languages/dart/lib/src/kiota-lock.json",
                 ]
             ),
             (
                 "delivery",
                 [
-                    "languages/java/src/main/java/io/stackyoga/yogabase/delivery/kiota-lock.json",
+                    "languages/java/src/main/java/io/yogabase/client/delivery/kiota-lock.json",
                     "languages/dart/lib/src/delivery/kiota-lock.json",
                 ]
             ),
@@ -432,8 +432,8 @@ public sealed class ContractOperationParityTests
         var (directory, filePattern, excludedFragment) = language switch
         {
             "TypeScript" => ("languages/typescript/src", "index.ts", "/models/"),
-            "Python" => ("languages/python/src/stackyoga_yogabase", "*_request_builder.py", "/models/"),
-            "Java" => ("languages/java/src/main/java/io/stackyoga/yogabase", "*RequestBuilder.java", "/delivery/"),
+            "Python" => ("languages/python/src/yogabase_client", "*_request_builder.py", "/models/"),
+            "Java" => ("languages/java/src/main/java/io/yogabase/client", "*RequestBuilder.java", "/delivery/"),
             "Dart" => ("languages/dart/lib/src", "*_request_builder.dart", "/delivery/"),
             _ => throw new ArgumentOutOfRangeException(nameof(language), language, "Not a Kiota language."),
         };
@@ -586,9 +586,9 @@ public sealed class ContractOperationParityTests
                 RealtimeEndpoint = "http://localhost:5001/",
                 OidcAuthority = "http://localhost/p/11111111-1111-4111-8111-111111111111",
                 OidcDiscoveryEndpoint = "http://localhost/.well-known/openid-configuration",
-                OidcPublicClientId = "stackyoga-native-preview",
+                OidcPublicClientId = "yogabase-native-preview",
                 OidcScopes = ["openid", "offline_access"],
-                OidcRedirectUris = ["com.stackyoga.app:/oauth/callback"],
+                OidcRedirectUris = ["io.yogabase.app:/oauth/callback"],
                 RealtimePath = "/v1/realtime",
                 Capabilities = YogabaseClientTests.Capabilities(),
                 IssuedAt = DateTimeOffset.Parse("2026-10-03T00:00:00+00:00", System.Globalization.CultureInfo.InvariantCulture),

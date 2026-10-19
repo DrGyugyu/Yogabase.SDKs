@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:microsoft_kiota_abstractions/microsoft_kiota_abstractions.dart';
-import 'package:stackyoga_yogabase_client_preview/stackyoga_yogabase_client_preview.dart';
-import 'package:stackyoga_yogabase_client_preview/src/delivery/models/delivery_operation_envelope.dart';
+import 'package:yogabase_client/yogabase_client.dart';
+import 'package:yogabase_client/src/delivery/models/delivery_operation_envelope.dart';
 import 'package:uuid/uuid.dart';
 
 /// Standalone source-level checks; run with `dart run test/yogabase_delivery_source_test.dart`.

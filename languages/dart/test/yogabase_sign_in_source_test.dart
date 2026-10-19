@@ -4,7 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:microsoft_kiota_bundle/microsoft_kiota_bundle.dart';
-import 'package:stackyoga_yogabase_client_preview/stackyoga_yogabase_client_preview.dart';
+import 'package:yogabase_client/yogabase_client.dart';
 
 /// Headless password sign-in against a fake gateway that answers the routes the product's sign-in uses; run with
 /// `dart run test/yogabase_sign_in_source_test.dart`. Nothing here reaches a network.

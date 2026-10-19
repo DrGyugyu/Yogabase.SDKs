@@ -1,0 +1,93 @@
+package io.yogabase.client.auth.password.reset.request;
+
+import com.microsoft.kiota.BaseRequestBuilder;
+import com.microsoft.kiota.BaseRequestConfiguration;
+import com.microsoft.kiota.HttpMethod;
+import com.microsoft.kiota.RequestAdapter;
+import com.microsoft.kiota.RequestInformation;
+import com.microsoft.kiota.RequestOption;
+import com.microsoft.kiota.serialization.Parsable;
+import com.microsoft.kiota.serialization.ParsableFactory;
+import io.yogabase.client.models.PasswordResetRequest;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+/**
+ * Builds and executes requests for operations under /auth/password/reset/request
+ */
+@jakarta.annotation.Generated("com.microsoft.kiota")
+public class RequestRequestBuilder extends BaseRequestBuilder {
+    /**
+     * Instantiates a new {@link RequestRequestBuilder} and sets the default values.
+     * @param pathParameters Path parameters for the request
+     * @param requestAdapter The request adapter to use to execute the requests.
+     */
+    public RequestRequestBuilder(@jakarta.annotation.Nonnull final HashMap<String, Object> pathParameters, @jakarta.annotation.Nonnull final RequestAdapter requestAdapter) {
+        super(requestAdapter, "{+baseurl}/auth/password/reset/request", pathParameters);
+    }
+    /**
+     * Instantiates a new {@link RequestRequestBuilder} and sets the default values.
+     * @param rawUrl The raw URL to use for the request builder.
+     * @param requestAdapter The request adapter to use to execute the requests.
+     */
+    public RequestRequestBuilder(@jakarta.annotation.Nonnull final String rawUrl, @jakarta.annotation.Nonnull final RequestAdapter requestAdapter) {
+        super(requestAdapter, "{+baseurl}/auth/password/reset/request", rawUrl);
+    }
+    /**
+     * Always returns the same accepted response so account existence and throttling are not disclosed.
+     * @param body The request body
+     */
+    public void post(@jakarta.annotation.Nonnull final PasswordResetRequest body) {
+        post(body, null);
+    }
+    /**
+     * Always returns the same accepted response so account existence and throttling are not disclosed.
+     * @param body The request body
+     * @param requestConfiguration Configuration for the request such as headers, query parameters, and middleware options.
+     */
+    public void post(@jakarta.annotation.Nonnull final PasswordResetRequest body, @jakarta.annotation.Nullable final java.util.function.Consumer<PostRequestConfiguration> requestConfiguration) {
+        Objects.requireNonNull(body);
+        final RequestInformation requestInfo = toPostRequestInformation(body, requestConfiguration);
+        this.requestAdapter.sendPrimitive(requestInfo, null, Void.class);
+    }
+    /**
+     * Always returns the same accepted response so account existence and throttling are not disclosed.
+     * @param body The request body
+     * @return a {@link RequestInformation}
+     */
+    @jakarta.annotation.Nonnull
+    public RequestInformation toPostRequestInformation(@jakarta.annotation.Nonnull final PasswordResetRequest body) {
+        return toPostRequestInformation(body, null);
+    }
+    /**
+     * Always returns the same accepted response so account existence and throttling are not disclosed.
+     * @param body The request body
+     * @param requestConfiguration Configuration for the request such as headers, query parameters, and middleware options.
+     * @return a {@link RequestInformation}
+     */
+    @jakarta.annotation.Nonnull
+    public RequestInformation toPostRequestInformation(@jakarta.annotation.Nonnull final PasswordResetRequest body, @jakarta.annotation.Nullable final java.util.function.Consumer<PostRequestConfiguration> requestConfiguration) {
+        Objects.requireNonNull(body);
+        final RequestInformation requestInfo = new RequestInformation(HttpMethod.POST, urlTemplate, pathParameters);
+        requestInfo.configure(requestConfiguration, PostRequestConfiguration::new);
+        requestInfo.setContentFromParsable(requestAdapter, "application/json", body);
+        return requestInfo;
+    }
+    /**
+     * Returns a request builder with the provided arbitrary URL. Using this method means any other path or query parameters are ignored.
+     * @param rawUrl The raw URL to use for the request builder.
+     * @return a {@link RequestRequestBuilder}
+     */
+    @jakarta.annotation.Nonnull
+    public RequestRequestBuilder withUrl(@jakarta.annotation.Nonnull final String rawUrl) {
+        Objects.requireNonNull(rawUrl);
+        return new RequestRequestBuilder(rawUrl, requestAdapter);
+    }
+    /**
+     * Configuration for the request such as headers, query parameters, and middleware options.
+     */
+    @jakarta.annotation.Generated("com.microsoft.kiota")
+    public class PostRequestConfiguration extends BaseRequestConfiguration {
+    }
+}

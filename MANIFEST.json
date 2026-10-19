@@ -1,14 +1,14 @@
 {
   "schema": "yogabase-sdk-project.v1",
   "generatedAt": "2026-09-09T12:00:00Z",
-  "status": "local-unpublished-preview",
+  "status": "public-source-preview",
   "repository": {
     "path": ".",
     "gitInitialized": true,
     "committed": true,
     "remoteConfigured": true,
-    "remoteKind": "owner-private-local-gitea",
-    "publicationRemote": false
+    "remoteKind": "github-public",
+    "publicationRemote": "https://github.com/DrGyugyu/Yogabase.SDKs"
   },
   "sourceProvenance": {
     "authoredDotNetSource": "Application (including the /v1/servers game-server surface, the durable Jobs routes and the schedule routes, which the contract describes and which this client, having no generated code, authors), PKCE, SignalR, Control Plane build-ingest, and workload Delivery clients aligned to the four checked-in Yogabase contracts, plus a separate authored runtime-host client for hosted self-contained service workloads and the Yogabase.Lambda runtime-context wrapper",
@@ -45,8 +45,8 @@
     "clients": {
       "dotnet": "YogabaseClient.Jobs (src/dotnet/Yogabase.Yogabase.Client/JobsClient.cs), authored over the client's own transport, carried into the Unity build",
       "typescript": "YogabaseJobsClient (languages/typescript/src/jobs.ts), standalone over GatewayChannel (languages/typescript/src/gateway.ts)",
-      "python": "AsyncJobsClient (languages/python/src/stackyoga_yogabase/jobs.py), standalone over GatewayChannel (languages/python/src/stackyoga_yogabase/_gateway.py)",
-      "java": "YogabaseJobsClient and YogabaseApplicationClient.jobs (languages/java/src/main/java/io/stackyoga/yogabase/YogabaseJob*.java), built over the generated JobsRequestBuilder",
+      "python": "AsyncJobsClient (languages/python/src/yogabase_client/jobs.py), standalone over GatewayChannel (languages/python/src/yogabase_client/_gateway.py)",
+      "java": "YogabaseJobsClient and YogabaseApplicationClient.jobs (languages/java/src/main/java/io/yogabase/client/YogabaseJob*.java), built over the generated JobsRequestBuilder",
       "dart": "YogabaseJobsClient (languages/dart/lib/src/yogabase_jobs_client.dart), built over the generated builders, no digest check; its standalone source program passed on Dart 3.13.5 on 2026-10-07"
     },
     "parityGate": "tests/dotnet/Yogabase.Yogabase.Client.Tests/ContractOperationParityTests.cs and ContractLimitsAndCodesTests hold every operation, limit, status and refusal code to the mirrored contract, and JobsSurfaceParityTests keeps the five spellings together; they replaced the tripwire that failed on the day the contract declared a /jobs route",
@@ -76,8 +76,8 @@
     "clients": {
       "dotnet": "YogabaseClient.Schedules (src/dotnet/Yogabase.Yogabase.Client/SchedulesClient.cs), carried into the Unity build",
       "typescript": "YogabaseSchedulesClient (languages/typescript/src/schedules.ts)",
-      "python": "AsyncSchedulesClient (languages/python/src/stackyoga_yogabase/schedules.py)",
-      "java": "YogabaseSchedulesClient and YogabaseApplicationClient.schedules (languages/java/src/main/java/io/stackyoga/yogabase/YogabaseSchedule*.java), built over the generated SchedulesRequestBuilder",
+      "python": "AsyncSchedulesClient (languages/python/src/yogabase_client/schedules.py)",
+      "java": "YogabaseSchedulesClient and YogabaseApplicationClient.schedules (languages/java/src/main/java/io/yogabase/client/YogabaseSchedule*.java), built over the generated SchedulesRequestBuilder",
       "dart": "YogabaseSchedulesClient (languages/dart/lib/src/yogabase_schedules_client.dart), built over the generated builders; its standalone source program passed on Dart 3.13.5 on 2026-10-07"
     },
     "parityGate": "ContractOperationParityTests and ContractLimitsAndCodesTests hold the four operations, the payload and field bounds, the policy names, the outcome numbers and the ETag pattern to the mirrored contract, and SchedulesSurfaceParityTests keeps the five spellings together",
@@ -157,28 +157,28 @@
     {
       "language": "TypeScript",
       "source": "languages/typescript",
-      "packageId": "@stackyoga/yogabase-client-preview",
+      "packageId": "@yogabase/client",
       "version": "0.4.0-preview.1",
       "qualification": "npm-ci-typescript-build-and-104-tests-ran-2026-10-08-on-node-25.9.0-103-passed-and-the-live-smoke-test-was-skipped-including-the-headless-password-sign-in-the-external-provider-sign-in-never-run-against-a-real-provider-the-jobs-and-schedule-clients-with-their-generated-builder-equivalence-cases-the-regenerated-413-and-data-surface-and-the-schedule-id-rule-held-to-the-pattern-read-from-the-mirrored-contract-and-npm-pack-dry-run-names-the-0.4.0-preview.1-tarball; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-main-92ac1ced-route-code-26-and-41-checks"
     },
     {
       "language": "Python",
       "source": "languages/python",
-      "packageId": "stackyoga-yogabase-client-preview",
+      "packageId": "yogabase-client",
       "version": "0.4.0.dev1",
       "qualification": "hash-locked-install-and-118-tests-from-source-under--X-dev-with-ResourceWarning-as-an-error-ran-2026-10-08-on-cpython-3.13.12-and-3.12.13-117-passed-and-the-live-smoke-test-was-skipped-on-both-including-the-headless-password-sign-in-the-external-provider-sign-in-never-run-against-a-real-provider-and-the-jobs-and-schedule-cases-with-their-generated-builder-equivalence-cases; build-no-isolation-wheel-and-sdist-built-2026-10-07-with-the-exactly-pinned-setuptools-84.0.0-backend; fresh-venv-offline-wheel-install-pip-check-clean-and-111-tests-ran-against-the-installed-wheel-on-3.13.12-2026-10-07-not-repeated-since-the-external-sign-in-was-added; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-main-92ac1ced-route-code-24-and-36-checks-on-both-interpreters; only-python-3.12-and-3.13-are-claimed-and-3.10-and-3.11-were-never-run; own-clients-trust-the-platform-store-but-certifi-stays-in-the-closure-because-httpx-and-httpcore-require-it; no-live-gateway-and-no-published-index"
     },
     {
       "language": "Java",
       "source": "languages/java",
-      "packageId": "io.stackyoga:yogabase-client-preview",
+      "packageId": "io.yogabase:yogabase-client",
       "version": "0.4.0-preview.1",
       "qualification": "jdk-21-release-17-full-source-compile-and-two-executable-conformance-tests-passed-2026-09-09-maven-unavailable; full-source-compile-at-release-17-and-five-executable-conformance-programs-passed-2026-10-03-against-the-local-maven-repository-jars-including-the-336-check-jobs-program-the-1988-check-schedules-program-including-the-schedule-id-rule-held-to-the-pattern-read-from-the-mirrored-contract-and-the-26-check-generated-surface-program-maven-still-unavailable; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-main-92ac1ced-route-code-24-and-36-checks"
     },
     {
       "language": "Dart",
       "source": "languages/dart",
-      "packageId": "stackyoga_yogabase_client_preview",
+      "packageId": "yogabase_client",
       "version": "0.4.0-dev.1",
       "qualification": "dart-3.13.5-homebrew-pub-get-enforce-lockfile-unchanged-analyze-with-fatal-infos-and-fatal-warnings-clean-after-four-unneeded-dart-typed-data-imports-were-removed-and-five-standalone-source-programs-passed-2026-10-08-delivery-jobs-schedules-sign-in-and-storage-on-the-2026-10-03-regenerated-source-including-the-headless-password-sign-in-the-external-provider-sign-in-never-run-against-a-real-provider-and-the-raw-bytes-octet-stream-factory-pair-that-makes-storage-object-reads-and-writes-work; http-and-crypto-already-locked-now-declared-directly; dart-test-runner-not-wired-because-test-is-not-in-the-lockfile; earlier-run-2026-09-17-on-dart-3.13.2; sign-ins-storage-calls-and-the-live-smoke-program-never-run-against-a-live-installation; flutter-and-streaming-adapter-unqualified"
     },
@@ -191,8 +191,8 @@
     },
     {
       "language": "Unity",
-      "source": "languages/unity/com.stackyoga.yogabase-runtime-host",
-      "packageId": "com.stackyoga.yogabase-runtime-host",
+      "source": "languages/unity/io.yogabase.runtime-host",
+      "packageId": "io.yogabase.runtime-host",
       "version": "0.2.3-preview.1",
       "qualification": "runtime-folder-compile-checked-2026-09-23-at-csharp-9-warnings-as-errors-against-the-unity-6000.5.7f1-player-reference-set; editor-scripts-compile-checked-2026-09-23-with-scripts/compile-unity-editor.sh-against-the-unity-6000.5.7f1-editor-reference-set-at-csharp-9-warnings-as-errors; no-unity-editor-import-of-this-version, no-il2cpp-build, no-publish-window-run, and-no-live-relay-session"
     },
@@ -230,5 +230,6 @@
       "qualification": "locked-restore-release-netstandard2.1-build-deterministic-across-two-no-incremental-builds-2026-10-03-at-commit-0da1c82-whose-hash-the-assembly-embeds-in-its-informational-version-so-the-digest-is-per-commit; UnityBuildTests-pin-no-9.x-or-10.x-assembly-reference-or-lock-entry; unity-editor-and-il2cpp-evidence-is-the-consuming-project's-own"
     }
   ],
-  "publicationAuthorized": false
+  "publicationAuthorized": false,
+  "publicationAuthorizedScope": "Governs publication to a package registry (NuGet, npm, PyPI, Maven Central, pub.dev or a UPM registry), not the source: the source is public at repository.publicationRemote under Apache-2.0, and no package has been published to any registry."
 }

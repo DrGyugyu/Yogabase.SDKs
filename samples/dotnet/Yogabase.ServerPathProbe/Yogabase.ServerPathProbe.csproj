@@ -8,7 +8,7 @@
          Servers, Functions and Realtime surfaces from the owner's own terminal. It carries no
          package identity and must never be packed or published alongside the SDK packages. -->
     <IsPackable>false</IsPackable>
-    <PublishRepositoryUrl>false</PublishRepositoryUrl>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <InvariantGlobalization>true</InvariantGlobalization>
     <NoWarn>$(NoWarn);CA1812</NoWarn>
   </PropertyGroup>

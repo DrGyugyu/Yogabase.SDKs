@@ -18,7 +18,7 @@ from kiota_abstractions.base_request_configuration import RequestConfiguration
 from kiota_abstractions.headers_collection import HeadersCollection
 from kiota_http.httpx_request_adapter import HttpxRequestAdapter
 
-from stackyoga_yogabase import (
+from yogabase_client import (
     SCHEDULE_PAYLOAD_TOO_LARGE,
     SCHEDULE_RESPONSE_INVALID,
     STATUS_AUTHENTICATION_REQUIRED,
@@ -712,7 +712,7 @@ class ScheduleScopeTests(unittest.IsolatedAsyncioTestCase):
         from unittest import mock
 
         context = __import__("ssl").create_default_context()
-        with mock.patch("stackyoga_yogabase._gateway.platform_ssl_context", return_value=context) as platform:
+        with mock.patch("yogabase_client._gateway.platform_ssl_context", return_value=context) as platform:
             client = AsyncSchedulesClient(gateway_host=GATEWAY, project_id=PROJECT, access_token="token")
         try:
             platform.assert_called_once_with()
@@ -786,9 +786,9 @@ class ScheduleGeneratedBuilderEquivalenceTests(unittest.IsolatedAsyncioTestCase)
 
     @staticmethod
     def generated_definition(**overrides: object):  # noqa: ANN205
-        from stackyoga_yogabase.models.concurrency_policy import ConcurrencyPolicy
-        from stackyoga_yogabase.models.misfire_policy import MisfirePolicy
-        from stackyoga_yogabase.models.schedule_definition_request import ScheduleDefinitionRequest
+        from yogabase_client.models.concurrency_policy import ConcurrencyPolicy
+        from yogabase_client.models.misfire_policy import MisfirePolicy
+        from yogabase_client.models.schedule_definition_request import ScheduleDefinitionRequest
 
         body = ScheduleDefinitionRequest()
         body.schedule_id = "nightly"
@@ -830,7 +830,7 @@ class ScheduleGeneratedBuilderEquivalenceTests(unittest.IsolatedAsyncioTestCase)
         built = await self.generated(lambda api: self.item(api).delete(self.configuration(If_Match=ETAG3)))
         self.assert_same(await self.authored(lambda schedules: schedules.delete("nightly", ETAG3)), built, {"if-match": ETAG3})
 
-        from stackyoga_yogabase.models.schedule_trigger_request import ScheduleTriggerRequest
+        from yogabase_client.models.schedule_trigger_request import ScheduleTriggerRequest
 
         deadline = datetime(2026, 10, 3, 12, 30, tzinfo=timezone.utc)
         body = ScheduleTriggerRequest()

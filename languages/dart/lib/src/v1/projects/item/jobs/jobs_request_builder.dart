@@ -9,7 +9,7 @@ import './item/with_job_item_request_builder.dart';
 /// auto generated
 /// Builds and executes requests for operations under \v1\projects\{projectId}\jobs
 class JobsRequestBuilder extends BaseRequestBuilder<JobsRequestBuilder> {
-    /// Gets an item from the stackyoga_yogabase.v1.projects.item.jobs.item collection
+    /// Gets an item from the yogabase_client.v1.projects.item.jobs.item collection
     ///  [jobId] A job's id, as returned by submit. An id that is not a uuid in its hyphenated form, or is the all-zero uuid, is 400 job_request_invalid.
     WithJobItemRequestBuilder byJobId(UuidValue jobId) {
         var urlTplParams = Map.of(pathParameters);

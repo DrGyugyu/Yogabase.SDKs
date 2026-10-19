@@ -2,7 +2,7 @@
 
 import unittest
 
-from stackyoga_yogabase import build_storage_object_url, storage_object_for_logical_key
+from yogabase_client import build_storage_object_url, storage_object_for_logical_key
 
 
 class StorageLogicalKeyTests(unittest.TestCase):

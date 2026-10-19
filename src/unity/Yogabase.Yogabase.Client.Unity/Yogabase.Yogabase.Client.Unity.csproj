@@ -17,6 +17,7 @@
     <Product>Yogabase.Yogabase.Client (Unity build, 8.0 package line)</Product>
     <Description>Unity build of the preview first-party .NET client for the Yogabase application gateway, pinned to the 8.0 package line.</Description>
     <IsPackable>false</IsPackable>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <NoWarn>$(NoWarn);CS1591;CA1510;CA1512;CA1847;CA1850;CA1865</NoWarn>

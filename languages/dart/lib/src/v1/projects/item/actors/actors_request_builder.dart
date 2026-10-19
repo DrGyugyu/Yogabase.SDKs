@@ -5,7 +5,7 @@ import './item/with_function_item_request_builder.dart';
 /// auto generated
 /// Builds and executes requests for operations under \v1\projects\{projectId}\actors
 class ActorsRequestBuilder extends BaseRequestBuilder<ActorsRequestBuilder> {
-    /// Gets an item from the stackyoga_yogabase.v1.projects.item.actors.item collection
+    /// Gets an item from the yogabase_client.v1.projects.item.actors.item collection
     ///  [functionId] Unique identifier of the item
     WithFunctionItemRequestBuilder byFunctionId(String functionId) {
         var urlTplParams = Map.of(pathParameters);

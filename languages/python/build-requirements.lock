@@ -1,4 +1,4 @@
-# Hash-pinned build tools for stackyoga-yogabase-client-preview: the `build` frontend and the
+# Hash-pinned build tools for yogabase-client: the `build` frontend and the
 # setuptools backend pyproject.toml pins exactly (`setuptools==84.0.0` since 2026-09-22; it accepted
 # `setuptools>=80` when these were resolved on 2026-09-17).
 #

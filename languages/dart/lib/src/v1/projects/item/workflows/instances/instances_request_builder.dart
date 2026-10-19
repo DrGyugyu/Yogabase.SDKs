@@ -6,7 +6,7 @@ import './item/with_workflow_instance_item_request_builder.dart';
 /// auto generated
 /// Builds and executes requests for operations under \v1\projects\{projectId}\workflows\instances
 class InstancesRequestBuilder extends BaseRequestBuilder<InstancesRequestBuilder> {
-    /// Gets an item from the stackyoga_yogabase.v1.projects.item.workflows.instances.item collection
+    /// Gets an item from the yogabase_client.v1.projects.item.workflows.instances.item collection
     ///  [workflowInstanceId] Unique identifier of the item
     WithWorkflowInstanceItemRequestBuilder byWorkflowInstanceId(UuidValue workflowInstanceId) {
         var urlTplParams = Map.of(pathParameters);

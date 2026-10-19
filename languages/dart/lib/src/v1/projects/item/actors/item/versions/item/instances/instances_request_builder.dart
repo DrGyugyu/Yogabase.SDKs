@@ -5,7 +5,7 @@ import './item/with_instance_key_item_request_builder.dart';
 /// auto generated
 /// Builds and executes requests for operations under \v1\projects\{projectId}\actors\{functionId}\versions\{functionVersion}\instances
 class InstancesRequestBuilder extends BaseRequestBuilder<InstancesRequestBuilder> {
-    /// Gets an item from the stackyoga_yogabase.v1.projects.item.actors.item.versions.item.instances.item collection
+    /// Gets an item from the yogabase_client.v1.projects.item.actors.item.versions.item.instances.item collection
     ///  [instanceKey] Unique identifier of the item
     WithInstanceKeyItemRequestBuilder byInstanceKey(String instanceKey) {
         var urlTplParams = Map.of(pathParameters);

@@ -13,9 +13,9 @@ import httpx
 from kiota_abstractions.authentication.anonymous_authentication_provider import AnonymousAuthenticationProvider
 from kiota_http.httpx_request_adapter import HttpxRequestAdapter
 
-import stackyoga_yogabase
-from stackyoga_yogabase import YogabaseApiClient, storage_object_for_logical_key
-from stackyoga_yogabase.models.problem import Problem
+import yogabase_client
+from yogabase_client import YogabaseApiClient, storage_object_for_logical_key
+from yogabase_client.models.problem import Problem
 
 GATEWAY = "https://apps.example.test"
 
@@ -24,14 +24,14 @@ class GeneratedSurfaceTests(unittest.IsolatedAsyncioTestCase):
     def test_every_module_in_the_imported_package_imports(self) -> None:
         # The generated subpackages have no __init__.py, so pkgutil.walk_packages would stop at the
         # top level; walk the files instead.
-        root = pathlib.Path(stackyoga_yogabase.__file__).parent
+        root = pathlib.Path(yogabase_client.__file__).parent
         names = sorted(
-            ".".join(("stackyoga_yogabase", *path.relative_to(root).with_suffix("").parts))
+            ".".join(("yogabase_client", *path.relative_to(root).with_suffix("").parts))
             for path in root.rglob("*.py")
             if path.name != "__init__.py"
         )
-        self.assertIn("stackyoga_yogabase.v1.servers.servers_request_builder", names)
-        self.assertIn("stackyoga_yogabase.delivery", names)
+        self.assertIn("yogabase_client.v1.servers.servers_request_builder", names)
+        self.assertIn("yogabase_client.delivery", names)
         failures = {}
         for name in names:
             try:
@@ -87,7 +87,7 @@ class GeneratedSurfaceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(raised.exception.trace_id, "trace-1")
 
     async def test_generated_invoke_413_is_a_payload_too_large_problem_that_names_both_limits(self) -> None:
-        from stackyoga_yogabase.models.invocation_request import InvocationRequest
+        from yogabase_client.models.invocation_request import InvocationRequest
 
         requests: list[httpx.Request] = []
         problem = {
@@ -120,7 +120,7 @@ class GeneratedSurfaceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(raised.exception.additional_data["maxBodyBytes"], 8_392_166)
 
     async def test_the_restored_data_api_is_generated_and_a_select_posts_to_the_tables_route(self) -> None:
-        from stackyoga_yogabase.models.data_select_request import DataSelectRequest
+        from yogabase_client.models.data_select_request import DataSelectRequest
 
         requests: list[httpx.Request] = []
 
@@ -153,9 +153,9 @@ class GeneratedSurfaceTests(unittest.IsolatedAsyncioTestCase):
     async def test_generated_actor_and_workflow_413_are_payload_too_large_problems_that_name_both_limits(self) -> None:
         from uuid import UUID
 
-        from stackyoga_yogabase.models.actor_invocation_request import ActorInvocationRequest
-        from stackyoga_yogabase.models.workflow_cancel_request import WorkflowCancelRequest
-        from stackyoga_yogabase.models.workflow_start_request import WorkflowStartRequest
+        from yogabase_client.models.actor_invocation_request import ActorInvocationRequest
+        from yogabase_client.models.workflow_cancel_request import WorkflowCancelRequest
+        from yogabase_client.models.workflow_start_request import WorkflowStartRequest
 
         instance = UUID("55555555-5555-4555-8555-555555555555")
         project = "11111111-1111-4111-8111-111111111111"
@@ -193,7 +193,7 @@ class GeneratedSurfaceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(raised.exception.additional_data["maxBodyBytes"], max_body_bytes)
 
     async def test_generated_data_413_is_a_data_request_too_large_problem_that_names_both_limits(self) -> None:
-        from stackyoga_yogabase.models.data_select_request import DataSelectRequest
+        from yogabase_client.models.data_select_request import DataSelectRequest
 
         requests: list[httpx.Request] = []
         problem = {

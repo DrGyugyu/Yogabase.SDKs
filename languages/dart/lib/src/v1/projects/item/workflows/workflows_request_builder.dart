@@ -10,7 +10,7 @@ class WorkflowsRequestBuilder extends BaseRequestBuilder<WorkflowsRequestBuilder
     InstancesRequestBuilder get instances {
         return InstancesRequestBuilder(pathParameters, requestAdapter);
     }
-    /// Gets an item from the stackyoga_yogabase.v1.projects.item.workflows.item collection
+    /// Gets an item from the yogabase_client.v1.projects.item.workflows.item collection
     ///  [workflowId] Unique identifier of the item
     WithWorkflowItemRequestBuilder byWorkflowId(String workflowId) {
         var urlTplParams = Map.of(pathParameters);

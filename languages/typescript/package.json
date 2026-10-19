@@ -1,7 +1,15 @@
 {
-  "name": "@stackyoga/yogabase-client-preview",
+  "name": "@yogabase/client",
   "version": "0.4.0-preview.1",
   "private": true,
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DrGyugyu/Yogabase.SDKs.git",
+    "directory": "languages/typescript"
+  },
+  "homepage": "https://github.com/DrGyugyu/Yogabase.SDKs#readme",
+  "bugs": "https://github.com/DrGyugyu/Yogabase.SDKs/issues",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

@@ -1,0 +1,30 @@
+{
+  "name": "io.yogabase.runtime-host",
+  "version": "0.2.3-preview.1",
+  "displayName": "Yogabase Runtime Host",
+  "description": "Unity package with two halves. At runtime it carries the runtime-host client for a Yogabase-hosted self-contained dedicated server workload, which talks to the Pod-local relay over loopback (heartbeat, Ready, resume-token assignment polling, Shutdown) with no third-party dependency: only System.Text.Json and HttpClient, read exclusively through the JSON DOM so IL2CPP managed stripping at Medium/High cannot break it via reflection. In the Editor it adds Yogabase > Publish Server, which builds the Linux dedicated server, zips it, uploads it to the Control Plane with a project-scoped developer token, and shows the Build check result.",
+  "unity": "6000.5",
+  "unityRelease": "7f1",
+  "license": "Apache-2.0",
+  "author": {
+    "name": "Yogabase"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DrGyugyu/Yogabase.SDKs.git",
+    "directory": "languages/unity/io.yogabase.runtime-host"
+  },
+  "documentationUrl": "https://github.com/DrGyugyu/Yogabase.SDKs/blob/main/languages/unity/io.yogabase.runtime-host/README.md",
+  "changelogUrl": "https://github.com/DrGyugyu/Yogabase.SDKs/blob/main/languages/unity/io.yogabase.runtime-host/CHANGELOG.md",
+  "licensesUrl": "https://github.com/DrGyugyu/Yogabase.SDKs/blob/main/languages/unity/io.yogabase.runtime-host/LICENSE.md",
+  "keywords": [
+    "yogabase",
+    "runtime-host",
+    "dedicated-server",
+    "game-server",
+    "unity-server",
+    "il2cpp",
+    "editor-tool",
+    "build-upload"
+  ]
+}

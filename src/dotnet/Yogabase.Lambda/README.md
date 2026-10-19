@@ -5,13 +5,11 @@ application-user directory, realtime publication, actors, workflows, reminders, 
 authenticated messaging, who called, and which invocation this is.
 
 **This is where a Yogabase application reads and writes data from a .NET Lambda today.** The
-client-facing Data API was withdrawn on 2026-09-08. On 2026-09-17 the owner decided to restore it
-alongside a Lambda-side typed data API and Entity Framework Core, and the product implemented all
-three on 2026-09-23 (the restored client Data API is in the mirrored contract and the generated
-TypeScript, Python, Java and Dart clients carry it) — none of them is wrapped by this package yet.
-A .NET client reaches data through a Lambda, Auth, Storage and Realtime, so the database handle
-below is this package's data path: `DbDataSource`, not a bounded typed query surface or a
-`DbContext` layered over it.
+product also serves a client-facing Data API (in the mirrored contract, and carried by the
+generated TypeScript, Python, Java and Dart clients), a Lambda-side typed data API and Entity
+Framework Core support — none of the three is wrapped by this package yet. A .NET client reaches
+data through a Lambda, Auth, Storage and Realtime, so the database handle below is this package's
+data path: `DbDataSource`, not a bounded typed query surface or a `DbContext` layered over it.
 
 The package targets .NET Standard 2.1 and .NET 10. It references
 `Microsoft.Extensions.Logging.Abstractions` and `StackExchange.Redis`, which the sandbox host
@@ -162,7 +160,7 @@ acknowledges persistence. The SDK and gateway never automatically retry a publis
 occur after the broker accepted a message, so an explicit retry can duplicate it. This managed
 publish API does not qualify direct native Kafka clients or anonymous consumers.
 
-A Kafka publish can carry a **record key** (owner decision, 2026-09-17): the wrapper sends it as
+A Kafka publish can carry a **record key**: the wrapper sends it as
 `keyBase64` and the broker receives it as the record key, so records with one key keep their order on
 one partition. Omit it (or pass `null`) and the request carries no `keyBase64` member at all — today's
 keyless publish.
@@ -280,8 +278,10 @@ The mediated store is content-addressed and **create-if-absent**; there is no ov
   retried invocation's delete succeeds exactly as its first attempt did.
 - `ListAsync(prefix, cursor, limit)` returns one page — `Keys` in ordinal order plus `NextCursor`,
   `null` on the last page — of up to 500 keys (the gateway's default page is 100). Pass
-  `NextCursor` back unchanged. `ListAllAsync(prefix)` walks every page for you; for a large
-  namespace, page with `ListAsync` instead so the whole listing is never held at once.
+  `NextCursor` back unchanged. `ListAllAsync(prefix)` walks every page for you, and refuses a
+  listing whose cursors repeat (A → B → A as much as A → A) with a `LambdaApiException` of status
+  502 and code `response_invalid` instead of requesting pages forever; for a large namespace, page
+  with `ListAsync` instead so the whole listing is never held at once.
 - A key is one byte to 32 MiB under a media type without parameters, and follows the gateway's
   own rules, checked here before transport: not empty, absolute, or longer than 1024 characters;
   no backslash, percent sign, NUL, empty segment, or `.`/`..` segment; not a physical `projects/`
@@ -342,16 +342,14 @@ secrets: this package never logs them, and neither should the Lambda.
   .NET 7 and has no .NET Standard 2.1 form. A Lambda bundle targets the sandbox's own .NET runtime,
   so the `netstandard2.1` build is for sharing non-database code, not for running a Lambda.
 - The internal Lambda runtime API is not a published contract. This package speaks the route table
-  and shapes the gateway's `LambdaRuntimeApiEndpoints` serves on 2026-09-09 (the product
-  repository's `docs/SIGNALR_LAMBDA_ORLEANS_BOUNDARIES.md` §5 records them): an object listing is
-  read strictly as `{ "objects": [{ "key" }], "nextCursor" }` and any other shape is refused rather
-  than read as empty, while unmodelled user fields are kept rather than dropped.
+  and shapes the gateway served on 2026-09-09: an object listing is read strictly as
+  `{ "objects": [{ "key" }], "nextCursor" }` and any other shape is refused rather than read as
+  empty, while unmodelled user fields are kept rather than dropped.
 - No live installation has exercised this package. Its coverage is fake-provider and fake-transport
   unit tests only.
 - `Database` is the only data path this package exposes today. A typed data API (select with
   filters/ordering/paging, insert, update, upsert, delete, and calling database functions), Entity
   Framework Core support, and an explicitly caller-scoped connection that applies row-level security
-  as the invoking user were decided on 2026-09-17 and implemented in the product's runtime context on
-  2026-09-23, but this package does not wrap them.
+  as the invoking user exist in the product's runtime context, but this package does not wrap them.
 
 Third-party notice: `THIRD-PARTY-NOTICES.md` and `licenses/Apache-2.0-Nakama.txt`.

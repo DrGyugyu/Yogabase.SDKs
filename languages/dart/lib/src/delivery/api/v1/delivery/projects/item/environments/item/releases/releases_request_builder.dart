@@ -16,7 +16,7 @@ class ReleasesRequestBuilder extends BaseRequestBuilder<ReleasesRequestBuilder> 
     PreviewsRequestBuilder get previews {
         return PreviewsRequestBuilder(pathParameters, requestAdapter);
     }
-    /// Gets an item from the stackyoga_yogabase_delivery.api.v1.delivery.projects.item.environments.item.releases.item collection
+    /// Gets an item from the yogabase_client_delivery.api.v1.delivery.projects.item.environments.item.releases.item collection
     ///  [releaseId] Unique identifier of the item
     WithReleaseItemRequestBuilder byReleaseId(UuidValue releaseId) {
         var urlTplParams = Map.of(pathParameters);

@@ -14,7 +14,7 @@ class OperationsRequestBuilder extends BaseRequestBuilder<OperationsRequestBuild
     EventsRequestBuilder get events {
         return EventsRequestBuilder(pathParameters, requestAdapter);
     }
-    /// Gets an item from the stackyoga_yogabase_delivery.api.v1.delivery.projects.item.operations.item collection
+    /// Gets an item from the yogabase_client_delivery.api.v1.delivery.projects.item.operations.item collection
     ///  [operationId] Unique identifier of the item
     WithOperationItemRequestBuilder byOperationId(UuidValue operationId) {
         var urlTplParams = Map.of(pathParameters);

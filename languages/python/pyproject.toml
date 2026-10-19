@@ -3,16 +3,21 @@ requires = ["setuptools==84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "stackyoga-yogabase-client-preview"
+name = "yogabase-client"
 version = "0.4.0.dev1"
-description = "Unpublished application and workload-delivery client preview for Yogabase"
+description = "Python client for Yogabase: the generated application-gateway client with authored sign-in, Jobs, schedules, Delivery and storage-key adapters"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
-license = "LicenseRef-Proprietary"
+license = "Apache-2.0"
 license-files = ["LICENSE.md"]
 dependencies = ["microsoft-kiota-bundle==1.9.10", "httpx==0.28.1"]
 
+[project.urls]
+Homepage = "https://github.com/DrGyugyu/Yogabase.SDKs#readme"
+Repository = "https://github.com/DrGyugyu/Yogabase.SDKs.git"
+Issues = "https://github.com/DrGyugyu/Yogabase.SDKs/issues"
+
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["stackyoga_yogabase*"]
+include = ["yogabase_client*"]
 namespaces = true

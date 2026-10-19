@@ -241,9 +241,9 @@ public sealed class RealtimePresenceTests
         RealtimeEndpoint = realtimeEndpoint,
         OidcAuthority = "http://localhost/p/11111111-1111-4111-8111-111111111111",
         OidcDiscoveryEndpoint = "http://localhost/.well-known/openid-configuration",
-        OidcPublicClientId = "stackyoga-native-preview",
+        OidcPublicClientId = "yogabase-native-preview",
         OidcScopes = ["openid", "offline_access"],
-        OidcRedirectUris = ["com.stackyoga.app:/oauth/callback"],
+        OidcRedirectUris = ["io.yogabase.app:/oauth/callback"],
         RealtimePath = "/v1/realtime",
         Capabilities = presence is null
             ? CoreCapabilities()

@@ -23,3 +23,23 @@ languages/unity/**/*.csproj.user
 
 # Unity Editor compile-check scratch output
 .unity-compile/
+
+# Build, test and tool output anywhere in the tree
+/artifacts/
+TestResults/
+*.trx
+*.log
+*.user
+*.swp
+*.suo
+.idea/
+.vs/
+.vscode/
+
+# Ecosystem caches and outputs wherever a language tree lives (the scoped lines above stay)
+node_modules/
+.venv/
+__pycache__/
+dist/
+target/
+.dart_tool/

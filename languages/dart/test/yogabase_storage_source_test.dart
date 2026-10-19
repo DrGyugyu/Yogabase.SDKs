@@ -4,8 +4,8 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:microsoft_kiota_bundle/microsoft_kiota_bundle.dart';
-import 'package:stackyoga_yogabase_client_preview/src/models/invocation_request.dart';
-import 'package:stackyoga_yogabase_client_preview/stackyoga_yogabase_client_preview.dart';
+import 'package:yogabase_client/src/models/invocation_request.dart';
+import 'package:yogabase_client/yogabase_client.dart';
 import 'package:uuid/uuid.dart';
 
 /// A Storage object put and get of raw bytes, and a JSON body, through a real adapter against an in-memory

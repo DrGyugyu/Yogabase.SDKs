@@ -1,8 +1,8 @@
 # Yogabase.ServerPathProbe
 
-An Editor-free walk of the Unity demo's server-side path, for the owner to run from their own
-terminal with their own player sign-in, before spending time on a Unity Editor build. It exercises
-the same five things a Unity demo client would exercise, through `Yogabase.Yogabase.Client`:
+A command-line diagnostic that walks the server-side path a Unity game client depends on, so an
+installation can be checked from a terminal before spending time on a Unity Editor build. It
+exercises the same five things a Unity client would exercise, through `Yogabase.Yogabase.Client`:
 
 1. loads sign-in context from environment variables (never the command line);
 2. `POST /v1/servers/start` through `Servers.StartAsync`, printing `serverId` and `networkPorts`;
@@ -15,11 +15,11 @@ the same five things a Unity demo client would exercise, through `Yogabase.Yogab
    with a bounded payload preview — skipped, not failed, when the installation does not report the
    `realtime-subscribe` capability as available.
 
-This is a sample and a diagnostic tool, not a published package. `IsPackable` is `false`, so even a
+This is a sample and a diagnostic tool, not a package. `IsPackable` is `false`, so even a
 `dotnet pack` of the whole solution produces no package for it, and the root
 [README.md](../../../README.md#local-verification) packs only the three library `.csproj` paths. It also never
-signs in, claims a seat, or creates an account: it only consumes a player access token the owner
-already holds.
+signs in, claims a seat, or creates an account: it only consumes a player access token you already
+hold.
 
 ## Sign-in context
 
@@ -29,7 +29,7 @@ of the run.
 
 | Variable | Required | Meaning |
 | --- | --- | --- |
-| `YOGABASE_PLAYER_ACCESS_TOKEN` | Yes | The signed-in player's OIDC access token. This tool does not sign in itself — no browser, no PKCE, no password grant — the owner obtains the token out of band (for example from a real client's own sign-in flow) and exports it before running the probe. |
+| `YOGABASE_PLAYER_ACCESS_TOKEN` | Yes | The signed-in player's OIDC access token. This tool does not sign in itself — no browser, no PKCE, no password grant — so obtain the token out of band (for example from a real client's own sign-in flow) and export it before running the probe. |
 | `YOGABASE_PLAYER_REFRESH_TOKEN` | No | Lets the client refresh the access token if a run outlives it. |
 
 No other credential is read. In particular a developer token is never needed: every step here is a
@@ -75,7 +75,7 @@ timeout code is reserved for the overall `--timeout-seconds` bound and Ctrl+C.
 
 ## What this does and does not prove
 
-A clean run through step 4 proves the server-side surfaces the Unity demo depends on — allocation,
+A clean run through step 4 proves the server-side surfaces a Unity game client depends on — allocation,
 address delivery, and Lambda invocation — respond correctly to a real player identity, without
 building or running Unity. It does **not** prove:
 
@@ -92,5 +92,5 @@ building or running Unity. It does **not** prove:
 
 `tests/dotnet/Yogabase.ServerPathProbe.Tests` covers the pure logic — argument parsing, environment
 variable handling, and bounded-preview formatting — with no network access. It does not exercise
-`Program.RunAsync`, which needs a live (or locally mocked) gateway; that was exercised by hand
-against a throwaway local `HttpListener` mock during development, not committed to this repository.
+`Program.RunAsync`, which needs a live gateway or a local mock of one; the probe has not yet been
+run against a live installation.

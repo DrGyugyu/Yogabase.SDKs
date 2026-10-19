@@ -1,6 +1,9 @@
-name: stackyoga_yogabase_client_preview
-description: Unpublished application and workload-delivery client preview for Yogabase.
+name: yogabase_client
+description: The Dart client for Yogabase, with the generated application and workload-delivery clients and authored sign-in, Jobs, schedules, Delivery and storage-key support.
 version: 0.4.0-dev.1
+homepage: https://github.com/DrGyugyu/Yogabase.SDKs
+repository: https://github.com/DrGyugyu/Yogabase.SDKs/tree/main/languages/dart
+issue_tracker: https://github.com/DrGyugyu/Yogabase.SDKs/issues
 publish_to: none
 environment:
   sdk: ^3.9.0

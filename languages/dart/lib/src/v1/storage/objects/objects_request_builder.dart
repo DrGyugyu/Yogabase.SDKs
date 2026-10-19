@@ -5,7 +5,7 @@ import './item/with_key_item_request_builder.dart';
 /// auto generated
 /// Builds and executes requests for operations under \v1\storage\objects
 class ObjectsRequestBuilder extends BaseRequestBuilder<ObjectsRequestBuilder> {
-    /// Gets an item from the stackyoga_yogabase.v1.storage.objects.item collection
+    /// Gets an item from the yogabase_client.v1.storage.objects.item collection
     ///  [key] Project-local logical key. The live route is a catch-all path tail; SDKs must validate the key and percent-encode each segment separately while preserving literal slash separators.
     WithKeyItemRequestBuilder byKey(String key) {
         var urlTplParams = Map.of(pathParameters);

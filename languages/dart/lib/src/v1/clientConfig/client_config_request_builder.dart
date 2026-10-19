@@ -5,7 +5,7 @@ import './item/with_publishable_key_item_request_builder.dart';
 /// auto generated
 /// Builds and executes requests for operations under \v1\client-config
 class ClientConfigRequestBuilder extends BaseRequestBuilder<ClientConfigRequestBuilder> {
-    /// Gets an item from the stackyoga_yogabase.v1.clientConfig.item collection
+    /// Gets an item from the yogabase_client.v1.clientConfig.item collection
     ///  [publishableKey] Unique identifier of the item
     WithPublishableKeyItemRequestBuilder byPublishableKey(String publishableKey) {
         var urlTplParams = Map.of(pathParameters);

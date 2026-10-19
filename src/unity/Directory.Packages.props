@@ -13,7 +13,7 @@
     assembly that uses it.
 
     The versions are exactly the 8.0 line the AI Game Developer (MCP) package restores into
-    Assets/Plugins/NuGet (its NuGetConfig pins SignalR 8.0.15 and System.Text.Json 8.0.5). Unity
+    Assets/Plugins/NuGet (its NuGetConfig pinned SignalR 8.0.15 before CVE-2026-70159 (patched in 8.0.32) and System.Text.Json 8.0.5). Unity
     6000.5 keeps one copy per assembly name, preferring the higher assembly version and the first one
     it enumerated on a tie; with identical package versions the two copies are byte-identical, so a
     player ships the same bytes whichever copy Unity keeps. Raise these only together with the demo's
@@ -23,7 +23,7 @@
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.15" />
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.32" />
     <PackageVersion Include="System.Text.Json" Version="8.0.5" />
   </ItemGroup>
 </Project>

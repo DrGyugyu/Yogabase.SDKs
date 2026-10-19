@@ -4,7 +4,7 @@ import unittest
 
 import httpx
 
-from stackyoga_yogabase import (
+from yogabase_client import (
     AsyncDeliveryClient,
     DeliveryPollingTimeoutError,
     YogabaseDeliveryError,

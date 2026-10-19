@@ -75,11 +75,11 @@ generate_delivery() {
 }
 
 generate_application TypeScript Yogabase.Client.TypeScript "$stage/languages/typescript/src"
-generate_application Python stackyoga.yogabase "$stage/languages/python/src/stackyoga_yogabase"
-generate_application Java io.stackyoga.yogabase "$stage/languages/java/src/main/java/io/stackyoga/yogabase"
-generate_application Dart stackyoga_yogabase "$stage/languages/dart/lib/src"
-generate_delivery Java io.stackyoga.yogabase.delivery "$stage/languages/java/src/main/java/io/stackyoga/yogabase/delivery"
-generate_delivery Dart stackyoga_yogabase_delivery "$stage/languages/dart/lib/src/delivery"
+generate_application Python yogabase.client "$stage/languages/python/src/yogabase_client"
+generate_application Java io.yogabase.client "$stage/languages/java/src/main/java/io/yogabase/client"
+generate_application Dart yogabase_client "$stage/languages/dart/lib/src"
+generate_delivery Java io.yogabase.client.delivery "$stage/languages/java/src/main/java/io/yogabase/client/delivery"
+generate_delivery Dart yogabase_client_delivery "$stage/languages/dart/lib/src/delivery"
 find "$stage" -name .kiota.log -delete
 
 rsync -a --delete \
@@ -101,8 +101,8 @@ rsync -a --delete \
     --exclude /schedules.py \
     --exclude /sign_in.py \
     --exclude /storage_logical_key.py \
-    "$stage/languages/python/src/stackyoga_yogabase/" \
-    "$repo_root/languages/python/src/stackyoga_yogabase/"
+    "$stage/languages/python/src/yogabase_client/" \
+    "$repo_root/languages/python/src/yogabase_client/"
 
 rsync -a --delete \
     --exclude /delivery/ \
@@ -118,12 +118,12 @@ rsync -a --delete \
     --exclude '/YogabaseSchedule*.java' \
     --exclude /YogabaseStatusErrorCodes.java \
     --exclude /YogabaseStorageLogicalKey.java \
-    "$stage/languages/java/src/main/java/io/stackyoga/yogabase/" \
-    "$repo_root/languages/java/src/main/java/io/stackyoga/yogabase/"
+    "$stage/languages/java/src/main/java/io/yogabase/client/" \
+    "$repo_root/languages/java/src/main/java/io/yogabase/client/"
 
 rsync -a --delete \
-    "$stage/languages/java/src/main/java/io/stackyoga/yogabase/delivery/" \
-    "$repo_root/languages/java/src/main/java/io/stackyoga/yogabase/delivery/"
+    "$stage/languages/java/src/main/java/io/yogabase/client/delivery/" \
+    "$repo_root/languages/java/src/main/java/io/yogabase/client/delivery/"
 
 rsync -a --delete \
     --exclude /delivery/ \

@@ -1,4 +1,4 @@
-# Yogabase Dart client preview
+# Yogabase Dart client
 
 Generated with Microsoft Kiota 1.34.1 from the current Yogabase v1-preview contract (Dart output is
 experimental in this generator version), with authored parts beside it: a password sign-in, sign-in with
@@ -10,18 +10,20 @@ The generated REST surface includes bootstrap, signup and interactive auth endpo
 Storage, stateless Function invocation, Actor Lambda invocation, Workflow start/cancel, and the
 request builders of the Jobs and schedule routes. The
 contract returns a separate realtime origin, but this package does not yet include or qualify a
-Dart/Flutter SignalR wrapper. This source preview is local, unpublished, and not
+Dart/Flutter SignalR wrapper. The package is not published to pub.dev and is not
 production-qualified.
 
 ## Getting started
 
-Nothing is published, so depend on a checkout of this repository by path (a `git:` dependency with
-`path: languages/dart` works the same way):
+The package is not on pub.dev, so depend on it as a `git:` dependency of this repository (or on a
+checkout by `path: ../Yogabase.SDKs/languages/dart`):
 
 ```yaml
 dependencies:
-  stackyoga_yogabase_client_preview:
-    path: ../Yogabase.SDKs/languages/dart
+  yogabase_client:
+    git:
+      url: https://github.com/DrGyugyu/Yogabase.SDKs.git
+      path: languages/dart
   crypto: 3.0.7   # only for the snippet below
   uuid: 4.6.0     # likewise
 ```
@@ -35,8 +37,8 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:microsoft_kiota_bundle/microsoft_kiota_bundle.dart';
-import 'package:stackyoga_yogabase_client_preview/src/models/invocation_request.dart';
-import 'package:stackyoga_yogabase_client_preview/stackyoga_yogabase_client_preview.dart';
+import 'package:yogabase_client/src/models/invocation_request.dart';
+import 'package:yogabase_client/yogabase_client.dart';
 import 'package:uuid/uuid.dart';
 
 Future<void> main() async {
@@ -81,7 +83,7 @@ Future<void> main() async {
   once however many calls are waiting, and adds the bearer only to requests for the gateway origin.
   `getAccessToken()` returns the current token.
 - **Generated models are not exported** by the library: import the ones you build, such as
-  `InvocationRequest`, from `package:stackyoga_yogabase_client_preview/src/models/`.
+  `InvocationRequest`, from `package:yogabase_client/src/models/`.
 - **The user must already exist.** A user signs up with an e-mail address and a password
   (`api.auth.signup.postAsync`) and must confirm the address (`api.auth.email.confirm`) before signing in.
   Sign-up is invite-only unless the installation turned that off: without an invitation token it is a
@@ -423,3 +425,10 @@ and schedule builders, the authored Jobs and schedules clients) found four unnee
 imports and nothing else. The earlier run, on 2026-09-17 with Dart 3.13.2, predates that source. The
 pubspec allows Dart `^3.9.0`; only 3.13.2 and 3.13.5 have run. Not exercised: Flutter, a streaming adapter
 and any live gateway or real identity provider (the sign-ins, the Storage calls and the smoke program included).
+On 2026-10-19, after the package was renamed `yogabase_client`, the same Dart 3.13.5 ran `dart pub get
+--offline` (lockfile unchanged), `dart analyze --fatal-infos` (no issues) and the five programs (all `PASS`);
+the smoke program printed SKIPPED.
+
+## Licence
+
+Apache License, Version 2.0 ([`LICENSE.md`](LICENSE.md)). Copyright 2026 Yogabase.

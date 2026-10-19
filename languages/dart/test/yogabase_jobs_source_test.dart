@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 import 'package:microsoft_kiota_abstractions/microsoft_kiota_abstractions.dart';
-import 'package:stackyoga_yogabase_client_preview/stackyoga_yogabase_client_preview.dart';
-import 'package:stackyoga_yogabase_client_preview/src/models/problem.dart';
+import 'package:yogabase_client/yogabase_client.dart';
+import 'package:yogabase_client/src/models/problem.dart';
 
 /// Standalone source-level checks of the authored Jobs client; run with
 /// `dart run test/yogabase_jobs_source_test.dart`.

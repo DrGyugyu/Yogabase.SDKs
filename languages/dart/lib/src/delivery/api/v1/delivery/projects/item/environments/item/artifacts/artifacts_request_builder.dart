@@ -16,7 +16,7 @@ class ArtifactsRequestBuilder extends BaseRequestBuilder<ArtifactsRequestBuilder
     PreviewsRequestBuilder get previews {
         return PreviewsRequestBuilder(pathParameters, requestAdapter);
     }
-    /// Gets an item from the stackyoga_yogabase_delivery.api.v1.delivery.projects.item.environments.item.artifacts.item collection
+    /// Gets an item from the yogabase_client_delivery.api.v1.delivery.projects.item.environments.item.artifacts.item collection
     ///  [admissionId] Unique identifier of the item
     WithAdmissionItemRequestBuilder byAdmissionId(UuidValue admissionId) {
         var urlTplParams = Map.of(pathParameters);

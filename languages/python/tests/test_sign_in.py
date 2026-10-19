@@ -13,9 +13,9 @@ from kiota_abstractions.method import Method
 from kiota_abstractions.request_information import RequestInformation
 from kiota_http.httpx_request_adapter import HttpxRequestAdapter
 
-from stackyoga_yogabase import (
+from yogabase_client import (
     AsyncJobsClient, YogabaseApiClient, YogabaseAuthError, YogabaseJobsError, complete_external_sign_in, sign_in_with_password, start_external_sign_in)
-from stackyoga_yogabase.models.invocation_request import InvocationRequest
+from yogabase_client.models.invocation_request import InvocationRequest
 
 GATEWAY = "https://apps.example.test"
 REDIRECT = "https://app.example.test/callback"

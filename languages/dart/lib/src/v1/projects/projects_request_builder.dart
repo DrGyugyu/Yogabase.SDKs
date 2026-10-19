@@ -6,7 +6,7 @@ import './item/with_project_item_request_builder.dart';
 /// auto generated
 /// Builds and executes requests for operations under \v1\projects
 class ProjectsRequestBuilder extends BaseRequestBuilder<ProjectsRequestBuilder> {
-    /// Gets an item from the stackyoga_yogabase.v1.projects.item collection
+    /// Gets an item from the yogabase_client.v1.projects.item collection
     ///  [projectId] Unique identifier of the item
     WithProjectItemRequestBuilder byProjectId(UuidValue projectId) {
         var urlTplParams = Map.of(pathParameters);

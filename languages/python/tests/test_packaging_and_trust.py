@@ -1,7 +1,7 @@
 """Build-backend pin and TLS trust checks for the Python package.
 
-The owner decided on 2026-09-17 that the package pins its build backend exactly and trusts the
-platform's certificate store rather than certifi's bundle. certifi itself cannot leave the runtime
+Since 2026-09-17 the package pins its build backend exactly and trusts the platform's certificate
+store rather than certifi's bundle. certifi itself cannot leave the runtime
 closure while the Kiota HTTP stack depends on httpx: httpx 0.28.1 and httpcore 1.0.9 both declare it
 unconditionally. What this package controls is which trust store its own HTTP clients verify
 against, and that is what these tests pin.
@@ -16,8 +16,8 @@ from unittest import mock
 
 import httpx
 
-import stackyoga_yogabase
-from stackyoga_yogabase import AsyncDeliveryClient, platform_ssl_context
+import yogabase_client
+from yogabase_client import AsyncDeliveryClient, platform_ssl_context
 
 PACKAGE_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -61,7 +61,7 @@ class PlatformTrustTests(unittest.IsolatedAsyncioTestCase):
             calls.append({"args": args, **kwargs})
             return real()
 
-        with mock.patch("stackyoga_yogabase.delivery.ssl.create_default_context", side_effect=spy):
+        with mock.patch("yogabase_client.delivery.ssl.create_default_context", side_effect=spy):
             platform_ssl_context()
         self.assertEqual(calls, [{"args": ()}])
 
@@ -74,7 +74,7 @@ class PlatformTrustTests(unittest.IsolatedAsyncioTestCase):
         import certifi
 
         with (
-            mock.patch("stackyoga_yogabase.delivery.platform_ssl_context", return_value=context),
+            mock.patch("yogabase_client.delivery.platform_ssl_context", return_value=context),
             mock.patch.object(certifi, "where", side_effect=certifi_bundle_consulted),
         ):
             client = AsyncDeliveryClient(delivery_host="https://delivery.example.test", access_token="token")
@@ -86,7 +86,7 @@ class PlatformTrustTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_a_supplied_http_client_is_used_unchanged(self) -> None:
         supplied = httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(204)))
-        with mock.patch("stackyoga_yogabase.delivery.platform_ssl_context", side_effect=AssertionError("not needed")):
+        with mock.patch("yogabase_client.delivery.platform_ssl_context", side_effect=AssertionError("not needed")):
             client = AsyncDeliveryClient(delivery_host="https://delivery.example.test", access_token="token", http_client=supplied)
         self.assertIs(client._http, supplied)
         await supplied.aclose()
@@ -103,4 +103,4 @@ class PlatformTrustTests(unittest.IsolatedAsyncioTestCase):
             await http.aclose()
 
     def test_the_helper_is_exported(self) -> None:
-        self.assertIn("platform_ssl_context", stackyoga_yogabase.__all__)
+        self.assertIn("platform_ssl_context", yogabase_client.__all__)

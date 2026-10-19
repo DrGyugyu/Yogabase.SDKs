@@ -1,0 +1,9 @@
+Yogabase SDKs
+Copyright 2026 Yogabase
+
+Licensed under the Apache License, Version 2.0; see LICENSE.md.
+
+This repository contains modified derivatives of the Agones C# and Unity client SDKs
+(Copyright Contributors to Agones a Series of LF Projects, LLC; Apache-2.0; licenses/Apache-2.0-Agones.txt)
+and follows the runtime-module shape of Nakama Plus (Apache-2.0; licenses/Apache-2.0-Nakama.txt).
+Third-party dependency licences are inventoried in docs/DEPENDENCY_LICENSES.md.

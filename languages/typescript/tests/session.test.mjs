@@ -6,7 +6,7 @@ import { FetchRequestAdapter, HttpClient } from "@microsoft/kiota-http-fetchlibr
 import { createYogabaseApiClient, YogabaseAuthError, YogabaseExternalSignIn, YogabaseSession } from "../dist/index.js";
 
 const GATEWAY = "https://apps.example.test";
-const REDIRECT = "com.stackyoga.app:/oauth/callback";
+const REDIRECT = "com.yogabase.app:/oauth/callback";
 const IDENTITY = "yogabase.project.identity";
 const PROJECT = "11111111-1111-4111-8111-111111111111";
 const TOKENS = { access_token: "access-1", token_type: "Bearer", expires_in: 3600, refresh_token: "refresh-1" };
@@ -113,7 +113,7 @@ test("a redirect with another state, no code, an error or another redirect URI r
         ["authorization_response_invalid", state => `${REDIRECT}?state=${state}`],
         ["access_denied", state => `${REDIRECT}?error=access_denied&state=${state}`],
         ["authorization_redirect_mismatch", state => `https://other.example.test/cb?code=code-1&state=${state}`],
-        ["authorization_redirect_mismatch", state => `com.stackyoga.app:/elsewhere?code=code-1&state=${state}`],
+        ["authorization_redirect_mismatch", state => `com.yogabase.app:/elsewhere?code=code-1&state=${state}`],
     ];
     for (const [code, location] of cases) {
         const { paths, session } = gateway({ "/connect/authorize": call => found(location(call.query.get("state"))) });
@@ -195,7 +195,7 @@ test("a redirect with another state, an error, no code, a repeated parameter or 
         ["authorization_response_invalid", `${REDIRECT}?state=gw-state`],
         ["access_denied", `${REDIRECT}?error=access_denied&state=gw-state`],
         ["authorization_redirect_mismatch", "https://other.example.test/oauth/callback?code=c&state=gw-state"],
-        ["authorization_redirect_mismatch", "com.stackyoga.app:/elsewhere?code=c&state=gw-state"],
+        ["authorization_redirect_mismatch", "com.yogabase.app:/elsewhere?code=c&state=gw-state"],
         ["authorization_redirect_mismatch", `${REDIRECT}?code=c&state=gw-state#fragment`],
     ];
     for (const [code, redirect] of cases) {

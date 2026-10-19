@@ -13,8 +13,8 @@ from kiota_abstractions.headers_collection import HeadersCollection
 from kiota_http.httpx_request_adapter import HttpxRequestAdapter
 from kiota_http.kiota_client_factory import KiotaClientFactory
 
-from stackyoga_yogabase import YogabaseApiClient, platform_ssl_context, sign_in_with_password, storage_object_for_logical_key
-from stackyoga_yogabase.models.invocation_request import InvocationRequest
+from yogabase_client import YogabaseApiClient, platform_ssl_context, sign_in_with_password, storage_object_for_logical_key
+from yogabase_client.models.invocation_request import InvocationRequest
 
 ENV = {name: os.environ.get("YOGABASE_SMOKE_" + name, "") for name in ("GATEWAY", "PUBLISHABLE_KEY", "EMAIL", "PASSWORD", "FUNCTION_ID", "FUNCTION_VERSION")}
 

@@ -6,7 +6,7 @@ targets .NET Standard 2.1 and .NET 10 on the 10.0 package line. Unity takes a se
 same sources, `src/unity/Yogabase.Yogabase.Client.Unity` (netstandard2.1, the SignalR 8.0.15 and
 System.Text.Json 8.0.5 line), because Unity 6000.5 binds its own 8.0 BCL extensions and a plugin
 built against 10.x is CS1705 there; `UnityBuildTests` pins that the Unity build references nothing
-at 9.x or above. The Unity build is unqualified until the demo's IL2CPP player has run it. It supports non-secret publishable-key bootstrap,
+at 9.x or above. The Unity build is unqualified until an IL2CPP player has run it. It supports non-secret publishable-key bootstrap,
 headless password sign-in, sign-in with an external provider, OIDC authorization-code/PKCE, mediated object
 storage, stateless Function invocation, Actor and Workflow Lambdas, durable background jobs, SignalR
 realtime, and game-server allocation.
@@ -21,7 +21,7 @@ sessions must survive process restarts.
 
 ## Getting started
 
-Nothing is published, so reference the project from a checkout of this repository (it needs the .NET 10 SDK):
+No package is on NuGet yet, so reference the project from a checkout of this repository (it needs the .NET 10 SDK):
 
 ```text
 dotnet add reference path/to/Yogabase.SDKs/src/dotnet/Yogabase.Yogabase.Client/Yogabase.Yogabase.Client.csproj
@@ -114,9 +114,8 @@ await yogabase.Auth.CompleteExternalSignInAsync(pending, redirect);   // the tok
 
 ## Reading and writing data
 
-**There is no Data API client in this package yet.** The client-facing Data API, withdrawn on
-2026-09-08, was restored by the owner decision of 2026-09-17 and implemented at the gateway on
-2026-09-23: `POST /v1/data/{table}/select|insert|upsert|update|delete`, run under row-level security
+**There is no Data API client in this package yet.** The gateway has served the client-facing Data
+API since 2026-09-23: `POST /v1/data/{table}/select|insert|upsert|update|delete`, run under row-level security
 as the signed-in user and served only where the bootstrap's requested-only `data-rest` row says so.
 The mirrored contract (`contracts/yogabase-client-v1.openapi.json`) declares it and the generated
 TypeScript, Python, Java and Dart clients carry it, but this package has no Data client and does not
@@ -151,7 +150,7 @@ the client does not pretend to know whether an installation enables it — an in
 answers the gateway's own refusal.
 
 `YogabaseServer` and each `YogabaseServerPort` also accept the Agones-shaped typed addresses the
-product has decided to add: `Address`, the address a client is handed, and `Addresses`, every typed
+product will add: `Address`, the address a client is handed, and `Addresses`, every typed
 address observed (`Type` such as `Advertised`, `ExternalIP`, `InternalIP` or `PodIP`, and `Address`).
 Today's product sends neither — `Host` already carries the advertised address — and will add them only
 once a client that accepts them is the minimum, because this client refuses members it does not know;
@@ -233,8 +232,8 @@ await yogabase.Jobs.CancelAsync(job.JobId);           // idempotent; a running j
   for a submit that is not JSON (415), `payload_too_large` for a bare 413 from a gateway that predates the
   named one.
 
-It was also run end to end on 2026-10-03 against the product's real Jobs routes, built from product `main`
-`92ac1ced` (25 checks; see the root README for what that host was and was not).
+It was also run end to end on 2026-10-03 against the product's real Jobs routes, built from the product's
+route code as of that day (25 checks; see the root README for what that host was and was not).
 
 A function invoked directly by `yogabase.Functions` that is refused as too large (413
 `payload_too_large`) carries the same two limits: the payload limit is 1 MiB before base64, the same
@@ -296,7 +295,7 @@ await yogabase.Schedules.DeleteAsync("nightly", schedule.ETag);                 
   `precondition_required` (428), `not_found` (404; also an installation without the Scheduler), `conflict`
   (409: a function version that is not an admitted Stateless one of the project, on a write or on a run, a
   write that would turn a recurring schedule into a one-shot or the reverse, or a run key the queue holds for
-  another request; a run of a withdrawn version answered 503 before product `main` `f9d57e29`), `forbidden`
+  another request; a run of a withdrawn version answered 503 on product builds from before the 2026-10-03 contract), `forbidden`
   (403), `unsupported_media_type` (415) and `request_failed` (a 400 for a member the gateway refuses, such as
   a cron expression that does not parse, a policy left out or an id that breaks the rule, the last two naming
   the member in the problem's `detail`; a 503).
@@ -312,16 +311,17 @@ await yogabase.Schedules.DeleteAsync("nightly", schedule.ETag);                 
   is still queued (failure code `schedule_occurrence_replaced`) and starts the new one, but skips it while one
   is running, because nothing can interrupt a Lambda that is executing. A skipped occurrence is consumed, not
   deferred. A manual run is not an occurrence, so the policy neither holds it back nor is held back by it, and
-  a one-shot has no earlier occurrence. The contract of product `main` `f9d57e29` describes this; a build of
-  the product from before it starts every occurrence whichever policy is chosen and accepts any id but one with
+  a one-shot has no earlier occurrence. The contract at the pinned digest describes this; a build of the
+  product from before it starts every occurrence whichever policy is chosen and accepts any id but one with
   a `/` (a 400).
 - **No capability gates it**, and the contract is held as for Jobs: `ContractOperationParityTests` sends the
   four operations, `ContractLimitsAndCodesTests` compares the limits, policy names, outcome numbers and the
   ETag's pattern with the contract's, and `SchedulesClientTests` pins every shape.
 
-Run end to end on 2026-10-03 against the product's real schedule routes, built from product `main`
-`92ac1ced` (36 checks). That run predates the id rule, the concurrency enforcement and the 409 of a manual
-run, and was not repeated against product `main` `f9d57e29`; its harness is in the product repository.
+Run end to end on 2026-10-03 against the product's real schedule routes, built from the product's route
+code as of that day (36 checks). That run predates the id rule, the concurrency enforcement and the 409 of a
+manual run, and was not repeated against the product as of the pinned contract; its harness is not part of
+this repository.
 
 ## Uploading a build
 
@@ -513,6 +513,6 @@ Interactive login/MFA methods use the protected cookie session maintained by the
 handler. PKCE methods manage bearer-token sessions through `IYogabaseSessionStore`. Hosts that
 replace the default handler are responsible for equivalent cookie behavior and redirect safety.
 
-Yogabase and this package remain preview capabilities until the repository's release gates pass.
-The signed bootstrap capability list is authoritative for each deployment; unknown capability
-identifiers are treated as unavailable.
+This package is a preview; the evidence behind each surface is in the root README's Packages and
+Platform qualification sections. The signed bootstrap capability list is authoritative for each
+deployment; unknown capability identifiers are treated as unavailable.

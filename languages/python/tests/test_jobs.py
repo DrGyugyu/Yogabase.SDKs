@@ -13,7 +13,7 @@ import httpx
 from kiota_abstractions.authentication.anonymous_authentication_provider import AnonymousAuthenticationProvider
 from kiota_http.httpx_request_adapter import HttpxRequestAdapter
 
-from stackyoga_yogabase import (
+from yogabase_client import (
     JOB_IDEMPOTENCY_CONFLICT,
     JOB_NOT_FOUND,
     JOB_PAYLOAD_TOO_LARGE,
@@ -525,7 +525,7 @@ class JobsClientConstructionTests(unittest.IsolatedAsyncioTestCase):
         from unittest import mock
 
         context = __import__("ssl").create_default_context()
-        with mock.patch("stackyoga_yogabase._gateway.platform_ssl_context", return_value=context) as platform:
+        with mock.patch("yogabase_client._gateway.platform_ssl_context", return_value=context) as platform:
             client = AsyncJobsClient(gateway_host="https://apps.example.test", project_id=PROJECT, access_token="token")
         try:
             platform.assert_called_once_with()
@@ -592,7 +592,7 @@ class JobsGeneratedBuilderEquivalenceTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn(wanted, accepted)
 
     async def test_submit_sends_the_request_the_generated_post_builder_builds(self) -> None:
-        from stackyoga_yogabase.models.job_submit_request import JobSubmitRequest
+        from yogabase_client.models.job_submit_request import JobSubmitRequest
 
         body = JobSubmitRequest()
         body.job_type = "orders-create"

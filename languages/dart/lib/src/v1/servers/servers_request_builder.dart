@@ -12,7 +12,7 @@ class ServersRequestBuilder extends BaseRequestBuilder<ServersRequestBuilder> {
     StartRequestBuilder get start {
         return StartRequestBuilder(pathParameters, requestAdapter);
     }
-    /// Gets an item from the stackyoga_yogabase.v1.servers.item collection
+    /// Gets an item from the yogabase_client.v1.servers.item collection
     ///  [serverId] Opaque game-server instance identifier, as returned by start or list.
     WithServerItemRequestBuilder byServerId(String serverId) {
         var urlTplParams = Map.of(pathParameters);

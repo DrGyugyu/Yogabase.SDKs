@@ -1,4 +1,4 @@
-# Yogabase TypeScript client preview
+# Yogabase TypeScript client
 
 Generated with Microsoft Kiota 1.34.1 from the current Yogabase v1-preview contract, with authored
 facades beside it. **It runs in Node, not in a browser:** the gateway sends no CORS headers, so a page on
@@ -9,19 +9,19 @@ The generated REST surface includes bootstrap, signup and interactive auth endpo
 Storage, stateless Function invocation, Actor Lambda invocation, Workflow start/cancel, and the durable Jobs
 and schedule routes (which authored clients below sit beside). The
 contract returns a separate realtime origin, but this package does not yet include or qualify a
-TypeScript SignalR wrapper. This source preview is unpublished and not production-qualified;
-TypeScript generation and its Kiota runtime are themselves preview dependencies.
+TypeScript SignalR wrapper. The package is not yet on a package registry; build it from source as below.
+TypeScript generation and its Kiota runtime are preview dependencies.
 
 ## Getting started
 
-Nothing is published: the package is marked `private` and `dist` is not committed. Build it from a checkout of
+The package is not yet on a package registry: it is marked `private` and `dist` is not committed. Build it from a checkout of
 this repository and install the tarball into your app (an ES module project, `"type": "module"`):
 
 ```text
 cd Yogabase.SDKs/languages/typescript
 npm ci        # installs the locked dependencies and compiles dist/ (the prepare script)
-npm pack      # writes stackyoga-yogabase-client-preview-0.4.0-preview.1.tgz
-cd path/to/your-app && npm install path/to/stackyoga-yogabase-client-preview-0.4.0-preview.1.tgz
+npm pack      # writes yogabase-client-0.4.0-preview.1.tgz
+cd path/to/your-app && npm install path/to/yogabase-client-0.4.0-preview.1.tgz
 ```
 
 Apart from the bootstrap and the `auth` calls, every call needs a signed-in user, so sign in before the first one:
@@ -29,7 +29,7 @@ Apart from the bootstrap and the `auth` calls, every call needs a signed-in user
 ```ts
 import { createHash } from "node:crypto";
 import { DefaultRequestAdapter } from "@microsoft/kiota-bundle";
-import { createYogabaseApiClient, YogabaseSession } from "@stackyoga/yogabase-client-preview";
+import { createYogabaseApiClient, YogabaseSession } from "@yogabase/client";
 
 const session = new YogabaseSession({
   gatewayHost: "https://api.example.com",     // the installation's gateway origin
@@ -366,3 +366,7 @@ further leading whitespace stays in the value, so an id round-trips unchanged; u
 client trimmed every leading space, as the Python client did before 2026-09-17.
 
 `npm ci && npm test` passed 13 tests on 2026-09-22 (Node 25.9.0, npm 11.12.1). On 2026-10-03 `npm test` passed 88 tests (the 13 of the first run and the cases added since for delivery, Jobs, schedules, the generated surface and the schedule id rule held to the contract's pattern) on the same Node and npm, over a `node_modules` tree copied from that locked install rather than a fresh `npm ci`. On 2026-10-07, after a fresh `npm ci`, `npm test` ran 98 tests: 97 passed and the live smoke test was skipped (the 88, nine for the password sign-in, and the smoke test). On 2026-10-08, after a fresh `npm ci`, `npm test` ran 104 tests: 103 passed and the live smoke test was skipped (the 98 and six for external sign-in).
+
+## Licence
+
+Apache-2.0; see [LICENSE.md](LICENSE.md).

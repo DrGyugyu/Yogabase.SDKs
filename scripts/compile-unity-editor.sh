@@ -17,7 +17,7 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
-package="$repo_root/languages/unity/com.stackyoga.yogabase-runtime-host"
+package="$repo_root/languages/unity/io.yogabase.runtime-host"
 out="$repo_root/.unity-compile"
 
 if [[ -z "${UNITY_RSP:-}" ]]; then

@@ -10,13 +10,16 @@
     <Company>Yogabase</Company>
     <Description>Preview first-party .NET/Unity runtime-host client for a Yogabase hosted self-contained service workload.</Description>
     <PackageTags>yogabase;runtime-host;dedicated-server;unity;game-server</PackageTags>
-    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
-    <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/DrGyugyu/Yogabase.SDKs</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/DrGyugyu/Yogabase.SDKs</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IsPackable>true</IsPackable>
-    <PublishRepositoryUrl>false</PublishRepositoryUrl>
     <!-- These APIs have newer static/char alternatives only on the net10 target. Keep one
          source-compatible implementation for the netstandard2.1/Unity build. -->
     <NoWarn>$(NoWarn);CS1591;CA1510;CA1512;CA1847;CA1850;CA1865</NoWarn>
@@ -25,19 +28,23 @@
     <PackageReference Include="System.Text.Json" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The licence is declared by PackageLicenseExpression above, so LICENSE.md and NOTICE are
+         plain content here: the Apache-2.0 text and the attribution notice travel inside the
+         package itself (Apache-2.0 §4). -->
     <None Include="../../../LICENSE.md" Pack="true" PackagePath="/" />
+    <None Include="../../../NOTICE" Pack="true" PackagePath="/" />
     <None Include="README.md" Pack="true" PackagePath="/" />
-    <!-- ADR 0043/0045 notice retention: this module is a modified derivative of the client loop
+    <!-- Apache-2.0 §4 notice retention: this module is a modified derivative of the client loop
          shape in Agones (Apache-2.0, v1.60.0, commit 67b44a783218f7811084adaa5d9b334fb28e44ba),
          so the unmodified upstream licence travels inside the package itself. -->
     <None Include="../../../licenses/Apache-2.0-Agones.txt" Pack="true" PackagePath="licenses/" />
   </ItemGroup>
-  <!-- A local preview may contain reviewed working-tree changes beyond HEAD. Do not stamp the
-       resulting package with an older commit and imply that it is reproducible from that commit. -->
+  <!-- The repository URL and type above are fixed facts of the package and stay in the nuspec. A
+       local pack may contain reviewed working-tree changes beyond HEAD, so the branch and commit
+       Source Link reads from the checkout are not stamped: a package must not imply that it is
+       reproducible from a commit it was not built from. -->
   <Target Name="ClearLocalPreviewRepositoryMetadata" BeforeTargets="GenerateNuspec">
     <PropertyGroup>
-      <RepositoryUrl />
-      <RepositoryType />
       <RepositoryBranch />
       <RepositoryCommit />
     </PropertyGroup>

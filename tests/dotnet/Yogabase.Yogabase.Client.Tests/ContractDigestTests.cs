@@ -295,7 +295,7 @@ public sealed class ContractDigestTests
     /// </summary>
     [Theory]
     [InlineData("languages/typescript/src/delivery.ts")]
-    [InlineData("languages/python/src/stackyoga_yogabase/delivery.py")]
+    [InlineData("languages/python/src/yogabase_client/delivery.py")]
     public async Task EmbeddedDeliveryContractConstantMatchesTheRecordedDigest(string relativePath)
     {
         var repoRoot = FindRepoRoot();

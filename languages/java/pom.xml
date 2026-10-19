@@ -3,10 +3,30 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>io.stackyoga</groupId>
-  <artifactId>yogabase-client-preview</artifactId>
+  <groupId>io.yogabase</groupId>
+  <artifactId>yogabase-client</artifactId>
   <version>0.4.0-preview.1</version>
   <packaging>jar</packaging>
+  <name>Yogabase Java client</name>
+  <description>Java client for the Yogabase application gateway and workload Delivery API, generated with Microsoft Kiota from the Yogabase v1 OpenAPI contracts.</description>
+  <url>https://github.com/DrGyugyu/Yogabase.SDKs</url>
+  <licenses>
+    <license>
+      <name>Apache-2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+  <scm>
+    <connection>scm:git:https://github.com/DrGyugyu/Yogabase.SDKs.git</connection>
+    <developerConnection>scm:git:git@github.com:DrGyugyu/Yogabase.SDKs.git</developerConnection>
+    <url>https://github.com/DrGyugyu/Yogabase.SDKs</url>
+  </scm>
+  <developers>
+    <developer>
+      <name>Yogabase</name>
+    </developer>
+  </developers>
   <properties>
     <maven.compiler.release>17</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

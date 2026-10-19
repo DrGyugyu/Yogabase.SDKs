@@ -5,7 +5,7 @@ import './item/with_table_item_request_builder.dart';
 /// auto generated
 /// Builds and executes requests for operations under \v1\data
 class DataRequestBuilder extends BaseRequestBuilder<DataRequestBuilder> {
-    /// Gets an item from the stackyoga_yogabase.v1.data.item collection
+    /// Gets an item from the yogabase_client.v1.data.item collection
     ///  [table] A table in the project's public schema, exactly as the database names it. A name that is not exposed to the caller, and a name that does not exist, are the same 403 data_table_not_exposed.
     WithTableItemRequestBuilder byTable(String table) {
         var urlTplParams = Map.of(pathParameters);

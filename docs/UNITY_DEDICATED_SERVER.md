@@ -6,18 +6,18 @@ Take a Unity project to a running, reachable game server on Yogabase. There is o
 
 That is the whole packaging story now. You do not write a service layout document, generate a
 software bill of materials, run a vulnerability scanner, obtain a signing key, or produce a detached
-ECDSA signature. **Yogabase produces the delivery evidence** (owner decision, 2026-09-08): it
+ECDSA signature. **Yogabase produces the delivery evidence**: it
 derives the layout manifest and a CycloneDX inventory from the bundle you hand it, scans that
 inventory with its own scanner against a digest-pinned advisory snapshot, and signs manifest,
 inventory, and scan together with the installation admission key. A customer signature is optional
 and lives under the console's Advanced area.
 
 > **Status.** The Control Plane build surface this window posts to and the `/v1/servers/*` surface
-> a client calls have both landed in the product repository (branch `claude/platform-refactor`,
-> `f899f98`), and this SDK is aligned to them: `contracts/yogabase-builds-v1.openapi.json` and the
-> game-server half of `contracts/yogabase-client-v1.openapi.json` are byte-identical product
-> snapshots, and the Editor scripts read exactly the shapes those routes write. Nothing below has
-> yet been driven end to end by a Unity Editor against a live installation. See
+> a client calls are both implemented by the product, and this SDK is aligned to them:
+> `contracts/yogabase-builds-v1.openapi.json` and the game-server half of
+> `contracts/yogabase-client-v1.openapi.json` are byte-identical snapshots of the product's
+> published OpenAPI documents, and the Editor scripts read exactly the shapes those routes write.
+> Nothing below has yet been driven end to end by a Unity Editor against a live installation. See
 > [Honest limits](#honest-limits) — it is short, and it is the part to read before planning around
 > this.
 
@@ -99,7 +99,7 @@ unknown build) is an RFC 7807 problem with a stable upper-case `code` such as
 
 The full shape is
 [`contracts/yogabase-builds-v1.openapi.json`](../contracts/yogabase-builds-v1.openapi.json), a
-byte-identical snapshot of the product's `docs/api/yogabase-builds-v1.openapi.json`.
+byte-identical snapshot of the product's published build-ingest OpenAPI document.
 
 ## What "Build check" means
 
@@ -217,7 +217,7 @@ declared port opens and needs none of what follows. Use the client when you want
 readiness yourself, be reserved, see assignments, or drain on `SIGTERM`.
 
 The C# API is `YogabaseRuntimeHostClient` in the `Yogabase.Yogabase.RuntimeHost` package, carried
-into Unity by `languages/unity/com.stackyoga.yogabase-runtime-host`. It is a faithful, modified C#
+into Unity by `languages/unity/io.yogabase.runtime-host`. It is a faithful, modified C#
 derivative of Agones' `sdks/csharp/sdk/AgonesSDK.cs` client-loop shape, retargeted to Yogabase's
 self-scoped, instance-id-free wire contract; the copying boundary is recorded in
 [`REFERENCE_REVIEW.md`](REFERENCE_REVIEW.md).
@@ -315,9 +315,8 @@ Unity's IL2CPP pipeline AOT-compiles your project's managed code, including what
 High) can remove types and members that are only reached through reflection if they are not
 referenced elsewhere and not preserved by a `link.xml`. The package intends to ship a `link.xml`
 defensively, but the main hazard it would otherwise guard against does not apply here: the module
-mirrors `HostedServiceFixtureClient.cs`, which builds and parses its wire payloads with
-`System.Text.Json.Nodes` (`JsonObject`/`JsonNode`) — a document-object-model API — rather than an
-attribute-driven, reflection-based serializer. There is no `[JsonPropertyName]`-style contract for
+builds and parses its wire payloads with `System.Text.Json.Nodes` (`JsonObject`/`JsonNode`) — a
+document-object-model API — rather than an attribute-driven, reflection-based serializer. There is no `[JsonPropertyName]`-style contract for
 the stripper to silently break.
 
 ## Honest limits
@@ -326,49 +325,52 @@ the stripper to silently break.
   6000.5.7f1 Editor reference set (`scripts/compile-unity-editor.sh`, C# 9, warnings as errors) and
   that is the whole of its verification. No Unity Editor has opened it, no build has been driven
   through it, and no bundle has been uploaded by it.
-- **Its two upstream surfaces have landed, on a branch.** The Control Plane build surface and the
-  `/v1/servers/*` allocation surface exist in the product repository on `claude/platform-refactor`
-  (`f899f98`), and `contracts/` mirrors their documents byte for byte. What has not happened is a
-  Unity Editor publishing through them, or a game client dialing an address they returned.
-- **Per-instance addressing is new.** Each instance getting a host port and its node's address, and
-  a client-facing `/v1/servers/*` surface returning `host:port`, is the 2026-09-08 owner decision —
-  it supersedes the earlier position that only the service as a whole was reachable through a small
-  pool of gateway relay listener ports. The host-port range and node firewall this needs are an open
-  item, with a NodePort-per-instance fallback where host ports are forbidden.
+- **Its two upstream surfaces are implemented.** The Control Plane build surface and the
+  `/v1/servers/*` allocation surface exist in the product, and `contracts/` mirrors their published
+  documents byte for byte. What has not happened is a Unity Editor publishing through them, or a
+  game client dialing an address they returned.
+- **Per-instance addressing is new.** Each instance gets a host port and its node's address, and
+  the client-facing `/v1/servers/*` surface returns `host:port`; before 2026-09-08 only the service
+  as a whole was reachable, through a small pool of gateway relay listener ports. The host-port
+  range and node firewall this needs are an open item, with a NodePort-per-instance fallback where
+  host ports are forbidden.
 - **The installation, not the bundle, can still refuse a correct build.** Artifact object storage
   must be configured and the hosted-services module switch must be on. Those refusals are
   independent of whether your bundle passes every rule above.
 - **The executable-bit caveat is inference, not a confirmed refusal.** The Editor tool writes `0755`
   into the zip's external attributes for the player binary and native libraries because a bundle
-  that loses that bit cannot execute at runtime. No admission refusal code was found for it in the
-  product source, so it is a plausible failure mode this tooling avoids rather than one the server
-  independently catches.
+  that loses that bit cannot execute at runtime. The server publishes no admission refusal code for
+  it, so it is a plausible failure mode this tooling avoids rather than one the server independently
+  catches.
 - **Build check coverage is bounded in v1.** NuGet packages, the .NET runtime, Unity player files,
   and ELF SONAMEs against a pinned OSV snapshot. OS-package databases come later. Anything
   uncatalogued is reported as uncatalogued.
 
-## Sources read for this document
+## What the server side provides
 
-The bundle rules and runtime-host contract below were read out of the product repository. The
-publish flow above comes from the 2026-09-08 owner decisions recorded in that repository's
-`docs/PRODUCT_CONTEXT.md`, whose implementation is in progress:
+Everything in this document rests on four capabilities of a Yogabase installation. The SDK
+implements the client half of each; the server half is the product's.
 
-- `src/Yogabase.ControlPlane/Api/BuildEndpoints.cs`, `Services/Builds/BuildIngestService.cs`,
-  `Services/Builds/BuildCheckProjection.cs`, `Auth/DeveloperTokenAuthentication.cs`, and
-  `docs/api/yogabase-builds-v1.openapi.json` — the build routes, their multipart fields, the
-  response shape, and the developer-token rule
-- `src/Yogabase.Tasks/AppPlatform/Gateway/GameServers/GameServerEndpoints.cs`,
-  `src/Yogabase.Core/RuntimeHost/GameServerContracts.cs`, and
-  `docs/api/yogabase-client-v1.openapi.json` — the `/v1/servers/*` routes, bounds, and codes
-- `src/Yogabase.Core/Delivery/HostedServiceBundleContract.cs`
-- `src/Yogabase.Core/Delivery/HostedServiceBaseLibraryAllowlist.cs`
-- `src/Yogabase.Core/AppPlatform/Apps/AppArtifactContracts.cs`
-- `src/Yogabase.Core/AppPlatform/Runtime/YogaApplicationRuntime.cs`
-- `src/Yogabase.Core/RuntimeHost/RuntimeHostRelayContracts.cs`
-- `src/Yogabase.Provisioner/Job/SelfContainedServiceBundleInspector.cs`
-- `src/Yogabase.Tasks/AppPlatform/Hosting/RuntimeHostRelayProcess.cs`
-- `tools/Yogabase.Operator.Conformance/HostedServiceFixtureClient.cs`
-- `docs/PRODUCT_CONTEXT.md` — the 2026-09-08 platform-simplification decisions, items 4 (Yogabase
-  produces the delivery evidence) and 6 (game servers get an address). Every ADR in that repository
-  was retired on 2026-09-06; `docs/history/decisions/0059-hosted-self-contained-service-workloads.md`
-  survives as background only and carries no gate.
+- **Build ingestion.** The Control Plane accepts one multipart upload per build, stages the
+  archive, derives the service layout and a manifest from it, and has the member's isolated
+  admission Job derive the CycloneDX inventory, scan it against the digest-pinned advisory snapshot
+  and sign manifest, inventory and scan together. The routes, multipart fields, response shape and
+  refusal codes are the published build-ingest contract mirrored at
+  `contracts/yogabase-builds-v1.openapi.json`.
+- **Developer-token authentication.** A project-scoped `ybt_` token, issued from the console and
+  held by the server only as a hash, authorizes build uploads to one project and nothing else: it is
+  not a player credential, it does not reach the application gateway, and it carries no cloud or
+  Kubernetes authority.
+- **Game-server endpoints.** The application gateway's `/v1/servers/*` routes let a signed-in
+  player allocate a Ready instance, list and read the environment's instances and release an
+  allocation, answering the address the installation advertises for the instance's node and the
+  ports the member observed. Their bounds and codes are in the mirrored application contract,
+  `contracts/yogabase-client-v1.openapi.json`.
+- **Runtime-host contract.** A Pod-local relay exposes the five self-scoped loopback routes a
+  hosted workload uses to heartbeat, signal Ready, be reserved, read assignments and drain; the
+  Control Plane resolves which instance is calling from the member's own Pod observation, never
+  from anything the workload asserts, and refuses allocation from the workload. The lifecycle states
+  and codes are the published document mirrored at `contracts/yogabase-runtime-host-v1.openapi.json`.
+
+The bundle rules in [What still refuses a build](#what-still-refuses-a-build) are the admission
+rules the installation applies to every uploaded bundle, whichever tool uploaded it.

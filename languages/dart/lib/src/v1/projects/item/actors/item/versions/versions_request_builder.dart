@@ -5,7 +5,7 @@ import './item/with_function_version_item_request_builder.dart';
 /// auto generated
 /// Builds and executes requests for operations under \v1\projects\{projectId}\actors\{functionId}\versions
 class VersionsRequestBuilder extends BaseRequestBuilder<VersionsRequestBuilder> {
-    /// Gets an item from the stackyoga_yogabase.v1.projects.item.actors.item.versions.item collection
+    /// Gets an item from the yogabase_client.v1.projects.item.actors.item.versions.item collection
     ///  [functionVersion] Unique identifier of the item
     WithFunctionVersionItemRequestBuilder byFunctionVersion(String functionVersion) {
         var urlTplParams = Map.of(pathParameters);

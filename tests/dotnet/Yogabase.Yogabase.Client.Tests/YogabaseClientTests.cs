@@ -436,11 +436,11 @@ public sealed class YogabaseClientTests
         var session = await client.Auth.SignInWithPkceAsync(
             new YogabasePkceOptions
             {
-                RedirectUri = new Uri("com.stackyoga.app:/oauth/callback"),
+                RedirectUri = new Uri("io.yogabase.app:/oauth/callback"),
                 OpenBrowserAsync = (authorize, _) =>
                 {
                     var state = ParseQuery(authorize.Query)["state"];
-                    return Task.FromResult(new Uri($"com.stackyoga.app:/oauth/callback?code=code-1&state={state}"));
+                    return Task.FromResult(new Uri($"io.yogabase.app:/oauth/callback?code=code-1&state={state}"));
                 },
             },
             TestContext.Current.CancellationToken);
@@ -450,9 +450,9 @@ public sealed class YogabaseClientTests
         var forged = await Assert.ThrowsAsync<YogabaseApiException>(() => client.Auth.SignInWithPkceAsync(
             new YogabasePkceOptions
             {
-                RedirectUri = new Uri("com.stackyoga.app:/oauth/callback"),
+                RedirectUri = new Uri("io.yogabase.app:/oauth/callback"),
                 OpenBrowserAsync = (_, _) => Task.FromResult(
-                    new Uri("com.stackyoga.app:/oauth/callback?error=access_denied")),
+                    new Uri("io.yogabase.app:/oauth/callback?error=access_denied")),
             },
             TestContext.Current.CancellationToken));
         Assert.Equal("authorization_response_invalid", forged.Code);
@@ -497,9 +497,9 @@ public sealed class YogabaseClientTests
 
     [Theory]
     [InlineData(null, "interactive_login_required")]
-    [InlineData("com.stackyoga.app:/oauth/callback?code=code-1&state=forged", "authorization_response_invalid")]
-    [InlineData("com.stackyoga.app:/oauth/callback?state={state}", "authorization_response_invalid")]
-    [InlineData("com.stackyoga.app:/oauth/callback?error=access_denied&state={state}", "access_denied")]
+    [InlineData("io.yogabase.app:/oauth/callback?code=code-1&state=forged", "authorization_response_invalid")]
+    [InlineData("io.yogabase.app:/oauth/callback?state={state}", "authorization_response_invalid")]
+    [InlineData("io.yogabase.app:/oauth/callback?error=access_denied&state={state}", "access_denied")]
     [InlineData("https://other.example/cb?code=code-1&state={state}", "authorization_redirect_mismatch")]
     public async Task PasswordSignInMakesNoTokenRequestUnlessAuthorizeAnswersWithTheCodeAndState(string? location, string code)
     {
@@ -600,9 +600,9 @@ public sealed class YogabaseClientTests
     }
 
     [Theory]
-    [InlineData("com.stackyoga.app:/oauth/callback?code=c&state=forged", "authorization_response_invalid")]
-    [InlineData("com.stackyoga.app:/oauth/callback?error=access_denied&state=gw-state-1", "access_denied")]
-    [InlineData("com.stackyoga.app:/oauth/callback?state=gw-state-1", "authorization_response_invalid")]
+    [InlineData("io.yogabase.app:/oauth/callback?code=c&state=forged", "authorization_response_invalid")]
+    [InlineData("io.yogabase.app:/oauth/callback?error=access_denied&state=gw-state-1", "access_denied")]
+    [InlineData("io.yogabase.app:/oauth/callback?state=gw-state-1", "authorization_response_invalid")]
     [InlineData("https://other.example/cb?code=c&state=gw-state-1", "authorization_redirect_mismatch")]
     public async Task ExternalSignInMakesNoCallbackRequestForAForgedOrRefusedRedirect(string redirect, string code)
     {
@@ -1135,11 +1135,11 @@ public sealed class YogabaseClientTests
         var signIn = client.Auth.SignInWithPkceAsync(
             new YogabasePkceOptions
             {
-                RedirectUri = new Uri("com.stackyoga.app:/oauth/callback"),
+                RedirectUri = new Uri("io.yogabase.app:/oauth/callback"),
                 OpenBrowserAsync = (authorize, _) =>
                 {
                     var state = ParseQuery(authorize.Query)["state"];
-                    return Task.FromResult(new Uri($"com.stackyoga.app:/oauth/callback?code=new-user-code&state={state}"));
+                    return Task.FromResult(new Uri($"io.yogabase.app:/oauth/callback?code=new-user-code&state={state}"));
                 },
             },
             TestContext.Current.CancellationToken);
@@ -1190,13 +1190,13 @@ public sealed class YogabaseClientTests
         var signIn = client.Auth.SignInWithPkceAsync(
             new YogabasePkceOptions
             {
-                RedirectUri = new Uri("com.stackyoga.app:/oauth/callback"),
+                RedirectUri = new Uri("io.yogabase.app:/oauth/callback"),
                 OpenBrowserAsync = async (authorize, cancellationToken) =>
                 {
                     browserStarted.TrySetResult();
                     await releaseBrowser.Task.WaitAsync(cancellationToken);
                     var state = ParseQuery(authorize.Query)["state"];
-                    return new Uri($"com.stackyoga.app:/oauth/callback?code=stale-code&state={state}");
+                    return new Uri($"io.yogabase.app:/oauth/callback?code=stale-code&state={state}");
                 },
             },
             TestContext.Current.CancellationToken);
@@ -1268,7 +1268,7 @@ public sealed class YogabaseClientTests
         return store;
     }
 
-    private const string Callback = "com.stackyoga.app:/oauth/callback";
+    private const string Callback = "io.yogabase.app:/oauth/callback";
     private const string TokenBody = "{\"access_token\":\"access-1\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"refresh_token\":\"refresh-1\"}";
 
     // The gateway's headless sign-in routes, recording each call. `authorize` receives the state it was sent. `login`
@@ -1316,9 +1316,9 @@ public sealed class YogabaseClientTests
             RealtimeEndpoint = "http://localhost:5001/",
             OidcAuthority = origin + "/p/11111111-1111-4111-8111-111111111111",
             OidcDiscoveryEndpoint = origin + "/.well-known/openid-configuration",
-            OidcPublicClientId = "stackyoga-native-preview",
+            OidcPublicClientId = "yogabase-native-preview",
             OidcScopes = scopes ?? ["openid", "offline_access"],
-            OidcRedirectUris = ["com.stackyoga.app:/oauth/callback"],
+            OidcRedirectUris = ["io.yogabase.app:/oauth/callback"],
             RealtimePath = "/v1/realtime",
             Capabilities = capabilities ?? Capabilities(),
             IssuedAt = DateTimeOffset.Parse("2026-08-26T00:00:00+00:00", System.Globalization.CultureInfo.InvariantCulture),

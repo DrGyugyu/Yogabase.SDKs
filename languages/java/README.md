@@ -1,19 +1,41 @@
-# Yogabase Java/JVM client preview
+# Yogabase Java client
 
-Generated with Microsoft Kiota 1.34.1 from the current Yogabase v1-preview contract. The source
-targets the Java/JVM Kiota runtime and is the current Kotlin/JVM interoperability path; no native
-Kotlin or Android qualification is claimed. Callers must provide a request adapter with the exact
-Yogabase REST gateway and a project bearer-token authentication provider.
+`io.yogabase:yogabase-client` is the Java client for the Yogabase application gateway and the
+workload Delivery API. Its request builders and models are generated with Microsoft Kiota 1.34.1
+from the Yogabase v1 OpenAPI contracts under `contracts/` (package `io.yogabase.client`, and
+`io.yogabase.client.delivery` for the Delivery contract); the storage-key, Jobs, Schedules and
+delivery facades described below are authored. It targets Java 17 on the Kiota Java runtime and is
+also the Kotlin/JVM interoperability path; no native Kotlin or Android qualification is claimed.
+Callers provide a Kiota request adapter bound to the exact Yogabase REST gateway and a project
+bearer-token authentication provider.
 
-The generated REST surface includes bootstrap, signup and interactive auth endpoints,
-Storage, stateless Function invocation, Actor Lambda invocation, and Workflow start/cancel. The
-contract returns a separate realtime origin, but this package does not yet include or qualify a
-JVM SignalR wrapper.
+The generated REST surface includes bootstrap, signup and interactive auth endpoints, Storage,
+stateless Function invocation, Actor Lambda invocation, Workflow start/cancel, Jobs, Schedules, the
+Data API and game servers. The contract returns a separate realtime origin, but this package does
+not include a JVM SignalR wrapper.
 
 The serialization modules are direct compile dependencies because the generated client registers
-their factories; the Kiota bundle currently marks those transitive modules as runtime scope.
+their factories; the Kiota bundle marks those transitive modules as runtime scope.
 
-This source preview is local, unpublished, and not production-qualified.
+The package is not yet published to Maven Central. Build it from source as described next.
+
+## Building and running the checks
+
+Build the jar with Maven on JDK 17 or newer: `mvn -q -DskipTests package` in this directory. The
+checks under `src/test/java` are plain programs with a `public static void main` and no
+test-framework dependency, so Maven does not run them. Compile them against `target/classes` and the
+dependency jars (`mvn -q dependency:build-classpath -Dmdep.outputFile=cp.txt` writes that classpath),
+then run each class from this directory, which `YogabaseSchedulesClientTest` needs in order to find
+the contract under `../../contracts`:
+
+```sh
+java -cp "target/classes:target/test-classes:$(cat cp.txt)" io.yogabase.client.YogabaseSchedulesClientTest
+```
+
+The classes are `YogabaseStorageLogicalKeyTest`, `YogabaseGeneratedSurfaceTest`,
+`YogabaseDeliveryClientTest`, `YogabaseJobsClientTest` and `YogabaseSchedulesClientTest`. Each prints
+a `PASS` line (with its check count where it counts) or exits with an `AssertionError` naming the
+failed check.
 
 ## The Data API and game servers are generated; builds are not
 
@@ -28,7 +50,7 @@ select and 500 per write, 1 MiB per value, a five-second statement timeout). Req
 Nothing in this package has called the Data API against a live installation. A typed data API and
 Entity Framework Core inside Lambdas stay server-side: no client SDK carries EF code or a model.
 
-Two other surfaces were added when the Data API was withdrawn:
+Two further surfaces are part of the contracts:
 
 - **Game servers** — `POST /v1/servers/start`, `GET /v1/servers`, `GET /v1/servers/{serverId}`
   and `POST /v1/servers/{serverId}/stop` on the application gateway, authenticated with the
@@ -134,9 +156,8 @@ jobs.cancel(job.jobId());                        // idempotent; a running job is
   aside; a job that breaks a bound it does know (an unknown status, `maxAttempts` outside 1 to 10) is refused.
   Calls block: run them off the UI thread.
 
-It was also run end to end on 2026-10-03, over the default Kiota OkHttp pipeline, against the product's real
-Jobs routes, built from product `main` `92ac1ced` (24 checks; see the root README for what that host was and
-was not).
+The Jobs client was also run end to end on 2026-10-03, over the default Kiota OkHttp pipeline, against the
+product's real Jobs routes, built from product `main` `92ac1ced` (24 checks).
 
 ## Schedules
 
@@ -220,7 +241,7 @@ in the product repository.
 ## Workload delivery
 
 The package also contains a delivery client generated from the separate workload Delivery v1
-contract under `io.stackyoga.yogabase.delivery`. Wrap a delivery-only `RequestAdapter` with
+contract under `io.yogabase.client.delivery`. Wrap a delivery-only `RequestAdapter` with
 `YogabaseDeliveryClient`; do not reuse the application adapter or its credentials. The authored
 facade validates the delivery origin, provides a rotating bearer-token provider and header helpers,
 recognizes the exact terminal operation states, supports cancellable bounded polling, and parses
@@ -237,3 +258,7 @@ try (var delivery = new YogabaseDeliveryClient(
 
 Artifact admission carries credential-free source and evidence metadata. No Kubernetes credential,
 Agones/PlayFlow compatibility call, or unimplemented runtime health/allocation API is added.
+
+## Licence
+
+Apache-2.0; see [`LICENSE.md`](LICENSE.md). Copyright Yogabase.
