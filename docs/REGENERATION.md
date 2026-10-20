@@ -60,7 +60,9 @@ the contract and its `.sha256` sidecar are recorded here, and this script verifi
 no `generate_*` call reads it. The only runtime-host client is the authored one in
 `src/dotnet/Yogabase.Yogabase.RuntimeHost` and the Unity package under
 `languages/unity/io.yogabase.runtime-host`, which carry the heartbeat loop, the wait-out of
-`RUNTIME_HOST_INSTANCE_PENDING` and the resume-token polling. Re-syncing it follows the note
+`RUNTIME_HOST_INSTANCE_PENDING` and the resume-token polling; `YogabaseRuntimeHostContractTests`
+holds that client's routes, limits and refusal codes to this document instead, so a re-mirrored
+document that adds, moves or renumbers any of them fails a test. Re-syncing it follows the note
 above: copy the product file, regenerate the `.sha256` sidecar, and update the digest in
 `MANIFEST.json` (`runtimeHostSelfContract`) and both READMEs, where `ContractDigestTests` pins it.
 

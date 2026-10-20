@@ -23,6 +23,7 @@ using System.Net;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
@@ -38,8 +39,17 @@ namespace Yogabase.Yogabase.RuntimeHost
 /// Every call targets <c>/runtime-host/v1/self/{verb}</c> on the Pod-local relay -- nothing here
 /// ever learns, presents, or asserts an instance id or a credential of any kind; the Control Plane
 /// resolves identity solely from the Agent-stamped binding. There is deliberately no allocation
-/// method: <c>POST /allocations</c> is backend-only and the relay refuses it with 403
-/// <c>RUNTIME_HOST_RELAY_ALLOCATION_BACKEND_ONLY</c>.
+/// method: allocation placement is a backend-only Control Plane operation, so the relay refuses
+/// <c>/runtime-host/v1/self/allocate</c> (under either method) with 403
+/// <c>RUNTIME_HOST_RELAY_ALLOCATION_BACKEND_ONLY</c>, and no <c>/allocations</c> route is mapped
+/// on it at all.
+///
+/// A refused call throws <see cref="YogabaseRuntimeHostException"/>. Most refusals carry a
+/// <c>{code, detail}</c> body, but the relay answers 413, 429 and 504 with no body at all; those
+/// throw the same exception with the status, the code <c>UNKNOWN</c> and an empty
+/// <see cref="YogabaseRuntimeHostException.BodyJson"/>, and
+/// <see cref="YogabaseRuntimeHostException.IsRetryable"/> says whether the contract marks the
+/// answer worth repeating (429 and 504 yes, 413 no).
 ///
 /// This is not a general-purpose HTTP client. The <see cref="HttpClient"/> it owns is built with
 /// redirects, proxying, cookies, default credentials, and pre-authentication all disabled, and it
@@ -54,10 +64,9 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
     /// the Control Plane yet -- a platform timing fact, not a caller error -- and the identical call
     /// succeeds once that observation arrives. Every other code (for example
     /// <c>RUNTIME_HOST_STALE_EPOCH</c>, <c>RUNTIME_HOST_SHUTDOWN_IN_PROGRESS</c>,
-    /// <c>RUNTIME_HOST_TERMINATED</c>, <c>RUNTIME_HOST_INSTANCE_NOT_FOUND</c>) is terminal and is
-    /// thrown immediately.
+    /// <c>RUNTIME_HOST_TERMINATED</c>) is terminal and is thrown immediately.
     /// </summary>
-    private const string InstancePendingCode = "RUNTIME_HOST_INSTANCE_PENDING";
+    private const string InstancePendingCode = YogabaseRuntimeHostException.InstancePendingCode;
 
     /// <summary>The wait between retries when a pending refusal's body carries no <c>retryAfterSeconds</c> hint.</summary>
     private static readonly TimeSpan DefaultInstancePendingDelay = TimeSpan.FromSeconds(2);
@@ -190,13 +199,13 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
         using var response = await http.GetAsync($"/runtime-host/v1/self/assignments{query}", cancellationToken)
             .ConfigureAwait(false);
         var text = await ReadBodyAsync(response, cancellationToken).ConfigureAwait(false);
-        var node = JsonNode.Parse(text) as JsonObject
-            ?? throw new InvalidOperationException("The assignments route returned no JSON object body.");
         if (!response.IsSuccessStatusCode)
         {
-            throw ToRuntimeHostException(response.StatusCode, node, text);
+            throw ToRuntimeHostException(response.StatusCode, text);
         }
 
+        var node = JsonNode.Parse(text) as JsonObject
+            ?? throw new InvalidOperationException("The assignments route returned no JSON object body.");
         var events = (node["events"] as JsonArray ?? new JsonArray())
             .Select(item => new RuntimeHostAssignmentEvent(
                 item!["sequence"]!.GetValue<long>(),
@@ -389,13 +398,13 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
         using var response = await http.PostAsync($"/runtime-host/v1/self/{verb}", content, cancellationToken)
             .ConfigureAwait(false);
         var text = await ReadBodyAsync(response, cancellationToken).ConfigureAwait(false);
-        var node = JsonNode.Parse(text) as JsonObject
-            ?? throw new InvalidOperationException($"The {verb} route returned no JSON object body.");
         if (!response.IsSuccessStatusCode)
         {
-            throw ToRuntimeHostException(response.StatusCode, node, text);
+            throw ToRuntimeHostException(response.StatusCode, text);
         }
 
+        var node = JsonNode.Parse(text) as JsonObject
+            ?? throw new InvalidOperationException($"The {verb} route returned no JSON object body.");
         return new RuntimeHostLease(
             node["state"]!.GetValue<string>(),
             node["heartbeatSequence"]!.GetValue<long>(),
@@ -403,10 +412,45 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
             node["eventSequence"]!.GetValue<long>());
     }
 
-    private static YogabaseRuntimeHostException ToRuntimeHostException(HttpStatusCode status, JsonObject body, string raw)
+    // A refusal the Control Plane or the relay chose is a JSON {code, detail} body, but the relay
+    // answers 413, 429 and 504 with no body at all, and a hop in front of it could answer with
+    // something that is not JSON. None of those is a parse failure: the caller gets the status
+    // (and the raw body, when there is one) on a YogabaseRuntimeHostException, whose code is
+    // "UNKNOWN" because no body named one.
+    private static YogabaseRuntimeHostException ToRuntimeHostException(HttpStatusCode status, string raw) =>
+        new YogabaseRuntimeHostException(status, ReadRefusalCode(raw), raw);
+
+    private static string ReadRefusalCode(string raw)
     {
-        var code = body["code"]?.GetValue<string>() ?? body["title"]?.GetValue<string>() ?? "UNKNOWN";
-        return new YogabaseRuntimeHostException(status, code, raw);
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return "UNKNOWN";
+        }
+
+        // JsonDocument rather than JsonNode: a JsonObject throws ArgumentException on first access
+        // to a body with a repeated property name, and a refusal must never fail to surface.
+        try
+        {
+            using var document = JsonDocument.Parse(raw);
+            if (document.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var name in new[] { "code", "title" })
+                {
+                    if (document.RootElement.TryGetProperty(name, out var value)
+                        && value.ValueKind == JsonValueKind.String
+                        && !string.IsNullOrEmpty(value.GetString()))
+                    {
+                        return value.GetString()!;
+                    }
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            // Not JSON: the status is all the body says.
+        }
+
+        return "UNKNOWN";
     }
 
     // Retries only RUNTIME_HOST_INSTANCE_PENDING, and only for as long as

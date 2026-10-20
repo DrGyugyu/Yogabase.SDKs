@@ -2,8 +2,28 @@
 
 All notable changes to this package are documented in this file.
 
-## Unreleased
+## [0.3.0-preview.1]
 
+- The relay answers `413`, `429` and `504` with no body at all, and the client parsed every answer as
+  a JSON object, so those surfaced as a JSON parse error. A bodyless answer now throws
+  `YogabaseRuntimeHostException` with its status (code `UNKNOWN`, empty `BodyJson`), and so does any
+  other refusal whose body is not a JSON object naming a code.
+- `YogabaseRuntimeHostException.IsRetryable` is true for `RUNTIME_HOST_INSTANCE_PENDING`, `429` and
+  `504` and false for everything else, `413` included. The client still waits out only the pending
+  refusal, and only on `HeartbeatOnceAsync` and `ReadyAsync`; a heartbeat repeated after a `504`
+  carries the next sequence.
+- The comments and documentation no longer say that `POST /allocations` is refused with
+  `RUNTIME_HOST_RELAY_ALLOCATION_BACKEND_ONLY`: the relay answers that for
+  `/runtime-host/v1/self/allocate`, and `/allocations` is not mapped. They no longer name
+  `RUNTIME_HOST_INSTANCE_NOT_FOUND`, which can never reach a relay call (nor can
+  `RUNTIME_HOST_WRONG_POD` or `RUNTIME_HOST_BINDING_REJECTED`), and assignment event kinds are
+  documented in lower case (`allocated`, `allocation-released`), as the relay sends them.
+- The client's routes, limits and refusal codes are held to
+  `contracts/yogabase-runtime-host-self-v1.openapi.json`, the document the product published on
+  2026-10-20 for the loopback relay, by tests in the SDK repository.
+- The `Runtime` folder compiles with no warnings or errors at C# 9, warnings as errors, as
+  `netstandard2.1` against System.Text.Json 8.0.5. It was not compiled again against the Unity
+  6000.5.7f1 reference set; no Unity Editor has imported this version and no IL2CPP build has run it.
 - The package id is `io.yogabase.runtime-host` and its display name is *Yogabase Runtime Host*;
   the earlier id, which carried a predecessor's name, is withdrawn. No `.meta` GUID changed, so a
   project that referenced the old folder keeps its assets by changing the key and path in

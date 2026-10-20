@@ -40,6 +40,15 @@ and then throw the last pending refusal. Every other code is thrown on the first
 `ReserveAsync`, `ShutdownAsync` and the assignment watch never wait. Tests substitute
 `StartupPendingDelay` so nothing sleeps.
 
+The relay answers three statuses with no body at all: `413` (the request body is over its 64 KiB
+limit), `429` (64 calls of this Pod are already waiting for their answers; nothing was forwarded)
+and `504` (no answer within its 30 seconds, so the call may or may not have taken effect). Each
+throws `YogabaseRuntimeHostException` too, with that status, the code `UNKNOWN` and an empty
+`BodyJson`. `IsRetryable` is true for the pending refusal, `429` and `504` and false for everything
+else, `413` included. The client does not retry `429` or `504` itself: repeat `ReadyAsync`,
+`ReserveAsync`, `ShutdownAsync` and the assignment read as they were, and a heartbeat with the next
+sequence, which `HeartbeatOnceAsync` sends.
+
 The background loop that `Connect` starts keeps going after a failed heartbeat. Pass
 `Connect(onHeartbeatFailure)` to see those failures instead of losing them.
 
@@ -69,6 +78,16 @@ A Unity project takes this client as a built assembly from `src/unity/Yogabase.Y
 the same sources, compiled for netstandard2.1 against System.Text.Json 8.0.5, so it binds Unity's own
 8.0 copy.
 
+## The contract
+
+The five routes, the lease and page shapes, the refusal codes and the relay's limits (a 64 KiB
+body, 64 pending calls, a 30 second answer timeout, 100 events per page, reservations clamped to
+1-600 seconds, a 30 second lease, a 2 second retry hint) are those of
+`contracts/yogabase-runtime-host-self-v1.openapi.json` in the SDK repository, a byte-identical copy
+of the document the product published on 2026-10-20. The SDK does not generate from it: this client is
+authored, and `YogabaseRuntimeHostContractTests` holds its routes, limits and refusal codes to the
+document.
+
 ## Deliberate omissions
 
 - **No instance id.** Nothing here takes, stores, or sends one. The Control Plane resolves the
@@ -77,7 +96,8 @@ the same sources, compiled for netstandard2.1 against System.Text.Json 8.0.5, so
 - **No credential.** This client never sets an `Authorization` header or sends an API key. The relay
   accepts neither application nor delivery credentials, and it holds none itself.
 - **No allocation method.** Allocation placement and release are backend-only Control Plane
-  operations; the relay refuses a self-allocate with `403 RUNTIME_HOST_RELAY_ALLOCATION_BACKEND_ONLY`.
+  operations; the relay refuses `/runtime-host/v1/self/allocate` with
+  `403 RUNTIME_HOST_RELAY_ALLOCATION_BACKEND_ONLY`, and no `/allocations` route is mapped on it.
   The absence of an allocate call is contract, not an oversight.
 - **Polling, not streaming.** The relay is strictly request/response, so the assignment watch is a
   resume-token poll. An empty resume token in a page means "no progress" and does not reset the

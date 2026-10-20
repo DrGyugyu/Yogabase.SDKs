@@ -5,7 +5,7 @@
     <RootNamespace>Yogabase.Yogabase.RuntimeHost</RootNamespace>
     <AssemblyName>Yogabase.Yogabase.RuntimeHost</AssemblyName>
     <PackageId>Yogabase.Yogabase.RuntimeHost</PackageId>
-    <Version>0.1.0-preview.1</Version>
+    <Version>0.2.0-preview.1</Version>
     <Authors>Yogabase</Authors>
     <Company>Yogabase</Company>
     <Description>Preview first-party .NET/Unity runtime-host client for a Yogabase hosted self-contained service workload.</Description>

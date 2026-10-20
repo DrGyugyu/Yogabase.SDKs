@@ -40,7 +40,13 @@ public sealed record RuntimeHostLease(
 
 /// <summary>One assignment-lifecycle event returned by the assignments watch route.</summary>
 /// <param name="Sequence">The monotonic sequence number of this event.</param>
-/// <param name="Kind">The event kind reported by the relay (e.g. <c>"Allocated"</c>, <c>"Released"</c>).</param>
+/// <param name="Kind">
+/// The audit event kind reported by the relay, in lower case: for example <c>"registered"</c>,
+/// <c>"heartbeat"</c>, <c>"ready"</c>, <c>"reserved"</c>, <c>"allocated"</c>, <c>"allocation-released"</c>,
+/// <c>"readiness-withdrawn"</c>, <c>"lease-expired"</c>, <c>"draining"</c>, <c>"drain-complete"</c>,
+/// <c>"drain-deadline-forced"</c> or <c>"terminated"</c>. A kind this client does not know is passed
+/// through as the relay sent it.
+/// </param>
 /// <param name="State">The lease state that resulted from this event.</param>
 /// <param name="AllocationId">The backend-issued allocation identifier, when this event carries one.</param>
 /// <param name="OccurredAt">The instant the relay recorded this event.</param>
@@ -99,9 +105,21 @@ public sealed record RuntimeHostCurrentState(string? State, long? Sequence, bool
     public bool IsReady => State is "Ready" or "Reserved" or "Allocated";
 }
 
-/// <summary>Raised when a self-scoped runtime-host call is refused; the caller decides whether that is expected.</summary>
+/// <summary>
+/// Raised when a self-scoped runtime-host call is refused; the caller decides whether that is expected.
+/// Most refusals carry a <c>{code, detail}</c> body, but the relay answers 413, 429 and 504 with no
+/// body at all: those arrive here too, with their <see cref="StatusCode"/>, the code <c>"UNKNOWN"</c>
+/// and an empty <see cref="BodyJson"/>.
+/// </summary>
 public sealed class YogabaseRuntimeHostException : Exception
 {
+    /// <summary>The one refusal code the contract marks retryable: the member has not reported this Pod incarnation yet.</summary>
+    internal const string InstancePendingCode = "RUNTIME_HOST_INSTANCE_PENDING";
+
+    private const int TooManyRequests = 429;
+
+    private const int GatewayTimeout = 504;
+
     /// <summary>Initializes a new instance of the <see cref="YogabaseRuntimeHostException"/> class.</summary>
     public YogabaseRuntimeHostException()
         : base("runtime-host call refused.")
@@ -134,12 +152,15 @@ public sealed class YogabaseRuntimeHostException : Exception
     /// <param name="code">The relay-reported error code, or <c>"UNKNOWN"</c> when the body names none.</param>
     /// <param name="bodyJson">The raw response body.</param>
     public YogabaseRuntimeHostException(HttpStatusCode statusCode, string code, string bodyJson)
-        : base($"runtime-host call refused: {(int)statusCode} {code}")
+        : base($"runtime-host call refused: {(int)statusCode} {code}" + (string.IsNullOrEmpty(bodyJson) ? " (no body)" : string.Empty))
     {
         StatusCode = statusCode;
         Code = code;
         BodyJson = bodyJson;
         RetryAfterSeconds = ParseRetryAfterSeconds(bodyJson);
+        IsRetryable = string.Equals(code, InstancePendingCode, StringComparison.Ordinal)
+            || (int)statusCode == TooManyRequests
+            || (int)statusCode == GatewayTimeout;
     }
 
     /// <summary>The HTTP status code the relay returned.</summary>
@@ -148,8 +169,23 @@ public sealed class YogabaseRuntimeHostException : Exception
     /// <summary>The relay-reported error code. Never null; <c>"UNKNOWN"</c> when the body names none.</summary>
     public string Code { get; }
 
-    /// <summary>The raw response body. Never null.</summary>
+    /// <summary>The raw response body. Never null; empty when the relay answered with none (413, 429 and 504).</summary>
     public string BodyJson { get; }
+
+    /// <summary>
+    /// Whether the contract marks this answer as worth repeating. True for
+    /// <c>RUNTIME_HOST_INSTANCE_PENDING</c> (503, repeat the identical call after
+    /// <see cref="RetryAfterSeconds"/>), for 429 (the relay already holds its maximum of pending
+    /// calls for this Pod and forwarded nothing; retry once one is answered) and for 504 (no answer
+    /// arrived within the relay's answer timeout, so the call may or may not have taken effect:
+    /// <c>ready</c>, <c>reserve</c>, <c>shutdown</c> and the assignments read can be repeated as they
+    /// were, and a heartbeat is repeated with the next sequence, which
+    /// <see cref="YogabaseRuntimeHostClient.HeartbeatOnceAsync"/> sends). False for 413 (the body is
+    /// larger than the relay accepts, so repeating it fails the same way) and for every other answer,
+    /// each of which is terminal for the call that produced it. The client itself waits out only
+    /// <c>RUNTIME_HOST_INSTANCE_PENDING</c>, and only on a heartbeat or a ready call.
+    /// </summary>
+    public bool IsRetryable { get; }
 
     /// <summary>
     /// How long the relay says to wait before repeating the identical call, parsed from the
