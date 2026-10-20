@@ -102,7 +102,7 @@ Future<void> main() async {
 - **A live check.** `test/yogabase_live_smoke.dart` signs in, invokes a function, then puts and gets an object. It prints SKIPPED
   unless `YOGABASE_SMOKE_GATEWAY`, `YOGABASE_SMOKE_PUBLISHABLE_KEY`, `YOGABASE_SMOKE_EMAIL`,
   `YOGABASE_SMOKE_PASSWORD` (an existing, confirmed user without MFA), `YOGABASE_SMOKE_FUNCTION_ID` and
-  `YOGABASE_SMOKE_FUNCTION_VERSION` (a deployed stateless function that accepts `{}`) are all set. Its invoke, put and get requests were checked against in-memory gateways. It passed on 2026-10-10 against a local installation: the gateway of a throwaway cluster behind a local HTTPS address, a user signed up there, and a released hello function. It has not run through a public gateway name. Dart trusted that address's certificate through `dart --root-certs-file=<pem> run …`.
+  `YOGABASE_SMOKE_FUNCTION_VERSION` (a deployed stateless function that accepts `{}`) are all set. Its invoke, put and get requests were checked against in-memory gateways. It passed on 2026-10-10 against a local installation: the gateway of a throwaway cluster behind a local HTTPS address, a user signed up there, and a released hello function. On 2026-10-12 it passed again through the public gateway name of a standing installation, with a fresh throwaway user. Dart trusted that address's certificate through `dart --root-certs-file=<pem> run …`.
 
 ## Signing in with a provider
 
@@ -155,8 +155,7 @@ and this client carries the operations as generated code, for example `api.v1.da
 `select`, `insert`, `upsert`, `update` and `delete`. A response is a `DataResult` (`rows`, `affectedRows`, `hasMore`) and a refusal is an RFC 7807 problem whose `code` is one of the refusal codes
 the contract lists under `x-yogabase-data-api`, which also states the limits (at most 1000 rows per
 select and 500 per write, 1 MiB per value, a five-second statement timeout). Request values are plain JSON.
-Nothing in this package has called the Data API against a live installation. A typed data API and
-Entity Framework Core inside Lambdas stay server-side: no client SDK carries EF code or a model.
+Nothing in this package has called the Data API against a live installation. A Lambda's typed data API (which `Yogabase.Lambda` wraps for a .NET Lambda) and Entity Framework Core stay server-side: no client SDK carries EF code or a model.
 
 Two other surfaces were added when the Data API was withdrawn:
 
@@ -329,8 +328,7 @@ await schedules.delete('nightly', schedule.eTag);                         // If-
   names it: `precondition_failed` (412), `precondition_required` (428), `not_found` (404; also an installation
   without the Scheduler), `conflict` (409: a function version that is not an admitted Stateless one of the
   project, on a write or on a run, a write that would turn a recurring schedule into a one-shot or the
-  reverse, or a run key the queue holds for another request; a run of a withdrawn version answered 503 before
-  product `main` `f9d57e29`), `forbidden` (403), `unsupported_media_type` (415) and `request_failed` (a 400
+  reverse, or a run key the queue holds for another request; a run of a withdrawn version answered 503 before the contract was tightened later on 2026-10-03), `forbidden` (403), `unsupported_media_type` (415) and `request_failed` (a 400
   for a member the gateway refuses, such as a cron expression that does not parse or an id that breaks the
   rule, which names the member in the problem's `detail`; a 503).
 - **A write holds the id to one rule; an older id is still addressed.** The id is one segment of the URL path,
@@ -345,7 +343,7 @@ await schedules.delete('nightly', schedule.eTag);                         // If-
   is still queued (failure code `schedule_occurrence_replaced`) and starts the new one, but skips it while one
   is running, because nothing can interrupt a Lambda that is executing. A skipped occurrence is consumed, not
   deferred. A manual run is not an occurrence, so the policy neither holds it back nor is held back by it, and
-  a one-shot has no earlier occurrence. The contract of product `main` `f9d57e29` describes this; a build of
+  a one-shot has no earlier occurrence. The mirrored client contract (SHA-256 `5fcbed40…`) describes this; a build of
   the product from before it starts every occurrence whichever policy is chosen and accepts any id but one with
   a `/` (a 400).
 
@@ -423,11 +421,20 @@ and the five programs passed (the sign-in program now includes the external sign
 printed SKIPPED. The first such run of the source regenerated on 2026-10-03 (the Data API, Jobs
 and schedule builders, the authored Jobs and schedules clients) found four unneeded `dart:typed_data`
 imports and nothing else. The earlier run, on 2026-09-17 with Dart 3.13.2, predates that source. The
-pubspec allows Dart `^3.9.0`; only 3.13.2 and 3.13.5 have run. Not exercised: Flutter, a streaming adapter
-and any live gateway or real identity provider (the sign-ins, the Storage calls and the smoke program included).
+pubspec allows Dart `^3.9.0`; only 3.13.2 and 3.13.5 have run. Not exercised: Flutter, a streaming adapter,
+a real identity provider, and any live gateway beyond the smoke program's runs below.
 On 2026-10-19, after the package was renamed `yogabase_client`, the same Dart 3.13.5 ran `dart pub get
 --offline` (lockfile unchanged), `dart analyze --fatal-infos` (no issues) and the five programs (all `PASS`);
 the smoke program printed SKIPPED.
+
+The smoke program (password sign-in, a function, Storage) passed on 2026-10-10 against a local
+installation and on 2026-10-12 through the public gateway name of a standing installation.
+
+On 2026-10-20 Dart 3.13.5 from the Linux x64 archive (SHA-256 checked against its published
+`.sha256sum`; see [`docs/CLOUD_ENVIRONMENT.md`](../../docs/CLOUD_ENVIRONMENT.md)) ran `dart pub get
+--enforce-lockfile` (lockfile unchanged), `dart analyze --fatal-infos --fatal-warnings` (no issues) and the
+five programs (all `PASS`); the smoke program printed SKIPPED. Regenerating the tree with the pinned Kiota
+changed nothing.
 
 ## Licence
 

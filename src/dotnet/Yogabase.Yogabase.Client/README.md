@@ -3,13 +3,13 @@
 Preview .NET clients for the versioned Yogabase application-gateway, game-server, build, and
 workload Delivery wire contracts. The package
 targets .NET Standard 2.1 and .NET 10 on the 10.0 package line. Unity takes a separate build of the
-same sources, `src/unity/Yogabase.Yogabase.Client.Unity` (netstandard2.1, the SignalR 8.0.15 and
+same sources, `src/unity/Yogabase.Yogabase.Client.Unity` (netstandard2.1, the SignalR 8.0.32 and
 System.Text.Json 8.0.5 line), because Unity 6000.5 binds its own 8.0 BCL extensions and a plugin
 built against 10.x is CS1705 there; `UnityBuildTests` pins that the Unity build references nothing
 at 9.x or above. The Unity build is unqualified until an IL2CPP player has run it. It supports non-secret publishable-key bootstrap,
 headless password sign-in, sign-in with an external provider, OIDC authorization-code/PKCE, mediated object
-storage, stateless Function invocation, Actor and Workflow Lambdas, durable background jobs, SignalR
-realtime, and game-server allocation.
+storage, the client Data API, stateless Function invocation, Actor and Workflow Lambdas, durable
+background jobs, SignalR realtime, and game-server allocation.
 
 Every route this package calls lives in one place, `YogabaseRoutes`, grouped by the host and
 credential it belongs to. Nothing else in the package builds a path from string literals.
@@ -74,7 +74,7 @@ the authorize step answers `interactive_login_required`.
   receives a realtime message. It is skipped unless `YOGABASE_SMOKE_GATEWAY`, `_PUBLISHABLE_KEY`, `_EMAIL`,
   `_PASSWORD` (an existing, confirmed user without MFA), `_FUNCTION_ID` and `_FUNCTION_VERSION` are set;
   `_TOPIC` adds the realtime step, and `_CA_FILE` names a PEM certificate to trust when the gateway's own is not
-  one the operating system knows (that run used it). It passed on 2026-10-10 against a local installation: the gateway of a throwaway cluster behind a local HTTPS address, a user signed up there, and a released hello function. It has not run through a public gateway name. The realtime step did not run.
+  one the operating system knows (that run used it). It passed on 2026-10-10 against a local installation (the gateway of a throwaway cluster behind a local HTTPS address, a user signed up there, and a released hello function) and on 2026-10-12 through the public gateway name of a standing installation, with a fresh throwaway user. The realtime step did not run in either.
 
 ## Signing in with a provider
 
@@ -114,17 +114,60 @@ await yogabase.Auth.CompleteExternalSignInAsync(pending, redirect);   // the tok
 
 ## Reading and writing data
 
-**There is no Data API client in this package yet.** The gateway has served the client-facing Data
-API since 2026-09-23: `POST /v1/data/{table}/select|insert|upsert|update|delete`, run under row-level security
-as the signed-in user and served only where the bootstrap's requested-only `data-rest` row says so.
-The mirrored contract (`contracts/yogabase-client-v1.openapi.json`) declares it and the generated
-TypeScript, Python, Java and Dart clients carry it, but this package has no Data client and does not
-name `data-rest` in `X-Yogabase-Accept-Capabilities`, so
-`Configuration.IsAvailable(YogabaseCapability.WithdrawnDataRest)` answers `false` whatever the
-installation publishes. Until it has one, a .NET application reaches its project's data through a
-Lambda, which runs server-side with a full-access database context, and through Auth, Storage, and
-Realtime. Call a Lambda with `yogabase.Functions`, and write the Lambda itself against the
-`Yogabase.Lambda` package in this repository.
+`yogabase.Data` reads and writes the rows of the project's exposed tables as the signed-in user,
+under row-level security, through the client Data API
+(`POST /v1/data/{table}/select|insert|upsert|update|delete`). The gateway has served it since
+2026-09-23, and this package has carried it since `0.5.0-preview.1` (2026-10-20). `CreateAsync`
+names the requested-only `data-rest` row in `X-Yogabase-Accept-Capabilities`, and every call is
+refused with `NotSupportedException`, before anything is sent, where the installation does not
+serve it (`Configuration.IsAvailable(YogabaseCapability.DataRest)` is `false`). A table is
+reachable only when the developer granted it to the signed-in role and enabled row-level security
+on it; any other name, and a name that does not exist, is the same `403 data_table_not_exposed`.
+
+```csharp
+var page = await yogabase.Data.SelectAsync("notes", new YogabaseDataSelectRequest
+{
+    Columns = ["id", "body", "created_at"],
+    Filters = [YogabaseDataFilter.Eq("owner", userId), YogabaseDataFilter.Gte("score", 10)],
+    Order = [YogabaseDataOrder.DescendingBy("created_at")],
+    Limit = 50,
+});
+foreach (var note in page.RowsAs<Note>()) { /* … */ }        // page.HasMore says another page exists
+
+await yogabase.Data.InsertAsync("notes", new YogabaseDataInsertRequest
+{
+    Rows = [JsonSerializer.SerializeToElement(new { owner = userId, body = "hello" })],
+    Returning = ["id"],
+});
+await yogabase.Data.UpdateAsync("notes", new YogabaseDataUpdateRequest
+{
+    Values = JsonSerializer.SerializeToElement(new { body = "edited" }),
+    Filters = [YogabaseDataFilter.Eq("id", 42)],                 // an update or delete needs a filter
+});
+```
+
+The filters are `Eq`, `Neq`, `Gt`, `Gte`, `Lt`, `Lte`, `In` (1 to 100 non-null values), `Like`,
+`ILike`, `IsNull` and `NotNull`; values are plain JSON, which the database parses with the column's
+own input function, and rows come back as the database renders them (`Rows` as `JsonElement`,
+`RowsAs<T>()` with web defaults). An upsert names its conflict target (`OnConflict`, the columns of
+a primary key or unique index) and updates every other supplied column, or does nothing with
+`IgnoreDuplicates`.
+
+The client checks the contract's bounds (`YogabaseDataLimits`, held to `x-yogabase-data-api` by
+`DataContractTests`) before it sends: the table and column name rule
+`^[A-Za-z_][A-Za-z0-9_$]{0,62}$`, at most 128 columns, 32 filters and 8 order terms, a limit of 1 to
+1000 rows and an offset of at most 100,000, 1 to 500 rows per write, 1 to 16 conflict columns, a
+filter on every update and delete, and the whole document at most 1,114,112 bytes as sent. A
+refusal is a `YogabaseApiException` whose `Code` is one of `YogabaseDataErrors` (for example
+`data_column_not_exposed`, `data_row_not_permitted`, `data_unique_violation`,
+`data_transaction_conflict`); a `413 data_request_too_large` carries `LimitBytes` (one value) and
+`MaxBodyBytes` (the document). No SQL, function call or role travels from this client: a database
+function is reachable only from a Lambda (`Yogabase.Lambda`'s `context.Data.RpcAsync`).
+
+`ContractOperationParityTests` sends all five operations and compares each request with the
+contract's verb and path, and on 2026-10-20 the client ran in-process against the product's own
+Data API route code and engine (over a recording executor, not a database). It has not run against
+a live installation.
 
 ## Game servers
 
@@ -451,7 +494,8 @@ for callers that parse with their own serializer — Unity's `JsonUtility` or Ne
 walking a `JsonElement`. `PayloadJson` is computed from `Payload` and is never part of the wire shape.
 
 Presence follows the product hub. `CreateAsync` asks for the requested-only `realtime-presence`
-bootstrap row by sending `X-Yogabase-Accept-Capabilities: realtime-presence`; an installation whose
+bootstrap row by sending `X-Yogabase-Accept-Capabilities: realtime-presence, data-rest` (the second for
+the [Data API](#reading-and-writing-data)); an installation whose
 gateway predates presence ignores the header, publishes no row, and the presence calls then throw
 `NotSupportedException` without connecting, as they do when the row says unavailable.
 

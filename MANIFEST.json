@@ -1,6 +1,6 @@
 {
   "schema": "yogabase-sdk-project.v1",
-  "generatedAt": "2026-09-09T12:00:00Z",
+  "generatedAt": "2026-10-20T00:00:00Z",
   "status": "public-source-preview",
   "repository": {
     "path": ".",
@@ -11,9 +11,9 @@
     "publicationRemote": "https://github.com/DrGyugyu/Yogabase.SDKs"
   },
   "sourceProvenance": {
-    "authoredDotNetSource": "Application (including the /v1/servers game-server surface, the durable Jobs routes and the schedule routes, which the contract describes and which this client, having no generated code, authors), PKCE, SignalR, Control Plane build-ingest, and workload Delivery clients aligned to the four checked-in Yogabase contracts, plus a separate authored runtime-host client for hosted self-contained service workloads and the Yogabase.Lambda runtime-context wrapper",
-    "authoredDotNetTests": "Application regressions, game-server and build wire-shape coverage against the mirrored contracts, durable Jobs and schedule wire shapes, the operation-parity gate that sends every operation of the mirrored application contract and compares the first request with the contract's verb and path (ContractOperationParityTests) and the limits and codes check (ContractLimitsAndCodesTests), the 413 limits, the delivery jobsMaxRunSeconds, the cross-language Jobs and schedule parity pins, Lambda runtime-context coverage, plus delivery-origin, bearer, concurrency-header, operation-polling, timeout, and SSE-resume coverage",
-    "authoredCrossPlatformFacades": "TypeScript and Python authored Delivery, durable Jobs and Schedules clients, standalone over one shared gateway channel each and held to the generated request builders by tests that build each request both ways, each with a headless sign-in by password or by an external provider (the latter in two calls around the application's own browser step, run only against fake gateways and never a real provider); Java and Dart authored application/delivery facades over their generated protocol clients, with authored Jobs and Schedules clients that build every request from the generated builders and send it through the application adapter (the Dart ones, with a headless sign-in by password or by an external provider, analyzed and run by standalone source programs on Dart 3.13.5 on 2026-10-08, against in-memory gateways only)",
+    "authoredDotNetSource": "Application (including the /v1/servers game-server surface, the durable Jobs routes, the schedule routes and, since 0.5.0-preview.1, the client Data API, which the contract describes and which this client, having no generated code, authors), PKCE, SignalR, Control Plane build-ingest, and workload Delivery clients aligned to the four checked-in Yogabase contracts, plus a separate authored runtime-host client for hosted self-contained service workloads and the Yogabase.Lambda runtime-context wrapper (with, since 0.2.0-preview.1, the runtime's typed data API and caller-scoped connection)",
+    "authoredDotNetTests": "Application regressions, the Data client's wire shapes and bounds (DataClientTests) and its limits, operators, refusal codes and name rule held to x-yogabase-data-api (DataContractTests), game-server and build wire-shape coverage against the mirrored contracts, durable Jobs and schedule wire shapes, the operation-parity gate that sends every operation of the mirrored application contract and compares the first request with the contract's verb and path (ContractOperationParityTests) and the limits and codes check (ContractLimitsAndCodesTests), the 413 limits, the delivery jobsMaxRunSeconds, the cross-language Jobs and schedule parity pins, Lambda runtime-context coverage including the typed data API's request documents, answers and caller identity (LambdaDataTests), plus delivery-origin, bearer, concurrency-header, operation-polling, timeout, and SSE-resume coverage",
+    "authoredCrossPlatformFacades": "TypeScript and Python authored Delivery, durable Jobs and Schedules clients, standalone over one shared gateway channel each and held to the generated request builders by tests that build each request both ways, each with a headless sign-in by password or by an external provider (the latter in two calls around the application's own browser step, run only against fake gateways and never a real provider); Java and Dart authored application/delivery facades over their generated protocol clients (the Java one, since 0.5.0-preview.1, with a headless sign-in by password or by an external provider over the JDK HTTP client, run only against a fake loopback gateway), with authored Jobs and Schedules clients that build every request from the generated builders and send it through the application adapter (the Dart ones, with a headless sign-in by password or by an external provider, analyzed and run by standalone source programs on Dart 3.13.5 on 2026-10-08, against in-memory gateways only)",
     "generatedSdkOutput": "Application clients (carrying the /v1/servers game-server surface, the restored /v1/data surface, and the Jobs and schedule request builders and models) for TypeScript, Python, Java, and Dart plus delivery protocol clients for Java and Dart, regenerated by scripts/regenerate-clients.sh in an isolated staging directory",
     "referenceReview": {
       "path": "docs/REFERENCE_REVIEW.md",
@@ -27,7 +27,8 @@
     "pathCount": 35,
     "operationCount": 39,
     "schemaCount": 49,
-    "mirroredFrom": "Byte-identical, like the builds, delivery and runtime-host documents below, to the product's published documents as of 2026-10-08; this document (SHA-256 5fcbed400575ae191a577202a3548e41f7ef1b18f90971d7b58fc2e71fa867de) last changed on 2026-10-08, the delivery document (SHA-256 d44f95c0364d49071aa29e0d555687c942d91acbc9215cb71bd1eefb294d9c39) on 2026-10-03, the builds document (SHA-256 368a15e2baa2567983894752444cf7efe5687da2e40b461cef7523d124923750) on 2026-09-22 and the runtime-host document (SHA-256 c09a0842c3e295685a4112638ea74a6ab23e3b390fe2f6ab0e1a635f1e6797e2) on 2026-09-17, and all four were compared byte for byte with the product's published files on 2026-10-08. It carries the player-facing /v1/servers/* game-server surface, the three external sign-in routes for a project's end users (/auth/external/{provider}/start, /return and /callback, 2026-10-07 and 2026-10-08; the callback now requires the codeVerifier whose challenge start received), the requested-only realtime-presence and data-rest capability rows with the X-Yogabase-Accept-Capabilities request header, the restored client Data API (/v1/data/{table}/select|insert|upsert|update|delete, 2026-09-23) with its named 413 data_request_too_large, the storage refusal codes (2026-09-24), the inline payload limit with the 413 payload_too_large refusal on the function invoke route (2026-10-03) and on the actor invoke, workflow start and workflow cancel routes at 480 KiB (x-yogabase-orleans-payload), the durable Jobs routes (/v1/projects/{projectId}/jobs, 2026-10-03, x-yogabase-jobs) and the schedule routes (/v1/projects/{projectId}/schedules/{scheduleId} and its /trigger, 2026-10-03, x-yogabase-schedules), which three later product changes of the same day tightened: a manual run of a schedule whose function version is no longer admitted is a 409 where it was a 503, and both policies are required; a write holds scheduleId to one rule, the pattern ^[A-Za-z0-9][A-Za-z0-9._~:-]{0,127}$; and the concurrency policies state what the scheduler does about an earlier occurrence that has not finished. The mirrored document (SHA-256 5fcbed400575ae191a577202a3548e41f7ef1b18f90971d7b58fc2e71fa867de) declares all of the above; the product commits that made these changes are not named here. Kiota therefore generates request builders for the Jobs and schedule routes in TypeScript, Python, Java and Dart, and the authored Jobs and schedule clients sit beside them (jobsSurface and schedulesSurface below)."
+    "mirroredFrom": "Byte-identical, like the builds, delivery and runtime-host documents below, to the product's published documents as of 2026-10-08; this document (SHA-256 5fcbed400575ae191a577202a3548e41f7ef1b18f90971d7b58fc2e71fa867de) last changed on 2026-10-08, the delivery document (SHA-256 d44f95c0364d49071aa29e0d555687c942d91acbc9215cb71bd1eefb294d9c39) on 2026-10-03, the builds document (SHA-256 368a15e2baa2567983894752444cf7efe5687da2e40b461cef7523d124923750) on 2026-09-22 and the runtime-host document (SHA-256 c09a0842c3e295685a4112638ea74a6ab23e3b390fe2f6ab0e1a635f1e6797e2) on 2026-09-17, and all four were compared byte for byte with the product's published files on 2026-10-08. It carries the player-facing /v1/servers/* game-server surface, the three external sign-in routes for a project's end users (/auth/external/{provider}/start, /return and /callback, 2026-10-07 and 2026-10-08; the callback now requires the codeVerifier whose challenge start received), the requested-only realtime-presence and data-rest capability rows with the X-Yogabase-Accept-Capabilities request header, the restored client Data API (/v1/data/{table}/select|insert|upsert|update|delete, 2026-09-23) with its named 413 data_request_too_large, the storage refusal codes (2026-09-24), the inline payload limit with the 413 payload_too_large refusal on the function invoke route (2026-10-03) and on the actor invoke, workflow start and workflow cancel routes at 480 KiB (x-yogabase-orleans-payload), the durable Jobs routes (/v1/projects/{projectId}/jobs, 2026-10-03, x-yogabase-jobs) and the schedule routes (/v1/projects/{projectId}/schedules/{scheduleId} and its /trigger, 2026-10-03, x-yogabase-schedules), which three later product changes of the same day tightened: a manual run of a schedule whose function version is no longer admitted is a 409 where it was a 503, and both policies are required; a write holds scheduleId to one rule, the pattern ^[A-Za-z0-9][A-Za-z0-9._~:-]{0,127}$; and the concurrency policies state what the scheduler does about an earlier occurrence that has not finished. The mirrored document (SHA-256 5fcbed400575ae191a577202a3548e41f7ef1b18f90971d7b58fc2e71fa867de) declares all of the above; the product commits that made these changes are not named here. Kiota therefore generates request builders for the Jobs and schedule routes in TypeScript, Python, Java and Dart, and the authored Jobs and schedule clients sit beside them (jobsSurface and schedulesSurface below).",
+    "comparedWithProduct": "2026-10-20: the SHA-256 of each of the product's four published documents equals its mirror's sidecar and the digest recorded here, and the files are byte-identical; regenerating with the pinned Kiota 1.34.1 changed nothing that is committed (docs/PARITY_2026-10-20.md)."
   },
   "jobsSurface": {
     "declaredInContract": true,
@@ -91,6 +92,32 @@
       "covered": "create with a well-formed ETag whose version is decimal text past 2^53, get, update answering a new ETag for the same instance, a stale ETag or a held id as 412 that changes nothing, another user's schedule (bare 404 on read, delete and run, 403 on update, 412 on create), 403 for a token without the scope, a function that is not admitted (409 on a write, 503 on a run), 409 for turning a recurring schedule into a one-shot, 400 for a cron expression that does not parse, an unknown time zone, a deadline in the past or more than an hour away, both preconditions at once and a malformed ETag, 428 for a write or delete with no precondition, 415 for a non-JSON write, a manual run and its replay by key, another key as another invocation, a key the queue holds for another request as 409, the scheduler's checkpoint changing the version and so the ETag, an unreachable store as 503, a payload of exactly 1 MiB, the real 413 problem, an id with reserved characters and one of 128 characters, an id with a slash refused with 400 (recorded as a limit of the gateway), delete and a second delete as 404"
     }
   },
+  "dataSurface": {
+    "declaredInContract": true,
+    "declaredBy": "x-yogabase-data-api in contracts/yogabase-client-v1.openapi.json (SHA-256 5fcbed400575ae191a577202a3548e41f7ef1b18f90971d7b58fc2e71fa867de; the product has served it since 2026-09-23), with the requested-only data-rest capability row",
+    "routes": [
+      "POST /v1/data/{table}/select",
+      "POST /v1/data/{table}/insert",
+      "POST /v1/data/{table}/upsert",
+      "POST /v1/data/{table}/update",
+      "POST /v1/data/{table}/delete"
+    ],
+    "clients": {
+      "dotnet": "YogabaseClient.Data (src/dotnet/Yogabase.Yogabase.Client/DataClient.cs), authored since 0.5.0-preview.1; names data-rest in X-Yogabase-Accept-Capabilities, checks the contract's bounds before sending, and is carried into the Unity build",
+      "typescript": "generated request builders (v1/data)",
+      "python": "generated request builders (v1/data)",
+      "java": "generated request builders (v1().data())",
+      "dart": "generated request builders (v1.data)",
+      "lambda": "Yogabase.Lambda LambdaContext.Data (src/dotnet/Yogabase.Lambda/LambdaData.cs), since 0.2.0-preview.1: the runtime's typed data API ({identity, operation, table|function, request} in, an answer with status out), the five operations plus rpc, as the Lambda identity or AsCaller(); CallerDatabase on net10.0. Entity Framework Core is not wrapped."
+    },
+    "parityGate": "ContractOperationParityTests sends the five Data operations from the .NET client and compares each first request with the contract's verb and path; DataContractTests holds YogabaseDataLimits, YogabaseDataFilterOperators, YogabaseDataErrors and the name rule to x-yogabase-data-api",
+    "endToEndEvidence": {
+      "date": "2026-10-20",
+      "host": "The product's real client Data API routes behind its gateway request body policy and its real Data API engine (validation, statement construction, bounds, refusals), built from the product as of 2026-10-20 and hosted in-process on loopback over a recording executor in place of the database and a fixed bearer handler in place of the project realm; the Lambda wrapper over a delegate built as the runtime builds it, on the same engine. Not exercised: a database, the realm's own token validation, a live installation. The harness referenced both repositories and is in neither.",
+      "checksPassed": { "dotnetAndLambda": 40 },
+      "covered": "the statement and identity of each of the five operations from the .NET client (the signed-in user under row-level security, no rpc) and from the Lambda wrapper (the Lambda identity by default, the caller with AsCaller()), a table without row-level security and a missing table as the same 403 data_table_not_exposed, a column not exposed for select, order and update, an upsert target and an upsert that would update a column the user may not update, another project's token (401 project_binding_mismatch) and a function's subject (401 canonical_subject_required), a document of exactly 1,114,112 bytes accepted and one byte more refused with the named 413 whose limitBytes and maxBodyBytes equal the client's constants, rpc by named arguments, an unknown function refused by name, and AsCaller() refused with data_caller_identity_unavailable on an invocation with no caller"
+    }
+  },
   "buildsContract": {
     "path": "contracts/yogabase-builds-v1.openapi.json",
     "sourcePath": "Yogabase product repository: docs/api/yogabase-builds-v1.openapi.json",
@@ -138,6 +165,18 @@
     }
   },
   "verificationToolchains": {
+    "linuxCloudEnvironment": {
+      "date": "2026-10-20",
+      "record": "docs/CLOUD_ENVIRONMENT.md",
+      "platform": "Linux x86-64 (Ubuntu 24.04)",
+      "dotnetSdk": "10.0.402 (global.json 10.0.400 with latestPatch); --locked-mode restore passed",
+      "kiota": "1.34.1, NuGet package SHA-256 4aa14f12d573d5644eb167b837c4fa10d7d7b7ec4a6634b8bc4026269f9a7671",
+      "node": "25.9.0 (npm 11.12.1), node-v25.9.0-linux-x64.tar.xz SHA-256 1d8db7d6e291d167e8c467ae4094be175e1a0b3969c7ae1f8955b9f7824f7b2e, equal to the release's SHASUMS256.txt",
+      "python": "3.13.16 and 3.12.3 (Ubuntu's python3.12 3.12.3-1ubuntu0.17), each in an environment made from both locks with --require-hashes",
+      "java": "OpenJDK 21.0.12.1 at --release 17, Maven 3.9.11; maven-dependency-plugin 3.8.1 for the classpath",
+      "dartSdk": "3.13.5 stable (revision 04bcd1036cdc799ac6564988f159ee454d42c822), dartsdk-linux-x64-release.zip SHA-256 ea864bc64df30a6b8bdf30b2e32550f7717d9a890de8f40293aeabb924fe232b, equal to its published .sha256sum",
+      "rsync": "3.2.7-1ubuntu1.5 from archive.ubuntu.com, for scripts/regenerate-clients.sh"
+    },
     "dotnetSdk": "10.0.400",
     "node": "25.9.0",
     "npm": "11.12.1",
@@ -151,43 +190,43 @@
       "language": "CSharp",
       "source": "src/dotnet/Yogabase.Yogabase.Client",
       "packageId": "Yogabase.Yogabase.Client",
-      "version": "0.4.0-preview.1",
-      "qualification": "locked-restore-release-dual-target-build-and-473-client-tests-and-762-tests-across-the-solution-ran-2026-10-08-with-only-the-live-smoke-test-skipped-including-the-headless-password-sign-in-the-external-provider-sign-in-never-run-against-a-real-provider-and-the-jobs-and-schedule-surfaces-the-operation-parity-gate-over-the-mirrored-application-contract-the-413-limits-the-schedule-id-rule-held-to-the-contract-pattern-in-every-language-the-delivery-jobsMaxRunSeconds-and-the-cross-language-parity-pins-pack-rerun-2026-10-07-to-a-scratch-directory-and-the-package-not-consumed; clean-package-consumer-not-rerun; wire-shapes-pinned-against-the-mirrored-contracts-by-fake-transport-tests-and-realtime-presence-against-a-loopback-signalr-hub; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-route-code-as-of-2026-10-03-25-and-36-checks-no-live-installation"
+      "version": "0.5.0-preview.1",
+      "qualification": "linux-x86-64-cloud-environment-2026-10-20-sdk-10.0.402-locked-restore-release-dual-target-build-and-513-client-tests-and-831-tests-across-the-solution-with-only-the-live-smoke-test-skipped-including-the-data-api-client-its-bounds-and-the-operation-parity-gate-sending-the-five-data-operations-and-the-data-client-run-in-process-against-the-product-data-api-route-code-and-engine-40-checks-with-the-lambda-wrapper; live-smoke-test-passed-2026-10-10-against-a-local-installation-and-2026-10-12-through-a-public-gateway-name-without-the-realtime-step; earlier; locked-restore-release-dual-target-build-and-473-client-tests-and-762-tests-across-the-solution-ran-2026-10-08-with-only-the-live-smoke-test-skipped-including-the-headless-password-sign-in-the-external-provider-sign-in-never-run-against-a-real-provider-and-the-jobs-and-schedule-surfaces-the-operation-parity-gate-over-the-mirrored-application-contract-the-413-limits-the-schedule-id-rule-held-to-the-contract-pattern-in-every-language-the-delivery-jobsMaxRunSeconds-and-the-cross-language-parity-pins-pack-rerun-2026-10-07-to-a-scratch-directory-and-the-package-not-consumed; clean-package-consumer-not-rerun; wire-shapes-pinned-against-the-mirrored-contracts-by-fake-transport-tests-and-realtime-presence-against-a-loopback-signalr-hub; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-route-code-as-of-2026-10-03-25-and-36-checks-no-live-installation"
     },
     {
       "language": "TypeScript",
       "source": "languages/typescript",
       "packageId": "@yogabase/client",
       "version": "0.4.0-preview.1",
-      "qualification": "npm-ci-typescript-build-and-104-tests-ran-2026-10-08-on-node-25.9.0-103-passed-and-the-live-smoke-test-was-skipped-including-the-headless-password-sign-in-the-external-provider-sign-in-never-run-against-a-real-provider-the-jobs-and-schedule-clients-with-their-generated-builder-equivalence-cases-the-regenerated-413-and-data-surface-and-the-schedule-id-rule-held-to-the-pattern-read-from-the-mirrored-contract-and-npm-pack-dry-run-names-the-0.4.0-preview.1-tarball; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-route-code-as-of-2026-10-03-26-and-41-checks"
+      "qualification": "linux-x86-64-cloud-environment-2026-10-20-node-25.9.0-npm-ci-and-104-tests-103-passed-and-the-live-smoke-test-skipped-code-unchanged-since-2026-10-08-and-regeneration-unchanged; live-smoke-test-passed-2026-10-10-against-a-local-installation-and-2026-10-12-through-a-public-gateway-name; earlier; npm-ci-typescript-build-and-104-tests-ran-2026-10-08-on-node-25.9.0-103-passed-and-the-live-smoke-test-was-skipped-including-the-headless-password-sign-in-the-external-provider-sign-in-never-run-against-a-real-provider-the-jobs-and-schedule-clients-with-their-generated-builder-equivalence-cases-the-regenerated-413-and-data-surface-and-the-schedule-id-rule-held-to-the-pattern-read-from-the-mirrored-contract-and-npm-pack-dry-run-names-the-0.4.0-preview.1-tarball; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-route-code-as-of-2026-10-03-26-and-41-checks"
     },
     {
       "language": "Python",
       "source": "languages/python",
       "packageId": "yogabase-client",
       "version": "0.4.0.dev1",
-      "qualification": "hash-locked-install-and-118-tests-from-source-under--X-dev-with-ResourceWarning-as-an-error-ran-2026-10-08-on-cpython-3.13.12-and-3.12.13-117-passed-and-the-live-smoke-test-was-skipped-on-both-including-the-headless-password-sign-in-the-external-provider-sign-in-never-run-against-a-real-provider-and-the-jobs-and-schedule-cases-with-their-generated-builder-equivalence-cases; build-no-isolation-wheel-and-sdist-built-2026-10-07-with-the-exactly-pinned-setuptools-84.0.0-backend; fresh-venv-offline-wheel-install-pip-check-clean-and-111-tests-ran-against-the-installed-wheel-on-3.13.12-2026-10-07-not-repeated-since-the-external-sign-in-was-added; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-route-code-as-of-2026-10-03-24-and-36-checks-on-both-interpreters; only-python-3.12-and-3.13-are-claimed-and-3.10-and-3.11-were-never-run; own-clients-trust-the-platform-store-but-certifi-stays-in-the-closure-because-httpx-and-httpcore-require-it; no-live-gateway-and-no-published-index"
+      "qualification": "linux-x86-64-cloud-environment-2026-10-20-hash-locked-installs-and-118-tests-under--X-dev-on-cpython-3.13.16-and-3.12.3-117-passed-and-the-live-smoke-test-skipped-on-both-code-unchanged-since-2026-10-08; live-smoke-test-passed-2026-10-10-against-a-local-installation-and-2026-10-12-through-a-public-gateway-name; earlier; hash-locked-install-and-118-tests-from-source-under--X-dev-with-ResourceWarning-as-an-error-ran-2026-10-08-on-cpython-3.13.12-and-3.12.13-117-passed-and-the-live-smoke-test-was-skipped-on-both-including-the-headless-password-sign-in-the-external-provider-sign-in-never-run-against-a-real-provider-and-the-jobs-and-schedule-cases-with-their-generated-builder-equivalence-cases; build-no-isolation-wheel-and-sdist-built-2026-10-07-with-the-exactly-pinned-setuptools-84.0.0-backend; fresh-venv-offline-wheel-install-pip-check-clean-and-111-tests-ran-against-the-installed-wheel-on-3.13.12-2026-10-07-not-repeated-since-the-external-sign-in-was-added; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-route-code-as-of-2026-10-03-24-and-36-checks-on-both-interpreters; only-python-3.12-and-3.13-are-claimed-and-3.10-and-3.11-were-never-run; own-clients-trust-the-platform-store-but-certifi-stays-in-the-closure-because-httpx-and-httpcore-require-it; no-live-gateway-and-no-published-index"
     },
     {
       "language": "Java",
       "source": "languages/java",
       "packageId": "io.yogabase:yogabase-client",
-      "version": "0.4.0-preview.1",
-      "qualification": "jdk-21-release-17-full-source-compile-and-two-executable-conformance-tests-passed-2026-09-09-maven-unavailable; full-source-compile-at-release-17-and-five-executable-conformance-programs-passed-2026-10-03-against-the-local-maven-repository-jars-including-the-336-check-jobs-program-the-1988-check-schedules-program-including-the-schedule-id-rule-held-to-the-pattern-read-from-the-mirrored-contract-and-the-26-check-generated-surface-program-maven-still-unavailable; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-route-code-as-of-2026-10-03-24-and-36-checks"
+      "version": "0.5.0-preview.1",
+      "qualification": "linux-x86-64-cloud-environment-2026-10-20-jdk-21.0.12.1-release-17-maven-3.9.11-test-compile-and-package-clean-and-six-executable-check-programs-passed-storage-key-generated-surface-26-delivery-jobs-336-schedules-1988-and-the-new-password-and-external-provider-sign-in-120-against-a-fake-loopback-gateway; no-live-run-recorded; earlier; jdk-21-release-17-full-source-compile-and-two-executable-conformance-tests-passed-2026-09-09-maven-unavailable; full-source-compile-at-release-17-and-five-executable-conformance-programs-passed-2026-10-03-against-the-local-maven-repository-jars-including-the-336-check-jobs-program-the-1988-check-schedules-program-including-the-schedule-id-rule-held-to-the-pattern-read-from-the-mirrored-contract-and-the-26-check-generated-surface-program-maven-still-unavailable; the-jobs-and-schedule-clients-also-run-in-process-against-the-product-route-code-as-of-2026-10-03-24-and-36-checks"
     },
     {
       "language": "Dart",
       "source": "languages/dart",
       "packageId": "yogabase_client",
       "version": "0.4.0-dev.1",
-      "qualification": "dart-3.13.5-homebrew-pub-get-enforce-lockfile-unchanged-analyze-with-fatal-infos-and-fatal-warnings-clean-after-four-unneeded-dart-typed-data-imports-were-removed-and-five-standalone-source-programs-passed-2026-10-08-delivery-jobs-schedules-sign-in-and-storage-on-the-2026-10-03-regenerated-source-including-the-headless-password-sign-in-the-external-provider-sign-in-never-run-against-a-real-provider-and-the-raw-bytes-octet-stream-factory-pair-that-makes-storage-object-reads-and-writes-work; http-and-crypto-already-locked-now-declared-directly; dart-test-runner-not-wired-because-test-is-not-in-the-lockfile; earlier-run-2026-09-17-on-dart-3.13.2; sign-ins-storage-calls-and-the-live-smoke-program-never-run-against-a-live-installation; flutter-and-streaming-adapter-unqualified"
+      "qualification": "linux-x86-64-cloud-environment-2026-10-20-dart-3.13.5-archive-sha256-checked-pub-get-enforce-lockfile-unchanged-analyze-fatal-infos-and-warnings-clean-and-five-source-programs-passed-code-unchanged-since-2026-10-08; live-smoke-program-passed-2026-10-10-against-a-local-installation-and-2026-10-12-through-a-public-gateway-name; earlier; dart-3.13.5-homebrew-pub-get-enforce-lockfile-unchanged-analyze-with-fatal-infos-and-fatal-warnings-clean-after-four-unneeded-dart-typed-data-imports-were-removed-and-five-standalone-source-programs-passed-2026-10-08-delivery-jobs-schedules-sign-in-and-storage-on-the-2026-10-03-regenerated-source-including-the-headless-password-sign-in-the-external-provider-sign-in-never-run-against-a-real-provider-and-the-raw-bytes-octet-stream-factory-pair-that-makes-storage-object-reads-and-writes-work; http-and-crypto-already-locked-now-declared-directly; dart-test-runner-not-wired-because-test-is-not-in-the-lockfile; earlier-run-2026-09-17-on-dart-3.13.2; sign-ins-storage-calls-and-the-live-smoke-program-never-run-against-a-live-installation; flutter-and-streaming-adapter-unqualified"
     },
     {
       "language": "CSharp",
       "source": "src/dotnet/Yogabase.Yogabase.RuntimeHost",
       "packageId": "Yogabase.Yogabase.RuntimeHost",
       "version": "0.1.0-preview.1",
-      "qualification": "locked-restore-release-dual-target-build-and-49-fake-transport-unit-tests-passed-2026-09-23-including-the-page-head-and-its-paging-fallback-no-live-relay-session-and-no-runtime-host-conformance-battery"
+      "qualification": "linux-x86-64-cloud-environment-2026-10-20-49-fake-transport-unit-tests-passed-code-unchanged; earlier; locked-restore-release-dual-target-build-and-49-fake-transport-unit-tests-passed-2026-09-23-including-the-page-head-and-its-paging-fallback-no-live-relay-session-and-no-runtime-host-conformance-battery"
     },
     {
       "language": "Unity",
@@ -200,21 +239,21 @@
       "language": "CSharp",
       "source": "src/dotnet/Yogabase.Lambda",
       "packageId": "Yogabase.Lambda",
-      "version": "0.1.0-preview.1",
-      "qualification": "locked-restore-release-dual-target-build-and-206-fake-provider-unit-tests-passed-2026-09-23-including-the-kafka-record-key-against-the-runtime-api-route-table-and-cdc-event-shape-and-the-keyBase64-rules-of-the-product-as-of-2026-09-23-no-live-installation-no-live-broker-and-no-sandbox-load-context-evidence"
+      "version": "0.2.0-preview.1",
+      "qualification": "linux-x86-64-cloud-environment-2026-10-20-235-fake-provider-unit-tests-passed-including-the-typed-data-api-wrapper-its-request-documents-answers-and-caller-identity-and-the-caller-scoped-connection-and-the-data-wrapper-run-in-process-against-the-product-data-api-engine; no-entity-framework-core-wrapper; earlier; locked-restore-release-dual-target-build-and-206-fake-provider-unit-tests-passed-2026-09-23-including-the-kafka-record-key-against-the-runtime-api-route-table-and-cdc-event-shape-and-the-keyBase64-rules-of-the-product-as-of-2026-09-23-no-live-installation-no-live-broker-and-no-sandbox-load-context-evidence"
     },
     {
       "language": "CSharp",
       "source": "src/unity/Yogabase.Yogabase.Client.Unity",
       "packageId": "(not packaged: the Unity build of Yogabase.Yogabase.Client)",
-      "version": "0.4.0-preview.1",
+      "version": "0.5.0-preview.1",
       "unityBuild": {
         "targetFramework": "netstandard2.1",
-        "packageLine": "src/unity/Directory.Packages.props: Microsoft.AspNetCore.SignalR.Client 8.0.15, System.Text.Json 8.0.5",
+        "packageLine": "src/unity/Directory.Packages.props: Microsoft.AspNetCore.SignalR.Client 8.0.32, System.Text.Json 8.0.5",
         "assembly": "src/unity/Yogabase.Yogabase.Client.Unity/bin/Release/netstandard2.1/Yogabase.Yogabase.Client.dll",
         "sha256AtThisCommitsSources": "79bdb5831a2586149e28184991dba54e9c4486b5582f73ecd56856b7c4acb209"
       },
-      "qualification": "locked-restore-release-netstandard2.1-build-deterministic-across-two-no-incremental-builds-2026-10-03-at-commit-0da1c82-whose-hash-the-assembly-embeds-in-its-informational-version-so-the-digest-is-per-commit; UnityBuildTests-pin-no-9.x-or-10.x-assembly-reference-or-lock-entry; unity-editor-and-il2cpp-evidence-is-the-consuming-project's-own"
+      "qualification": "linux-x86-64-cloud-environment-2026-10-20-netstandard2.1-release-build-against-signalr-8.0.32-with-the-data-api-client-and-UnityBuildTests-passed-assembly-digest-not-recorded-for-this-commit; earlier; locked-restore-release-netstandard2.1-build-deterministic-across-two-no-incremental-builds-2026-10-03-at-commit-0da1c82-whose-hash-the-assembly-embeds-in-its-informational-version-so-the-digest-is-per-commit; UnityBuildTests-pin-no-9.x-or-10.x-assembly-reference-or-lock-entry; unity-editor-and-il2cpp-evidence-is-the-consuming-project's-own"
     },
     {
       "language": "CSharp",

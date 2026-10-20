@@ -3,11 +3,12 @@
 `io.yogabase:yogabase-client` is the Java client for the Yogabase application gateway and the
 workload Delivery API. Its request builders and models are generated with Microsoft Kiota 1.34.1
 from the Yogabase v1 OpenAPI contracts under `contracts/` (package `io.yogabase.client`, and
-`io.yogabase.client.delivery` for the Delivery contract); the storage-key, Jobs, Schedules and
-delivery facades described below are authored. It targets Java 17 on the Kiota Java runtime and is
-also the Kotlin/JVM interoperability path; no native Kotlin or Android qualification is claimed.
-Callers provide a Kiota request adapter bound to the exact Yogabase REST gateway and a project
-bearer-token authentication provider.
+`io.yogabase.client.delivery` for the Delivery contract); the sign-in, storage-key, Jobs, Schedules
+and delivery facades described below are authored. It targets Java 17 on the Kiota Java runtime and
+is also the Kotlin/JVM interoperability path; no native Kotlin or Android qualification is claimed.
+Sign a user in with `YogabaseSignIn` and build the application client with
+`YogabaseApplicationClient.forSession(session)`, or provide a Kiota request adapter bound to the exact
+Yogabase REST gateway and a bearer-token authentication provider of your own.
 
 The generated REST surface includes bootstrap, signup and interactive auth endpoints, Storage,
 stateless Function invocation, Actor Lambda invocation, Workflow start/cancel, Jobs, Schedules, the
@@ -23,19 +24,76 @@ The package is not yet published to Maven Central. Build it from source as descr
 
 Build the jar with Maven on JDK 17 or newer: `mvn -q -DskipTests package` in this directory. The
 checks under `src/test/java` are plain programs with a `public static void main` and no
-test-framework dependency, so Maven does not run them. Compile them against `target/classes` and the
-dependency jars (`mvn -q dependency:build-classpath -Dmdep.outputFile=cp.txt` writes that classpath),
-then run each class from this directory, which `YogabaseSchedulesClientTest` needs in order to find
-the contract under `../../contracts`:
+test-framework dependency, so `mvn test` runs none of them. `mvn test-compile` compiles them into
+`target/test-classes`, and the dependency plugin writes the classpath; then run each class from this
+directory, which `YogabaseSchedulesClientTest` needs in order to find the contract under
+`../../contracts`:
 
 ```sh
-java -cp "target/classes:target/test-classes:$(cat cp.txt)" io.yogabase.client.YogabaseSchedulesClientTest
+mvn -B -q test-compile
+mvn -B -q org.apache.maven.plugins:maven-dependency-plugin:3.8.1:build-classpath -Dmdep.outputFile=target/cp.txt
+for c in YogabaseStorageLogicalKeyTest YogabaseGeneratedSurfaceTest YogabaseDeliveryClientTest \
+         YogabaseJobsClientTest YogabaseSchedulesClientTest YogabaseSignInTest; do
+  java -cp "target/classes:target/test-classes:$(cat target/cp.txt)" io.yogabase.client.$c || break
+done
 ```
 
-The classes are `YogabaseStorageLogicalKeyTest`, `YogabaseGeneratedSurfaceTest`,
-`YogabaseDeliveryClientTest`, `YogabaseJobsClientTest` and `YogabaseSchedulesClientTest`. Each prints
-a `PASS` line (with its check count where it counts) or exits with an `AssertionError` naming the
-failed check.
+Each prints a `PASS` line (with its check count where it counts) or exits with an `AssertionError`
+naming the failed check. On 2026-10-20, on Linux with JDK 21.0.12.1 and Maven 3.9.11 (see
+[`docs/CLOUD_ENVIRONMENT.md`](../../docs/CLOUD_ENVIRONMENT.md)), `mvn test-compile` and `mvn package`
+were clean and all six passed: storage key, generated surface (26 checks), Delivery, Jobs (336),
+Schedules (1988) and sign-in (120).
+
+## Signing in
+
+`YogabaseSignIn` signs a project user in with no browser, as the .NET, TypeScript, Python and Dart
+clients do. `signInWithPassword` posts the e-mail and password to `/auth/login` for the identity
+cookie (and the authenticator code to `/auth/mfa/verify` for an account with MFA), sends that cookie
+with an authorization-code PKCE request to the authorization endpoint the gateway's own discovery
+document names, reads the redirect without following it, holds it to the registered redirect URI
+and to the state it sent, and exchanges the code for tokens. The result is a `YogabaseSession`, the
+Kiota `AccessTokenProvider` of the application client:
+
+```java
+YogabaseSession session = YogabaseSignIn.signInWithPassword(
+    URI.create("https://<installation-host>"), "<publishable-key>", "<user-email>", "<user-password>");
+YogabaseApplicationClient application = YogabaseApplicationClient.forSession(session);
+YogabaseJobsClient jobs = application.jobs(session.projectId());
+```
+
+The user must already exist and, unless the installation turned confirmation off, have confirmed
+the address. A refusal is a `YogabaseAuthException` (a `YogabaseGatewayException`) with the
+gateway's `status()` and `code()`: `invalid_credentials` (401: a wrong password and an unknown,
+unconfirmed or locked account alike), `mfa_enrollment_required` (403), `authentication_rate_limited`
+(429), and `mfa_required` (202) for an account with MFA: call again with
+`new YogabaseSignIn.Options().mfaCode("123456")`. The client names a few itself for an answer that is
+not this call's: `oidc_discovery_invalid` (a discovery document whose endpoints are not on the
+gateway's origin, which ends the call before the password is sent), `authorization_response_invalid`
+and `authorization_redirect_mismatch` (a redirect with another state or address), and
+`token_response_invalid`.
+
+The session sends its bearer to the gateway origin the user signed in at and to no other, and
+refreshes the access token with the rotating refresh token within a minute of its expiry, once for
+concurrent callers. It keeps the tokens in memory only.
+
+### Signing in with a provider
+
+Signing in with Google, Microsoft or Apple is two calls around the application's own browser step.
+`startExternalSignIn(gateway, key, provider, redirectUri, options)` sends only the S256 challenge of a
+random verifier with a redirect URI the project registered, and answers a `YogabaseExternalSignIn`
+whose `authorizationUrl()` the application opens in the system browser. When the browser comes back
+to the redirect URI, `completeExternalSignIn(pending, redirect, mfaCode)` holds the address to the
+registered one and to the state, sends the code with the verifier to the provider's callback, and
+then signs in as above. An account with MFA refuses with `mfa_required`; call again with the same
+`pending` and the code, and the provider's code, already spent, is not sent again. The address to
+register with each provider is `https://<gateway>/auth/external/<provider id>/return`. Refusals add
+the gateway's `external_*` codes and `external_start_invalid` for a start that is not an https
+address and a state.
+
+Both flows use the JDK's own HTTP client, which keeps cookies and never follows a redirect; an
+`HttpClient` passed in `Options.httpClient` must do both. Plain HTTP is accepted only for a loopback
+gateway with `Options.allowInsecureLoopback(true)`. `YogabaseSignInTest` runs both flows against a
+fake gateway on a loopback port; neither has run against a real provider or a live installation.
 
 ## The Data API and game servers are generated; builds are not
 
@@ -47,8 +105,7 @@ and this client carries the operations as generated code, for example `client.v1
 `select()`, `insert()`, `upsert()`, `update()` and `delete()`. A response is a `DataResult` (`rows`, `affectedRows`, `hasMore`) and a refusal is an RFC 7807 problem whose `code` is one of the refusal codes
 the contract lists under `x-yogabase-data-api`, which also states the limits (at most 1000 rows per
 select and 500 per write, 1 MiB per value, a five-second statement timeout). Request values are plain JSON.
-Nothing in this package has called the Data API against a live installation. A typed data API and
-Entity Framework Core inside Lambdas stay server-side: no client SDK carries EF code or a model.
+Nothing in this package has called the Data API against a live installation. A Lambda's typed data API (which `Yogabase.Lambda` wraps for a .NET Lambda) and Entity Framework Core stay server-side: no client SDK carries EF code or a model.
 
 Two further surfaces are part of the contracts:
 
@@ -157,7 +214,7 @@ jobs.cancel(job.jobId());                        // idempotent; a running job is
   Calls block: run them off the UI thread.
 
 The Jobs client was also run end to end on 2026-10-03, over the default Kiota OkHttp pipeline, against the
-product's real Jobs routes, built from product `main` `92ac1ced` (24 checks).
+product's real Jobs routes, built from the product's route code as of that day (24 checks).
 
 ## Schedules
 
@@ -213,7 +270,7 @@ schedules.delete("nightly", schedule.eTag());                                  /
   (404; also an installation without the Scheduler), `conflict` (409: a function version that is not an
   admitted Stateless one of the project, on a write or on a run, a write that would turn a recurring schedule
   into a one-shot or the reverse, or a run key the queue holds for another request; a run of a withdrawn
-  version answered 503 before product `main` `f9d57e29`), `forbidden` (403), `unsupported_media_type` (415)
+  version answered 503 before the contract was tightened later on 2026-10-03), `forbidden` (403), `unsupported_media_type` (415)
   and `request_failed` (a 400 for a member the gateway refuses, such as a cron expression that does not
   parse, a policy left out or an id that breaks the rule, the last two naming the member in the problem's
   `detail`; a 503). Calls block: run them off the UI thread.
@@ -229,14 +286,13 @@ schedules.delete("nightly", schedule.eTag());                                  /
   is still queued (failure code `schedule_occurrence_replaced`) and starts the new one, but skips it while one
   is running, because nothing can interrupt a Lambda that is executing. A skipped occurrence is consumed, not
   deferred. A manual run is not an occurrence, so the policy neither holds it back nor is held back by it, and
-  a one-shot has no earlier occurrence. The contract of product `main` `f9d57e29` describes this; a build of
+  a one-shot has no earlier occurrence. The mirrored client contract (SHA-256 `5fcbed40…`) describes this; a build of
   the product from before it starts every occurrence whichever policy is chosen and accepts any id but one with
   a `/` (a 400).
 
 Run end to end on 2026-10-03, over the default Kiota OkHttp pipeline, against the product's real schedule
-routes, built from product `main` `92ac1ced` (36 checks). That run predates the id rule, the concurrency
-enforcement and the 409 of a manual run, and was not repeated against product `main` `f9d57e29`; its harness is
-in the product repository.
+routes, built from the product's route code as of that day (36 checks). That run predates the id rule, the concurrency
+enforcement and the 409 of a manual run, and was not repeated against the contract as tightened that day; its harness referenced the product's code and is in neither repository.
 
 ## Workload delivery
 

@@ -81,7 +81,7 @@ clients below.
 - **A live check.** `tests/liveSmoke.test.mjs` signs in, invokes a function and puts and gets an object. It is
   skipped unless `YOGABASE_SMOKE_GATEWAY`, `YOGABASE_SMOKE_PUBLISHABLE_KEY`, `YOGABASE_SMOKE_EMAIL`,
   `YOGABASE_SMOKE_PASSWORD` (an existing, confirmed user without MFA), `YOGABASE_SMOKE_FUNCTION_ID` and
-  `YOGABASE_SMOKE_FUNCTION_VERSION` are set. It passed on 2026-10-10 against a local installation: the gateway of a throwaway cluster behind a local HTTPS address, a user signed up there, and a released hello function. It has not run through a public gateway name. Node trusted that address's certificate through `NODE_EXTRA_CA_CERTS`.
+  `YOGABASE_SMOKE_FUNCTION_VERSION` are set. It passed on 2026-10-10 against a local installation: the gateway of a throwaway cluster behind a local HTTPS address, a user signed up there, and a released hello function. On 2026-10-12 it passed again through the public gateway name of a standing installation, with a fresh throwaway user. Node trusted that address's certificate through `NODE_EXTRA_CA_CERTS`.
 
 ## Signing in with a provider
 
@@ -131,8 +131,7 @@ and this client carries the operations as generated code, for example `yogabase.
 `select`, `insert`, `upsert`, `update` and `delete`. A response is a `DataResult` (`rows`, `affectedRows`, `hasMore`) and a refusal is an RFC 7807 problem whose `code` is one of the refusal codes
 the contract lists under `x-yogabase-data-api`, which also states the limits (at most 1000 rows per
 select and 500 per write, 1 MiB per value, a five-second statement timeout). Request values are plain JSON.
-Nothing in this package has called the Data API against a live installation. A typed data API and
-Entity Framework Core inside Lambdas stay server-side: no client SDK carries EF code or a model.
+Nothing in this package has called the Data API against a live installation. A Lambda's typed data API (which `Yogabase.Lambda` wraps for a .NET Lambda) and Entity Framework Core stay server-side: no client SDK carries EF code or a model.
 
 Two other surfaces were added when the Data API was withdrawn:
 
@@ -241,8 +240,7 @@ await jobs.cancel(job.jobId);                 // idempotent; a running job is fl
 - A response member this client does not know is ignored, as the generated clients keep unknown members
   aside; a job that breaks a bound it does know (an unknown status, `maxAttempts` outside 1 through 10) is refused.
 
-It was also run end to end on 2026-10-03 against the product's real Jobs routes, built from product
-`main` `92ac1ced` (26 checks; see the root README for what that host was and was not).
+It was also run end to end on 2026-10-03 against the product's real Jobs routes, built from the product's route code as of that day (26 checks; see the root README for what that host was and was not).
 
 ## Schedules
 
@@ -300,7 +298,7 @@ await schedules.delete("nightly", schedule.eTag);   // If-Match (204)
   `precondition_required` (428), `not_found` (404; also an installation without the Scheduler), `conflict`
   (409: a function version that is not an admitted Stateless one of the project, on a write or on a run, a
   write that would turn a recurring schedule into a one-shot or the reverse, or a run key the queue holds for
-  another request; a run of a withdrawn version answered 503 before product `main` `f9d57e29`), `forbidden`
+  another request; a run of a withdrawn version answered 503 before the contract was tightened later on 2026-10-03), `forbidden`
   (403), `unsupported_media_type` (415) and `request_failed` (a 400 for a member the gateway refuses, such as
   a cron expression that does not parse, a policy left out or an id that breaks the rule, the last two naming
   the member in the problem's `detail`; a 503).
@@ -316,14 +314,13 @@ await schedules.delete("nightly", schedule.eTag);   // If-Match (204)
   is still queued (failure code `schedule_occurrence_replaced`) and starts the new one, but skips it while one
   is running, because nothing can interrupt a Lambda that is executing. A skipped occurrence is consumed, not
   deferred. A manual run is not an occurrence, so the policy neither holds it back nor is held back by it, and
-  a one-shot has no earlier occurrence. The contract of product `main` `f9d57e29` describes this; a build of
+  a one-shot has no earlier occurrence. The mirrored client contract (SHA-256 `5fcbed40…`) describes this; a build of
   the product from before it starts every occurrence whichever policy is chosen and accepts any id but one with
   a `/` (a 400).
 
-Run end to end on 2026-10-03 against the product's real schedule routes, built from product `main` `92ac1ced`
+Run end to end on 2026-10-03 against the product's real schedule routes, built from the product's route code as of that day
 (41 checks, five of them raw requests the client never makes). That run predates the id rule, the concurrency
-enforcement and the 409 of a manual run, and was not repeated against product `main` `f9d57e29`; its harness is
-in the product repository.
+enforcement and the 409 of a manual run, and was not repeated against the contract as tightened that day; its harness referenced the product's code and is in neither repository.
 
 ## Workload delivery
 
@@ -365,7 +362,7 @@ by the client. As the SSE grammar says, exactly one space after a field's colon 
 further leading whitespace stays in the value, so an id round-trips unchanged; until 2026-09-22 this
 client trimmed every leading space, as the Python client did before 2026-09-17.
 
-`npm ci && npm test` passed 13 tests on 2026-09-22 (Node 25.9.0, npm 11.12.1). On 2026-10-03 `npm test` passed 88 tests (the 13 of the first run and the cases added since for delivery, Jobs, schedules, the generated surface and the schedule id rule held to the contract's pattern) on the same Node and npm, over a `node_modules` tree copied from that locked install rather than a fresh `npm ci`. On 2026-10-07, after a fresh `npm ci`, `npm test` ran 98 tests: 97 passed and the live smoke test was skipped (the 88, nine for the password sign-in, and the smoke test). On 2026-10-08, after a fresh `npm ci`, `npm test` ran 104 tests: 103 passed and the live smoke test was skipped (the 98 and six for external sign-in).
+`npm ci && npm test` passed 13 tests on 2026-09-22 (Node 25.9.0, npm 11.12.1). On 2026-10-03 `npm test` passed 88 tests (the 13 of the first run and the cases added since for delivery, Jobs, schedules, the generated surface and the schedule id rule held to the contract's pattern) on the same Node and npm, over a `node_modules` tree copied from that locked install rather than a fresh `npm ci`. On 2026-10-07, after a fresh `npm ci`, `npm test` ran 98 tests: 97 passed and the live smoke test was skipped (the 88, nine for the password sign-in, and the smoke test). On 2026-10-08, after a fresh `npm ci`, `npm test` ran 104 tests: 103 passed and the live smoke test was skipped (the 98 and six for external sign-in). On 2026-10-20, on Linux x86-64 with Node 25.9.0 from the release archive (SHA-256 checked against its `SHASUMS256.txt`; see [`docs/CLOUD_ENVIRONMENT.md`](../../docs/CLOUD_ENVIRONMENT.md)), a fresh `npm ci` and `npm test` gave the same 104: 103 passed and the live smoke test was skipped. The package's code had not changed, and regenerating its tree with the pinned Kiota changed nothing.
 
 ## Licence
 

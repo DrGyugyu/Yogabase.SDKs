@@ -73,7 +73,7 @@ repository's root):
 
 - `src/unity/Yogabase.Yogabase.Client.Unity` compiles the same `*.cs` files as
   `src/dotnet/Yogabase.Yogabase.Client` for `netstandard2.1` into an assembly named
-  `Yogabase.Yogabase.Client`, against SignalR client 8.0.15 and System.Text.Json 8.0.5
+  `Yogabase.Yogabase.Client`, against SignalR client 8.0.32 and System.Text.Json 8.0.5
   (`src/unity/Directory.Packages.props`). The NuGet package is built against the 10.x line, and Unity
   6000.5 binds its own 8.0 extension assemblies, so a plugin built against 10.x is CS1705 there.
 - **To use it, a developer builds it and brings its dependencies by hand.** With the .NET 10 SDK,

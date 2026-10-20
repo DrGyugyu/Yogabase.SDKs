@@ -2,7 +2,7 @@
 
 Status: public-source inventory (the source is public on GitHub under Apache-2.0; no package
 has been published to a registry)
-Last reviewed: 2026-10-19
+Last reviewed: 2026-10-20
 
 This inventory covers direct SDK and test dependencies. Exact transitive versions and integrity
 values remain locked in `packages.lock.json`, `package-lock.json`, `pubspec.lock`, the hash-pinned
@@ -33,7 +33,7 @@ prepared.
 | `build` | 1.6.1 (`build-requirements.lock`) | Python wheel and sdist build frontend | MIT | Build-only; not shipped. Its lock also pins `packaging` 26.3 (Apache-2.0 OR BSD-2-Clause) and `pyproject_hooks` 1.3.3 (MIT), and, only where their markers hold, `tomli` 2.4.1 (MIT), `importlib_metadata` 9.0.1 (Apache-2.0), `zipp` 4.1.0 (MIT) and `colorama` 0.4.6 (BSD classifier). |
 | `com.microsoft.kiota:microsoft-kiota-bundle` | 1.9.3 | Java runtime | MIT | Retain the MIT notice. |
 | `com.microsoft.kiota:microsoft-kiota-serialization-*` | 1.9.3 | Java serializers | MIT | Retain the MIT notice. |
-| `com.google.code.gson:gson` | 2.14.0 (transitive compile dependency of `microsoft-kiota-serialization-json` 1.9.3) | Java: JSON reading in the authored Jobs client | Apache-2.0 | Retain the Apache-2.0 notice. Used directly by `YogabaseJobsClient` though it arrives with the Kiota JSON module; replacement is Kiota's own `ParseNode`, at the cost of the strict member-type checks the client makes. |
+| `com.google.code.gson:gson` | 2.14.0 (transitive compile dependency of `microsoft-kiota-serialization-json` 1.9.3) | Java: JSON reading in the authored Jobs client and the sign-in | Apache-2.0 | Retain the Apache-2.0 notice. Used directly by `YogabaseJobsClient` and `YogabaseSignIn` though it arrives with the Kiota JSON module; replacement is Kiota's own `ParseNode`, at the cost of the strict member-type checks the clients make. |
 | `com.squareup.okhttp3:okhttp` | 4.12.0 (compile dependency of `microsoft-kiota-http-okHttp` 1.9.3) | Java: the Jobs client reads the OkHttp `Response` the Kiota adapter hands back | Apache-2.0 | Retain the Apache-2.0 notice. Used directly by `YogabaseJobsClient`, which therefore needs the Kiota bundle's `OkHttpRequestAdapter` and names any other adapter; the result route's digest header is not reachable through the adapter interface. |
 | `jakarta.annotation:jakarta.annotation-api` | 2.1.1 | Java annotations | EPL-2.0 or GPL-2.0 with Classpath Exception | Preserve the selected license notices and confirm the selection in the SBOM of a registry publication. Open registry-publication item; the public source redistributes nothing of it. |
 | `microsoft_kiota_bundle` | 0.1.1 | Dart runtime | MIT | Retain the MIT notice; live Dart transport and Flutter integration remain unqualified. |
@@ -41,8 +41,15 @@ prepared.
 | `http` | 1.6.0 | Dart sign-in transport (also the Kiota adapter's own client type) | BSD-3-Clause | Retain the BSD-3-Clause notice. Already locked as a Kiota dependency; now declared directly. Redirect following is disabled per request. |
 | `crypto` | 3.0.7 | Dart sign-in PKCE `S256` challenge | BSD-3-Clause | Retain the BSD-3-Clause notice. Already locked as a transitive dependency; now declared directly. |
 | Microsoft Kiota generator | 1.34.1 | External source generation | MIT | Generation tool only; source commit and NuGet digest are bound in `MANIFEST.json`. |
+| `org.apache.maven.plugins:maven-dependency-plugin` | 3.8.1 (named on the command line, not in `pom.xml`) | Java: writes the compile classpath the check programs run on | Apache-2.0 | Build tool only; nothing of it enters the jar. |
 | Agones client SDK loop shape (`v1.60.0`, `67b44a783218f7811084adaa5d9b334fb28e44ba`) | Source-ported, not a package reference | Client loop shape for `Yogabase.Yogabase.RuntimeHost` and its Unity package | Apache-2.0 | Retain the Apache-2.0 licence and the "Copyright Contributors to Agones a Series of LF Projects, LLC" attribution; ship the unmodified licence text at `licenses/Apache-2.0-Agones.txt` and pack it into the package; mark every translated file prominently as a modified derivative. Apache-2.0 imposes no source-disclosure, network-use, or commercial restriction. Copying boundary and modifications are recorded in [`REFERENCE_REVIEW.md`](REFERENCE_REVIEW.md). |
 | Nakama Plus runtime-module surface shape (`18e4d2cd53d5f546d5684d6f70996c08234afc45`) | Shape-ported, not a package reference and not a source copy | Grouping of the `Yogabase.Lambda` runtime context | Apache-2.0 | Retain the Apache-2.0 licence and the "Copyright 2018 The Nakama Authors" attribution; ship the unmodified licence text at `licenses/Apache-2.0-Nakama.txt` (SHA-256 `cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30`) and pack it into the package alongside `THIRD-PARTY-NOTICES.md`. No Nakama source, type name, wire contract, or storage model is adopted. Copying boundary is recorded in [`REFERENCE_REVIEW.md`](REFERENCE_REVIEW.md). |
+
+The 2026-10-20 additions add no dependency: the .NET Data client and the `Yogabase.Lambda` data
+wrapper use `System.Text.Json` and the BCL already listed, and the Java sign-in uses the JDK's own
+`java.net.http` client and Gson, already listed (its check program's fake gateway uses the JDK's
+`com.sun.net.httpserver`, test-only). The toolchains the suites ran on are recorded in
+[`CLOUD_ENVIRONMENT.md`](CLOUD_ENVIRONMENT.md); none is a dependency of a package.
 
 ## The Unity build line (8.0)
 
