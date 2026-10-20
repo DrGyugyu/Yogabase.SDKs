@@ -20,13 +20,15 @@ namespace Yogabase.Lambda;
 /// <see cref="IServiceProvider"/> could not.
 /// </para>
 /// <para>
-/// <b>The Lambda is where a Yogabase application reads and writes data.</b> The client-facing Data
-/// API module was withdrawn on 2026-09-08 and has since been restored in the product, alongside a
-/// Lambda-side typed data API and Entity Framework Core, but this package wraps none of them, so the
-/// project database under its full-access
-/// <c>yogabase_lambda</c> identity is this package's data path — not a bounded typed query surface. That is a
-/// deliberate trust change: the sandbox's process, filesystem, and network isolation, the admission
-/// scan, and the per-invocation token are what separate one project's code from the installation.
+/// <b>Three ways to the project database.</b> <see cref="Data"/> is the runtime's typed data API (the
+/// client Data API's operations and bounds, plus a database-function call) as the full-access
+/// <c>yogabase_lambda</c> identity, or as the signed-in caller under row-level security through
+/// <see cref="LambdaData.AsCaller"/>. On <c>net10.0</c>, <c>Database</c> is that full-access identity as
+/// a <c>DbDataSource</c>, and <c>CallerDatabase</c> the same pool opened as the caller. Entity Framework
+/// Core configuration, which the runtime also registers, is not wrapped here: it stays a server-side
+/// option a bundle resolves itself. The full-access identity is a deliberate trust change: the sandbox's
+/// process, filesystem, and network isolation, the admission scan, and the per-invocation token are what
+/// separate one project's code from the installation.
 /// Egress opens only to the project's own database, gateway and bound Valkey service, and no cloud, Kubernetes, fleet, or
 /// Control Plane credential ever reaches customer code.
 /// </para>
@@ -43,8 +45,10 @@ public sealed partial class LambdaContext
     private LambdaStorage? storage;
     private LambdaUsers? users;
     private LambdaRealtime? realtime;
+    private LambdaData? data;
 #if NET10_0_OR_GREATER
     private System.Data.Common.DbDataSource? database;
+    private System.Data.Common.DbDataSource? callerDatabase;
 #endif
 
     private LambdaContext(
@@ -117,7 +121,55 @@ public sealed partial class LambdaContext
             }
         }
     }
+
+    /// <summary>
+    /// The project's database opened as the signed-in caller under row-level security: every connection it
+    /// opens runs as the caller, so a query sees the caller's rows and the caller's policy verdicts. On an
+    /// invocation with no signed-in caller (a schedule, an actor tick, a workflow step, a broker delivery) the
+    /// runtime's source refuses to open a connection rather than open one as the full-access identity.
+    /// Commands and batches created on the data source itself are refused; create them on an opened connection.
+    /// </summary>
+    /// <remarks>Only on the <c>net10.0</c> build, like <see cref="Database"/>.</remarks>
+    public System.Data.Common.DbDataSource CallerDatabase
+    {
+        get
+        {
+            lock (gate)
+            {
+                if (callerDatabase is not null)
+                {
+                    return callerDatabase;
+                }
+
+                var byIdentity = services.GetService(typeof(IReadOnlyDictionary<string, System.Data.Common.DbDataSource>))
+                        as IReadOnlyDictionary<string, System.Data.Common.DbDataSource>
+                    ?? throw Missing("IReadOnlyDictionary<string, System.Data.Common.DbDataSource> of database identities");
+                return callerDatabase = byIdentity.TryGetValue(LambdaData.CallerIdentity, out var caller)
+                    ? caller
+                    : throw Missing("caller-scoped System.Data.Common.DbDataSource");
+            }
+        }
+    }
 #endif
+
+    /// <summary>
+    /// The runtime's typed data API, as the full-access Lambda identity; <see cref="LambdaData.AsCaller"/> runs
+    /// the same requests as the signed-in caller under row-level security.
+    /// </summary>
+    public LambdaData Data
+    {
+        get
+        {
+            lock (gate)
+            {
+                return data ??= new LambdaData(
+                    services.GetService(typeof(Func<ReadOnlyMemory<byte>, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<ReadOnlyMemory<byte>>>))
+                            as Func<ReadOnlyMemory<byte>, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<ReadOnlyMemory<byte>>>
+                        ?? throw Missing("Func<ReadOnlyMemory<byte>, CancellationToken, ValueTask<ReadOnlyMemory<byte>>> typed data API"),
+                    LambdaData.LambdaIdentity);
+            }
+        }
+    }
 
     /// <summary>Mediated object storage for this project.</summary>
     public LambdaStorage Storage
