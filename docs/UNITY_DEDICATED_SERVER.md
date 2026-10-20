@@ -282,7 +282,14 @@ the call may or may not have taken effect) and false for `413`. Nothing waits th
 The background loop keeps running after a failed heartbeat; pass a callback,
 `runtime.Connect(exception => Log(exception.Message))`, to see those failures.
 
-Two details of the watch loop are worth knowing before you write your own:
+**A call is bounded by `RequestTimeout`, which by default outlasts the relay's own timeout.** The
+default is the relay's 30 second answer timeout plus 10 seconds, so a call the relay cannot get
+answered ends with its `504`. If the timeout does fire, the call throws `YogabaseRuntimeHostException`
+with a status of 0 and the code `CLIENT_REQUEST_TIMEOUT` (`IsRetryable` true; the call may or may not
+have taken effect), never a bare `TaskCanceledException`. Only the token you pass in cancels as
+`OperationCanceledException`.
+
+Three details of the watch loop are worth knowing before you write your own:
 
 - **The resume token is advance-only.** The relay returns an empty token when it has no newer
   position to give you. Treat empty as "keep what you have", as the sample does.
@@ -291,6 +298,13 @@ Two details of the watch loop are worth knowing before you write your own:
   sequence quietly, but cancelling while a request is in flight throws
   `OperationCanceledException` out of the `await foreach`. That is deliberate and matches the
   heartbeat loop's contract — wrap the loop if you would rather treat shutdown as a normal exit.
+- **The convenience enumerator ends on a terminal refusal and retries only what can be retried.**
+  `WatchAssignmentsAsync(poll, onFailure, token)` throws the `YogabaseRuntimeHostException` out of the
+  `await foreach` for a refusal the contract makes terminal on the assignments route
+  (`RUNTIME_HOST_RELAY_INVALID`, `RUNTIME_HOST_REQUEST_INVALID`, `RUNTIME_HOST_RESUME_TOKEN_INVALID`,
+  `RUNTIME_HOST_STALE_EPOCH`, `RUNTIME_HOST_WRONG_GENERATION`). A retryable answer
+  (`IsRetryable`) or a transport fault is tried again on the next tick, and anything else is passed
+  once to `onFailure` while the watch keeps polling. A hand-written loop should make the same split.
 
 Two environment variables matter:
 

@@ -35,12 +35,27 @@ public sealed class YogabaseRuntimeHostOptions
     /// <summary>The default Pod-local runtime-host relay endpoint.</summary>
     public const string DefaultEndpoint = "http://127.0.0.1:8090";
 
+    /// <summary>
+    /// How long the relay holds a call for an answer before it gives up and answers
+    /// <c>504</c> itself: <c>answerTimeoutSeconds</c> in the <c>x-yogabase-runtime-host-relay</c>
+    /// extension of <c>contracts/yogabase-runtime-host-self-v1.openapi.json</c>. A test in the SDK
+    /// repository holds this figure to the document.
+    /// </summary>
+    public const int RelayAnswerTimeoutSeconds = 30;
+
+    /// <summary>
+    /// The time added to <see cref="RelayAnswerTimeoutSeconds"/> to make the default
+    /// <see cref="RequestTimeout"/>, so a client that waits the whole answer timeout still has time
+    /// to receive the relay's own bodyless <c>504</c> instead of giving up locally just before it.
+    /// </summary>
+    public const int RequestTimeoutMarginSeconds = 10;
+
     /// <summary>Initializes a new instance of the <see cref="YogabaseRuntimeHostOptions"/> class.</summary>
     public YogabaseRuntimeHostOptions()
     {
         Endpoint = ResolveEndpoint();
         HeartbeatInterval = TimeSpan.FromSeconds(2);
-        RequestTimeout = TimeSpan.FromSeconds(10);
+        RequestTimeout = TimeSpan.FromSeconds(RelayAnswerTimeoutSeconds + RequestTimeoutMarginSeconds);
         StartupPendingBudget = TimeSpan.FromSeconds(60);
     }
 
@@ -50,7 +65,17 @@ public sealed class YogabaseRuntimeHostOptions
     /// <summary>The interval between heartbeats sent by the background heartbeat loop.</summary>
     public TimeSpan HeartbeatInterval { get; set; }
 
-    /// <summary>The per-request timeout applied to every call this client makes.</summary>
+    /// <summary>
+    /// The per-request timeout applied to every call this client makes. The default is the relay's
+    /// answer timeout (<see cref="RelayAnswerTimeoutSeconds"/>) plus
+    /// <see cref="RequestTimeoutMarginSeconds"/>, so a call the relay cannot get answered ends with
+    /// the relay's <c>504</c> rather than a local cancellation. A timeout shorter than the relay's
+    /// is allowed and then fires first: the call throws
+    /// <see cref="YogabaseRuntimeHostException"/> with
+    /// <see cref="YogabaseRuntimeHostException.RequestTimeoutCode"/> and a
+    /// <see cref="YogabaseRuntimeHostException.StatusCode"/> of 0, never a bare cancellation, and the
+    /// call may or may not have taken effect.
+    /// </summary>
     public TimeSpan RequestTimeout { get; set; }
 
     /// <summary>

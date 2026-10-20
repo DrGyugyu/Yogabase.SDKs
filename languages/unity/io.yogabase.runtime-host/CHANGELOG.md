@@ -2,6 +2,37 @@
 
 All notable changes to this package are documented in this file.
 
+## [0.3.1-preview.1]
+
+- A default client cancelled before the relay could answer: `RequestTimeout` was 10 seconds and the
+  relay holds a call for up to 30 (`answerTimeoutSeconds` in
+  `contracts/yogabase-runtime-host-self-v1.openapi.json`) before it answers `504`, so the `504` was
+  never seen. The default is now the relay's answer timeout plus 10 seconds
+  (`YogabaseRuntimeHostOptions.RelayAnswerTimeoutSeconds` and `RequestTimeoutMarginSeconds`).
+- A call that gets no answer within `RequestTimeout` now throws `YogabaseRuntimeHostException` (status
+  0, code `YogabaseRuntimeHostException.RequestTimeoutCode` = `CLIENT_REQUEST_TIMEOUT`, `IsRetryable`
+  true, a message that names the timeout) instead of a bare `TaskCanceledException`. A cancellation
+  from the token the caller passed in, or from disposing the client, is still an
+  `OperationCanceledException`.
+- `WatchAssignmentsAsync` no longer swallows every failure and polls on with the same token. A refusal
+  the contract lists for the assignments route and makes terminal (`RUNTIME_HOST_RELAY_INVALID`,
+  `RUNTIME_HOST_REQUEST_INVALID`, `RUNTIME_HOST_RESUME_TOKEN_INVALID`, `RUNTIME_HOST_STALE_EPOCH`,
+  `RUNTIME_HOST_WRONG_GENERATION`) ends the watch by throwing. A retryable answer
+  (`IsRetryable`) and a transport fault (`HttpRequestException`, `IOException`) are tried again on the
+  next tick with the same resume token. Anything else is reported to the new
+  `WatchAssignmentsAsync(pollInterval, onFailure, cancellationToken)` callback, once for consecutive
+  identical failures, and the watch keeps polling. Disposing the client ends a running watch rather
+  than polling a disposed client. The existing `WatchAssignmentsAsync(pollInterval,
+  cancellationToken)` call is unchanged and reports nothing.
+- A page's `headSequence` below 1 (the contract says at least 1) reads as no sequence, as an absent
+  or non-integer value does; the page's `headState` is kept.
+- A refusal's code is read from `code` alone. The fallback to a `title` member, which the relay's
+  `{code, detail}` refusals never carry, is removed; a body without a string `code` reads as `UNKNOWN`.
+- The `Runtime` folder is the .NET package's `0.2.1-preview.1` sources with a block-scoped namespace,
+  as before. It was compiled again at C# 9, warnings as errors, as `netstandard2.1` against
+  System.Text.Json 8.0.5; it was not compiled against the Unity 6000.5.7f1 reference set, no Unity
+  Editor has imported this version and no IL2CPP build has run it.
+
 ## [0.3.0-preview.1]
 
 - The relay answers `413`, `429` and `504` with no body at all, and the client parsed every answer as

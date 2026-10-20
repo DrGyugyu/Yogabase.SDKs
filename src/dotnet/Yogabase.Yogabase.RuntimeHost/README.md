@@ -52,6 +52,41 @@ sequence, which `HeartbeatOnceAsync` sends.
 The background loop that `Connect` starts keeps going after a failed heartbeat. Pass
 `Connect(onHeartbeatFailure)` to see those failures instead of losing them.
 
+A refusal is `{code, detail}` (with `retryAfterSeconds` on the pending refusal only), so the code is
+read from `code` alone: a body that carries a `title` and no `code`, or no JSON body at all, reads as
+the code `UNKNOWN`.
+
+## The request timeout
+
+`YogabaseRuntimeHostOptions.RequestTimeout` bounds every call. Its default is the relay's own answer
+timeout (30 seconds, `answerTimeoutSeconds` in the contract) plus 10 seconds, so a call the relay cannot
+get answered ends with the relay's `504` rather than a cancellation the client raised just before it.
+When the timeout does fire (you set it shorter, or the relay itself stalled), the call throws
+`YogabaseRuntimeHostException` with a `StatusCode` of 0, the code
+`YogabaseRuntimeHostException.RequestTimeoutCode` (`CLIENT_REQUEST_TIMEOUT`), `IsRetryable` true and a
+message that names the timeout. The call may or may not have taken effect, exactly as after a `504`.
+Only the token you pass in cancels as `OperationCanceledException`.
+
+## The assignment watch
+
+`WatchAssignmentsAsync(pollInterval, onFailure, cancellationToken)` (and the same call without the
+callback) treats a failed poll as the contract does for the assignments route:
+
+- A terminal refusal ends the watch: the `YogabaseRuntimeHostException` is thrown out of the
+  `await foreach`. The terminal set is what the document lists for the route: `RUNTIME_HOST_RELAY_INVALID`,
+  `RUNTIME_HOST_REQUEST_INVALID`, `RUNTIME_HOST_RESUME_TOKEN_INVALID`, `RUNTIME_HOST_STALE_EPOCH` and
+  `RUNTIME_HOST_WRONG_GENERATION`.
+- A retryable answer (`IsRetryable`: the pending refusal, `429`, `504`, the client's own request
+  timeout) and a transport fault (`HttpRequestException`, `IOException`) are tried again on the next
+  tick with the same resume token, silently.
+- Anything else, such as a refusal the document does not list for the route or a page that is not
+  JSON, goes to `onFailure` and the watch keeps polling. The same failure on consecutive polls is
+  reported once; a good page, or a different failure, makes the next one a new report. A throwing
+  callback is swallowed.
+
+Disposing the client ends a running watch (with the cancellation or `ObjectDisposedException` of the
+call it was in) rather than polling a disposed client.
+
 ## What this client talks to
 
 The workload calls its member's Pod-local relay sidecar over loopback — by default
@@ -71,7 +106,8 @@ lifecycle state as the Control Plane observes it (a lapsed lease reads `Unknown`
 records the lapse) and `HeadSequence` the newest event's sequence. `ReadCurrentStateAsync` uses it
 to answer the current state in one read, and against a Control Plane that predates the head it
 pages the stream to its end instead, which is what a consumer had to do before. A head in a shape
-outside the contract reads as no head. `RuntimeHostCurrentState.IsReady` is true for `Ready`,
+outside the contract reads as no head; the contract makes `headSequence` at least 1, so a value below
+1 reads as no sequence. `RuntimeHostCurrentState.IsReady` is true for `Ready`,
 `Reserved` and `Allocated` only; a state name the client does not know is not ready.
 
 A Unity project takes this client as a built assembly from `src/unity/Yogabase.Yogabase.RuntimeHost.Unity`:
@@ -103,8 +139,8 @@ document.
   resume-token poll. An empty resume token in a page means "no progress" and does not reset the
   cursor.
 
-`YogabaseRuntimeHostClient` is not a general-purpose HTTP client: it pins its base address, uses a
-short request timeout, and disables redirects, proxies, cookies, and default credentials.
+`YogabaseRuntimeHostClient` is not a general-purpose HTTP client: it pins its base address, bounds
+every call with a request timeout, and disables redirects, proxies, cookies, and default credentials.
 
 ## Third-party notices
 
