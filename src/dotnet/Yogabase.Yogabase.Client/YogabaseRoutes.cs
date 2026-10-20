@@ -81,6 +81,20 @@ public static class YogabaseRoutes
     /// <summary>Mediated object storage.</summary>
     public const string StorageObjectTemplate = "v1/storage/objects/{key}";
 
+    /// <summary>
+    /// The client Data API: one <c>POST</c> route per operation on one exposed table, as the signed-in user
+    /// under row-level security, where the bootstrap's requested <c>data-rest</c> row is available.
+    /// </summary>
+    public const string DataSelectTemplate = "v1/data/{table}/select";
+    /// <inheritdoc cref="DataSelectTemplate"/>
+    public const string DataInsertTemplate = "v1/data/{table}/insert";
+    /// <inheritdoc cref="DataSelectTemplate"/>
+    public const string DataUpsertTemplate = "v1/data/{table}/upsert";
+    /// <inheritdoc cref="DataSelectTemplate"/>
+    public const string DataUpdateTemplate = "v1/data/{table}/update";
+    /// <inheritdoc cref="DataSelectTemplate"/>
+    public const string DataDeleteTemplate = "v1/data/{table}/delete";
+
     /// <summary>Stateless Function, Actor Lambda, and Workflow Lambda invocation.</summary>
     public const string FunctionInvokeTemplate =
         "v1/projects/{projectId}/functions/{functionId}/versions/{functionVersion}/invoke";
@@ -205,6 +219,21 @@ public static class YogabaseRoutes
     /// <summary>Object route for one already-validated logical storage key.</summary>
     public static string StorageObject(string escapedLogicalKey) =>
         "v1/storage/objects/" + escapedLogicalKey;
+
+    /// <summary>Select route of one table whose name already passed the Data API's name rule.</summary>
+    public static string DataSelect(string table) => "v1/data/" + Uri.EscapeDataString(table) + "/select";
+
+    /// <summary>Insert route of one table.</summary>
+    public static string DataInsert(string table) => "v1/data/" + Uri.EscapeDataString(table) + "/insert";
+
+    /// <summary>Upsert route of one table.</summary>
+    public static string DataUpsert(string table) => "v1/data/" + Uri.EscapeDataString(table) + "/upsert";
+
+    /// <summary>Update route of one table.</summary>
+    public static string DataUpdate(string table) => "v1/data/" + Uri.EscapeDataString(table) + "/update";
+
+    /// <summary>Delete route of one table.</summary>
+    public static string DataDelete(string table) => "v1/data/" + Uri.EscapeDataString(table) + "/delete";
 
     /// <summary>Invocation route for one exact registered Function version.</summary>
     public static string FunctionInvoke(

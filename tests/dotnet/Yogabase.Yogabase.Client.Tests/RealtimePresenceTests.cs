@@ -52,7 +52,8 @@ public sealed class RealtimePresenceTests
             new YogabaseClientOptions { AllowInsecureLoopback = true, TransportHandler = handler },
             TestContext.Current.CancellationToken);
 
-        Assert.Equal("realtime-presence", requested);
+        // Both requested-only rows this package implements, in the gateway's order.
+        Assert.Equal("realtime-presence, data-rest", requested);
         Assert.True(client.Configuration.IsAvailable("realtime-presence"));
         Assert.Equal(5, client.Configuration.Capabilities.Count);
     }

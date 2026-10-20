@@ -14,6 +14,12 @@ public sealed class YogabaseClient : IDisposable, IAsyncDisposable
 
     /// <summary>The bootstrap request header naming requested-only capability rows this client reads.</summary>
     public const string AcceptCapabilitiesHeader = "X-Yogabase-Accept-Capabilities";
+
+    /// <summary>
+    /// The requested-only rows this client names in <see cref="AcceptCapabilitiesHeader"/>, in the gateway's
+    /// order: each is a row this package implements and validates.
+    /// </summary>
+    public const string AcceptedCapabilities = YogabaseCapability.RealtimePresence + ", " + YogabaseCapability.DataRest;
     private const int MaximumClientConfigBytes = 256 * 1024;
 
     private readonly YogabaseHttpTransport transport;
@@ -39,6 +45,7 @@ public sealed class YogabaseClient : IDisposable, IAsyncDisposable
         Workflows = new YogabaseWorkflowsClient(Configuration, transport);
         Jobs = new YogabaseJobsClient(Configuration, transport);
         Schedules = new YogabaseSchedulesClient(Configuration, transport);
+        Data = new YogabaseDataClient(Configuration, transport);
         realtime = new YogabaseRealtimeClient(Configuration, auth.GetValidAccessTokenAsync);
         Realtime = realtime;
     }
@@ -50,6 +57,13 @@ public sealed class YogabaseClient : IDisposable, IAsyncDisposable
     public IYogabaseFunctions Functions { get; }
     public IYogabaseActors Actors { get; }
     public IYogabaseWorkflows Workflows { get; }
+
+    /// <summary>
+    /// The client Data API: the signed-in user's selects, inserts, upserts, updates and deletes on the
+    /// project's exposed tables, under row-level security as that user, where the bootstrap's requested
+    /// <c>data-rest</c> row is available. No SQL, no function call and no role travels from a client.
+    /// </summary>
+    public IYogabaseData Data { get; }
 
     /// <summary>
     /// Durable background jobs for the signed-in user: submit a run of a deployed stateless function,
@@ -110,10 +124,10 @@ public sealed class YogabaseClient : IDisposable, IAsyncDisposable
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(gatewayEndpoint, path));
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            // realtime-presence is a requested-only row: the gateway adds it only for a client that
-            // names it, and this client validates it (ValidateConfiguration). A gateway that predates
-            // the row ignores the header, which reads as presence being unavailable.
-            request.Headers.TryAddWithoutValidation(AcceptCapabilitiesHeader, YogabaseCapability.RealtimePresence);
+            // realtime-presence and data-rest are requested-only rows: the gateway adds each only for a
+            // client that names it, and this client validates both (ValidateConfiguration). A gateway that
+            // predates a row ignores it, which reads as that capability being unavailable.
+            request.Headers.TryAddWithoutValidation(AcceptCapabilitiesHeader, AcceptedCapabilities);
             response = await client.SendAsync(
                 request,
                 HttpCompletionOption.ResponseHeadersRead,
@@ -317,16 +331,17 @@ public sealed class YogabaseClient : IDisposable, IAsyncDisposable
                 || !string.IsNullOrEmpty(redirect.Fragment))
             || configuration.Capabilities is null
             // An installation publishes the four core capabilities plus a row for each requested-only id
-            // the client names, and this client names only realtime-presence. One that predates the
-            // 2026-09-08 removal of the Data API published five by default, the fifth being data-rest.
-            // Accept each rather than refusing either side of a rollout.
-            || configuration.Capabilities.Count is < 4 or > 5
+            // the client names and the gateway knows, and this client names realtime-presence and
+            // data-rest. A gateway that knows neither publishes four, and one that predates the
+            // 2026-09-08 removal of the Data API published data-rest by default. Accept each rather
+            // than refusing either side of a rollout.
+            || configuration.Capabilities.Count is < 4 or > 6
             || configuration.Capabilities.Any(static item => item is null)
             || configuration.Capabilities.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count()
                 != configuration.Capabilities.Count
             || configuration.Capabilities.Any(item =>
                 item.Id is not ("auth" or "storage" or "functions-rest" or "realtime-subscribe"
-                    or YogabaseCapability.RealtimePresence or YogabaseCapability.WithdrawnDataRest)
+                    or YogabaseCapability.RealtimePresence or YogabaseCapability.DataRest)
                 || item.UnavailableReason?.Length > 256)
             || string.IsNullOrWhiteSpace(configuration.RealtimePath)
             || !configuration.RealtimePath.StartsWith("/", StringComparison.Ordinal)

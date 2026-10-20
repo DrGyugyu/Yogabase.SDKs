@@ -10,10 +10,10 @@ namespace Yogabase.Yogabase;
 
 public sealed class YogabaseClientConfiguration
 {
-    // "data-rest" is deliberately absent: this package has no Data client, so IsAvailable answers
-    // false for it whatever an installation publishes.
+    // The four core rows and the two requested-only rows this package names in
+    // X-Yogabase-Accept-Capabilities and has a client for.
     private static readonly HashSet<string> KnownCapabilities = new(
-        new[] { "auth", "storage", "functions-rest", "realtime-subscribe", YogabaseCapability.RealtimePresence },
+        new[] { "auth", "storage", "functions-rest", "realtime-subscribe", YogabaseCapability.RealtimePresence, YogabaseCapability.DataRest },
         StringComparer.Ordinal);
 
     public string Schema { get; init; } = string.Empty;
@@ -52,15 +52,19 @@ public sealed class YogabaseClientConfiguration
 public sealed class YogabaseCapability
 {
     /// <summary>
-    /// The client-facing Data API capability: a requested-only row since the Data API was restored
-    /// (2026-09-23). This package has no Data client, so it never names the row in
-    /// <c>X-Yogabase-Accept-Capabilities</c>; a bootstrap document that carries it anyway (an
-    /// installation that predates the 2026-09-08 removal published it by default) is accepted, the
-    /// row is ignored, and <see cref="YogabaseClientConfiguration.IsAvailable"/> answers
-    /// <see langword="false"/> for it. The constant keeps the name it had when the module was
-    /// withdrawn.
+    /// The client Data API (<see cref="YogabaseClient.Data"/>). A requested-only row since the Data API was
+    /// restored (2026-09-23): the gateway adds it after the core rows only for a client that names it in
+    /// <c>X-Yogabase-Accept-Capabilities</c>, which <see cref="YogabaseClient.CreateAsync"/> does, and it is
+    /// available exactly when the runtime enables the Data API. A gateway that predates the row ignores
+    /// the header and publishes none, which reads as unavailable.
     /// </summary>
-    public const string WithdrawnDataRest = "data-rest";
+    public const string DataRest = "data-rest";
+
+    /// <summary>
+    /// The name <see cref="DataRest"/> had while the package had no Data client. Kept so code that named
+    /// it still compiles; it is the same id.
+    /// </summary>
+    public const string WithdrawnDataRest = DataRest;
 
     /// <summary>
     /// Realtime presence. A requested-only row: the gateway adds it after the four core rows only
