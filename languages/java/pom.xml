@@ -5,7 +5,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>io.yogabase</groupId>
   <artifactId>yogabase-client</artifactId>
-  <version>0.4.0-preview.1</version>
+  <version>0.5.0-preview.1</version>
   <packaging>jar</packaging>
   <name>Yogabase Java client</name>
   <description>Java client for the Yogabase application gateway and workload Delivery API, generated with Microsoft Kiota from the Yogabase v1 OpenAPI contracts.</description>

@@ -66,10 +66,12 @@ The following convenience adapters are authored and deliberately preserved durin
 - `languages/python/src/yogabase_client/sign_in.py`
 - `languages/python/src/yogabase_client/storage_logical_key.py`
 - `languages/java/src/main/java/io/yogabase/client/YogabaseApplicationClient.java`
+- `languages/java/src/main/java/io/yogabase/client/YogabaseAuthException.java`
 - `languages/java/src/main/java/io/yogabase/client/YogabaseDelivery*.java`
 - `languages/java/src/main/java/io/yogabase/client/YogabaseGateway*.java`
 - `languages/java/src/main/java/io/yogabase/client/YogabaseJob*.java`
 - `languages/java/src/main/java/io/yogabase/client/YogabaseSchedule*.java`
+- `languages/java/src/main/java/io/yogabase/client/YogabaseExternalSignIn.java`, `YogabaseSession.java` and `YogabaseSignIn.java`
 - `languages/java/src/main/java/io/yogabase/client/YogabaseStatusErrorCodes.java`
 - `languages/java/src/main/java/io/yogabase/client/YogabaseStorageLogicalKey.java`
 - `languages/dart/lib/src/yogabase_application_client.dart`

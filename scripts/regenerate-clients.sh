@@ -116,6 +116,10 @@ rsync -a --delete \
     --exclude '/YogabaseGateway*.java' \
     --exclude '/YogabaseJob*.java' \
     --exclude '/YogabaseSchedule*.java' \
+    --exclude /YogabaseAuthException.java \
+    --exclude /YogabaseExternalSignIn.java \
+    --exclude /YogabaseSession.java \
+    --exclude /YogabaseSignIn.java \
     --exclude /YogabaseStatusErrorCodes.java \
     --exclude /YogabaseStorageLogicalKey.java \
     "$stage/languages/java/src/main/java/io/yogabase/client/" \
