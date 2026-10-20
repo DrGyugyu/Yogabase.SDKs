@@ -110,7 +110,7 @@ asyncio.run(main())
   object. It is skipped unless `YOGABASE_SMOKE_GATEWAY`, `YOGABASE_SMOKE_PUBLISHABLE_KEY`,
   `YOGABASE_SMOKE_EMAIL`, `YOGABASE_SMOKE_PASSWORD` (an existing, confirmed user without MFA),
   `YOGABASE_SMOKE_FUNCTION_ID` and `YOGABASE_SMOKE_FUNCTION_VERSION` (a deployed stateless function that
-  accepts `{}`) are all set. The requests it builds were checked against a fake gateway. It passed on 2026-10-10 against a local installation: the gateway of a throwaway cluster behind a local HTTPS address, a user signed up there, and a released hello function. It has not run through a public gateway name. Python trusted that address's certificate through `SSL_CERT_FILE`.
+  accepts `{}`) are all set. The requests it builds were checked against a fake gateway. It passed on 2026-10-10 against a local installation: the gateway of a throwaway cluster behind a local HTTPS address, a user signed up there, and a released hello function. On 2026-10-12 it passed again through the public gateway name of a standing installation, with a fresh throwaway user. Python trusted that address's certificate through `SSL_CERT_FILE`.
 
 ## Signing in with a provider
 
@@ -162,8 +162,7 @@ and this client carries the operations as generated code, for example `client.v1
 `select`, `insert`, `upsert`, `update` and `delete`. A response is a `DataResult` (`rows`, `affectedRows`, `hasMore`) and a refusal is an RFC 7807 problem whose `code` is one of the refusal codes
 the contract lists under `x-yogabase-data-api`, which also states the limits (at most 1000 rows per
 select and 500 per write, 1 MiB per value, a five-second statement timeout). Request values are plain JSON.
-Nothing in this package has called the Data API against a live installation. A typed data API and
-Entity Framework Core inside Lambdas stay server-side: no client SDK carries EF code or a model.
+Nothing in this package has called the Data API against a live installation. A Lambda's typed data API (which `Yogabase.Lambda` wraps for a .NET Lambda) and Entity Framework Core stay server-side: no client SDK carries EF code or a model.
 
 Two other surfaces were added when the Data API was withdrawn:
 
@@ -274,8 +273,7 @@ async with AsyncJobsClient(
   clients keep unknown members aside; a job that breaks a bound it does know (an unknown status,
   `maxAttempts` outside 1 through 10) is refused.
 
-It was also run end to end on 2026-10-03 against the product's real Jobs routes, built from product `main`
-`92ac1ced` (24 checks; see the root README for what that host was and was not).
+It was also run end to end on 2026-10-03 against the product's real Jobs routes, built from the product's route code as of that day (24 checks; see the root README for what that host was and was not).
 
 ## Schedules
 
@@ -334,7 +332,7 @@ async with AsyncSchedulesClient(gateway_host=GATEWAY, project_id=session.project
   `precondition_required` (428), `not_found` (404; also an installation without the Scheduler), `conflict`
   (409: a function version that is not an admitted Stateless one of the project, on a write or on a run, a
   write that would turn a recurring schedule into a one-shot or the reverse, or a run key the queue holds for
-  another request; a run of a withdrawn version answered 503 before product `main` `f9d57e29`), `forbidden`
+  another request; a run of a withdrawn version answered 503 before the contract was tightened later on 2026-10-03), `forbidden`
   (403), `unsupported_media_type` (415) and `request_failed` (a 400 for a member the gateway refuses, such as
   a cron expression that does not parse, a policy left out or an id that breaks the rule, the last two naming
   the member in the problem's `detail`; a 503).
@@ -350,14 +348,13 @@ async with AsyncSchedulesClient(gateway_host=GATEWAY, project_id=session.project
   is still queued (failure code `schedule_occurrence_replaced`) and starts the new one, but skips it while one
   is running, because nothing can interrupt a Lambda that is executing. A skipped occurrence is consumed, not
   deferred. A manual run is not an occurrence, so the policy neither holds it back nor is held back by it, and
-  a one-shot has no earlier occurrence. The contract of product `main` `f9d57e29` describes this; a build of
+  a one-shot has no earlier occurrence. The mirrored client contract (SHA-256 `5fcbed40…`) describes this; a build of
   the product from before it starts every occurrence whichever policy is chosen and accepts any id but one with
   a `/` (a 400).
 
-Run end to end on 2026-10-03 against the product's real schedule routes, built from product `main` `92ac1ced`
+Run end to end on 2026-10-03 against the product's real schedule routes, built from the product's route code as of that day
 (36 checks, on CPython 3.13.12 and 3.12.13). That run predates the id rule, the concurrency enforcement and the
-409 of a manual run, and was not repeated against product `main` `f9d57e29`; its harness is in the product
-repository.
+409 of a manual run, and was not repeated against the contract as tightened that day; its harness referenced the product's code and is in neither repository.
 
 ## Workload delivery
 
@@ -466,12 +463,10 @@ own site-packages did not hold them, so the main checkout's `.venv` packages wer
 passed. They are the 58 of the run before (the 23, a delivery `jobsMaxRunSeconds` case, the 32 cases of
 `test_jobs.py` and two generated-surface cases), the 36 of `test_schedules.py`, two cases that hold the Jobs
 client's requests to the generated builders', and two generated-surface cases for the actor and workflow
-routes' and the Data API's 413 problems, after the client contract was re-mirrored from product `main`
-`92ac1ced` and the generated tree regenerated from it. The wheel and sdist were not rebuilt and the
+routes' and the Data API's 413 problems, after the client contract was re-mirrored (the document that first described the Jobs routes) and the generated tree regenerated from it. The wheel and sdist were not rebuilt and the
 installed-wheel run was not repeated, so the wheel evidence above predates `jobs.py` and `schedules.py`.
 
-Run once more on 2026-10-03 in the same way, after the client contract was re-mirrored from product `main`
-`f9d57e29` and the generated tree regenerated from it: 101 tests passed on both interpreters, the 98 above
+Run once more on 2026-10-03 in the same way, after the client contract was re-mirrored (the document as tightened later that day) and the generated tree regenerated from it: 101 tests passed on both interpreters, the 98 above
 with the schedule escaping case split into one for an id that follows the rule and one for an older id that a
 read, a run and a delete still address, and two cases added (every Latin-1 character and the edge lengths held
 to the pattern read from the mirrored contract, and an id's URL held to the generated builder's). The wheel
@@ -498,7 +493,17 @@ Run on 2026-10-08 on CPython 3.13.12 and 3.12.13, each in an environment made fr
 under `-X dev` with `ResourceWarning` as an error, after sign-in with an external provider was added, the password sign-in's
 steps were shared with it, and the provider sign-in began to read the discovery document before sending the callback: 118 tests,
 117 passed and the live smoke test skipped, on both. Seven are the provider sign-in's. The wheel
-and sdist were not rebuilt, and nothing here has run against a live installation or a real provider.
+and sdist were not rebuilt. The live smoke test (password sign-in, a function, Storage) then passed
+on 2026-10-10 against a local installation and on 2026-10-12 through the public gateway name of a
+standing installation; nothing else here has run against a live installation, and nothing against a
+real provider.
+
+Run on 2026-10-20 on Linux x86-64, on CPython 3.13.16 and 3.12.3 (Ubuntu 24.04's own), each in an
+environment made from the locks with `--require-hashes`, from source under `-X dev` with
+`ResourceWarning` as an error: 118 tests, 117 passed and the live smoke test skipped, on both. The
+package's code had not changed since 2026-10-08; regenerating its tree with the pinned Kiota changed
+nothing. The toolchains are recorded in
+[`docs/CLOUD_ENVIRONMENT.md`](../../docs/CLOUD_ENVIRONMENT.md).
 
 ## Licence
 

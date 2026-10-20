@@ -4,12 +4,14 @@ The context a Yogabase Lambda runs with: the project database, mediated object s
 application-user directory, realtime publication, actors, workflows, reminders, direct Valkey,
 authenticated messaging, who called, and which invocation this is.
 
-**This is where a Yogabase application reads and writes data from a .NET Lambda today.** The
-product also serves a client-facing Data API (in the mirrored contract, and carried by the
-generated TypeScript, Python, Java and Dart clients), a Lambda-side typed data API and Entity
-Framework Core support — none of the three is wrapped by this package yet. A .NET client reaches
-data through a Lambda, Auth, Storage and Realtime, so the database handle below is this package's
-data path: `DbDataSource`, not a bounded typed query surface or a `DbContext` layered over it.
+**A Lambda reaches its project's data three ways here.** `Data` is the runtime's typed data API
+(the client Data API's select, insert, upsert, update and delete, plus a call of a database
+function), as the Lambda's full-access identity or, with `AsCaller()`, as the signed-in caller
+under row-level security. `Database` is the full-access identity as a `DbDataSource`, and on
+`net10.0` `CallerDatabase` is the same pool opened as the caller. Entity Framework Core, which the
+runtime also configures by identity, is not wrapped: a bundle that wants it resolves the runtime's
+configuration itself, and no client SDK carries EF code or a model. Clients outside a Lambda reach
+the same tables through the client Data API, as the signed-in user.
 
 The package targets .NET Standard 2.1 and .NET 10. It references
 `Microsoft.Extensions.Logging.Abstractions` and `StackExchange.Redis`, which the sandbox host
@@ -83,7 +85,9 @@ incompatible major of it is refused at admission naming the version. Only `DbDat
 
 | Member | What it is |
 |---|---|
+| `Data` | The runtime's typed data API: `Data.From(table)` with `SelectAsync`, `InsertAsync`, `UpsertAsync`, `UpdateAsync` and `DeleteAsync`, `Data.RpcAsync(function, arguments)` for a database function by its named arguments, and `Data.AsCaller()` for the same as the signed-in caller under row-level security. See [Reading and writing data](#reading-and-writing-data). |
 | `Database` | `System.Data.Common.DbDataSource` for the project, under the full-access `yogabase_lambda` identity. Open a connection per unit of work and dispose it; the runtime owns the pool. |
+| `CallerDatabase` | The same pool opened as the signed-in caller under row-level security (`net10.0` only). On an invocation with no caller the runtime's source refuses to open a connection rather than open one as the full-access identity. |
 | `Storage` | `PutAsync`, `ReplaceAsync`, `GetAsync`, `TryGetAsync`, `DeleteAsync`, `ListAsync`, `ListAllAsync` over the project's mediated object store. Keys are logical and project-local; provider coordinates and signed URLs never reach customer code. See [Storage semantics](#storage-semantics). |
 | `Users` | `GetAsync`, `CreateAsync`, `UpdateAsync`, `BanAsync`, `IssueTokenAsync` over this project's application users. A subject is a UUID (any spelling is normalised to the lower-case `D` form the gateway requires). See [Issuing a user token](#issuing-a-user-token). |
 | `Realtime` | `PublishAsync(topic, payload)` and `PublishJsonAsync(topic, json)`. A topic is a Realtime binding id — `[a-z][a-z0-9._-]{0,95}` — and a payload is at most 64 KiB; both are checked here so a publish the gateway would refuse never leaves the Lambda. A Lambda publishes; it does not subscribe or hold a Hub. |
@@ -100,6 +104,48 @@ incompatible major of it is refused at admission naming the version. Only `DbDat
 Every service except `Logger`, `Caller`, and `Invocation` is resolved on first use, so a Lambda that
 only publishes to Realtime never touches the database, and a missing service is reported when it is
 actually needed, naming the service.
+
+### Reading and writing data
+
+`Data` is a thin serializer over the delegate the runtime registers
+(`Func<ReadOnlyMemory<byte>, CancellationToken, ValueTask<ReadOnlyMemory<byte>>>`): each call hands it
+one request document, `{"identity":"lambda"|"caller","operation","table"|"function","request"}`,
+and reads the answer, which always says `status`. It is the same engine, validation, bounds and
+refusal codes the client Data API uses, and it is not a wider privilege: the identity a request may
+choose between is decided by the runtime from the invocation, never from the document.
+
+```csharp
+var context = LambdaContext.From(services);
+var notes = context.Data.From("notes");
+
+var mine = await notes.SelectAsync(new LambdaDataSelectRequest
+{
+    Filters = [LambdaDataFilter.Eq("owner", context.Caller.RequireSubjectId())],
+    Order = [LambdaDataOrder.DescendingBy("created_at")],
+    Limit = 20,
+}, cancellationToken);
+
+// The answer the caller would get, under the table's row-level-security policies.
+var visible = await context.Data.AsCaller().From("notes").SelectAsync(cancellationToken: cancellationToken);
+
+// A database function, by its named arguments (Lambdas only; the client gateway never maps it).
+var top = await context.Data.RpcAsync("leaderboard", JsonSerializer.SerializeToElement(new { season = 3 }), limit: 10, cancellationToken);
+```
+
+`Lambda` (the default) is the full-access `yogabase_lambda` identity: it bypasses row-level
+security and never changes the schema. `AsCaller()` runs as the signed-in caller; a schedule, an
+actor tick, a workflow step and a broker delivery have no caller, so there it is refused with
+`403 data_caller_identity_unavailable` (`LambdaDataRefusalCodes`), never run as the full-access
+identity instead. The caller scope is correctness, not a boundary against the Lambda's own author,
+who holds the full-access identity in the same process.
+
+Every request is checked before it is handed over: the name rule
+`^[A-Za-z_][A-Za-z0-9_$]{0,62}$` for tables, columns, functions and arguments, the same bounds as
+the client Data API (`LambdaDataLimits`), a filter on every update and delete, at most 32 named
+arguments, and the whole document at most 1,114,112 bytes. A refusal the runtime answers is a
+`LambdaApiException` with its status and code (for example `data_table_not_exposed`,
+`data_function_not_found`, `data_row_not_permitted`); an answer that is not the documented document
+is `502 data_response_invalid`.
 
 ### Actors, workflows, and reminders
 
@@ -346,10 +392,11 @@ secrets: this package never logs them, and neither should the Lambda.
   `{ "objects": [{ "key" }], "nextCursor" }` and any other shape is refused rather than read as
   empty, while unmodelled user fields are kept rather than dropped.
 - No live installation has exercised this package. Its coverage is fake-provider and fake-transport
-  unit tests only.
-- `Database` is the only data path this package exposes today. A typed data API (select with
-  filters/ordering/paging, insert, update, upsert, delete, and calling database functions), Entity
-  Framework Core support, and an explicitly caller-scoped connection that applies row-level security
-  as the invoking user exist in the product's runtime context, but this package does not wrap them.
+  unit tests, and, for `Data`, an in-process run on 2026-10-20 against the product's own Data API
+  engine over a recording executor (not a database).
+- `CallerDatabase`, like `Database`, exists only on the `net10.0` build.
+- Entity Framework Core is not wrapped. The runtime registers its configuration by identity
+  (`Action<DbContextOptionsBuilder>`, and a map of it by `lambda` and `caller`); a bundle that
+  references EF Core resolves those itself. This package stays free of an EF dependency.
 
 Third-party notice: `THIRD-PARTY-NOTICES.md` and `licenses/Apache-2.0-Nakama.txt`.
