@@ -275,6 +275,10 @@ and only then throw. Every other refusal (`RUNTIME_HOST_STALE_EPOCH`,
 `RUNTIME_HOST_SHUTDOWN_IN_PROGRESS`, `RUNTIME_HOST_TERMINATED`, and the rest) is thrown on the first
 attempt. A build that quits on an exception from these calls therefore no longer quits during a
 Pod's normal startup window, and still quits at once for a terminal refusal.
+The relay also answers `413`, `429` and `504` with no body at all; each throws
+`YogabaseRuntimeHostException` with that status and the code `UNKNOWN`, and `IsRetryable` is true
+for the pending refusal, `429` (64 calls already waiting) and `504` (no answer within 30 seconds, so
+the call may or may not have taken effect) and false for `413`. Nothing waits those two out for you.
 The background loop keeps running after a failed heartbeat; pass a callback,
 `runtime.Connect(exception => Log(exception.Message))`, to see those failures.
 
@@ -296,8 +300,9 @@ Two environment variables matter:
   `YOGABASE_SERVICE_PORT_GAME`).
 
 **Never call an allocation route from the workload.** Allocation placement and release are
-Control Plane-authoritative, backend-only operations; a self-allocate call is refused at the relay
-itself with:
+Control Plane-authoritative, backend-only operations; a call to `/runtime-host/v1/self/allocate`
+(under either method) is refused at the relay itself, and no `/allocations` route is mapped on it.
+The refusal is:
 
 ```json
 { "code": "RUNTIME_HOST_RELAY_ALLOCATION_BACKEND_ONLY", "detail": "Allocation placement is a backend-only Control Plane operation; a workload cannot self-allocate." }

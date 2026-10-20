@@ -59,11 +59,12 @@ public sealed class YogabaseRuntimeHostOptions
     /// freshly started Pod's readiness observation has not reached the Control Plane yet -- before
     /// giving up and throwing the last such refusal. Each retry waits the refusal's
     /// <c>retryAfterSeconds</c> hint, or 2 seconds when the body carries none. Every other refusal
-    /// code (for example <c>RUNTIME_HOST_STALE_EPOCH</c>, <c>RUNTIME_HOST_SHUTDOWN_IN_PROGRESS</c>,
-    /// <c>RUNTIME_HOST_TERMINATED</c>, <c>RUNTIME_HOST_INSTANCE_NOT_FOUND</c>) is thrown at once and
-    /// never counts against this budget. The budget is per call, and it counts the waits taken, not
-    /// the time the attempts themselves spend in flight. Zero or a negative value disables the wait:
-    /// the first pending refusal is thrown.
+    /// (a code such as <c>RUNTIME_HOST_STALE_EPOCH</c>, <c>RUNTIME_HOST_SHUTDOWN_IN_PROGRESS</c> or
+    /// <c>RUNTIME_HOST_TERMINATED</c>, or one of the relay's bodyless 413, 429 and 504 answers, the
+    /// last two of which <see cref="YogabaseRuntimeHostException.IsRetryable"/> marks but this wait
+    /// does not retry) is thrown at once and never counts against this budget. The budget is per
+    /// call, and it counts the waits taken, not the time the attempts themselves spend in flight.
+    /// Zero or a negative value disables the wait: the first pending refusal is thrown.
     /// </summary>
     public TimeSpan StartupPendingBudget { get; set; }
 

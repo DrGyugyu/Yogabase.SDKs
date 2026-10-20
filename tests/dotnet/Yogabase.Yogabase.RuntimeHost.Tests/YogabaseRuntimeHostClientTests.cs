@@ -430,7 +430,9 @@ public sealed class YogabaseRuntimeHostClientTests
     [InlineData("RUNTIME_HOST_STALE_EPOCH", 403)]
     [InlineData("RUNTIME_HOST_SHUTDOWN_IN_PROGRESS", 409)]
     [InlineData("RUNTIME_HOST_TERMINATED", 409)]
-    [InlineData("RUNTIME_HOST_INSTANCE_NOT_FOUND", 404)]
+    [InlineData("RUNTIME_HOST_WRONG_GENERATION", 403)]
+    [InlineData("RUNTIME_HOST_INVALID_TRANSITION", 409)]
+    [InlineData("RUNTIME_HOST_READINESS_EVIDENCE_REQUIRED", 409)]
     // Same status as a pending refusal, and a retry hint in the body: only the code decides.
     [InlineData("RUNTIME_HOST_UNAVAILABLE", 503)]
     public async Task ReadyAsyncDoesNotRetryStaleEpochOrShutdownInProgress(string code, int statusCode)
@@ -564,6 +566,192 @@ public sealed class YogabaseRuntimeHostClientTests
             Assert.Equal("RUNTIME_HOST_RELAY_ALLOCATION_BACKEND_ONLY", runtimeHostException.Code);
         });
     }
+
+    public static TheoryData<string, int, bool> BodylessRelayAnswers()
+    {
+        // The relay answers 413, 429 and 504 with no body at all. Only 429 (retry once a pending
+        // call is answered) and 504 (the call may or may not have taken effect) are worth repeating.
+        var data = new TheoryData<string, int, bool>();
+        foreach (var verb in new[] { "heartbeat", "ready", "reserve", "shutdown", "assignments" })
+        {
+            data.Add(verb, 413, false);
+            data.Add(verb, 429, true);
+            data.Add(verb, 504, true);
+        }
+
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(BodylessRelayAnswers))]
+    public async Task ABodylessRelayAnswerSurfacesAsARuntimeHostExceptionCarryingItsStatus(
+        string verb,
+        int statusCode,
+        bool retryable)
+    {
+        var handler = new ScriptedHandler((_, _) => Task.FromResult(new HttpResponseMessage((HttpStatusCode)statusCode)));
+        await using var client = Client(handler);
+
+        // The exact type: a bodyless answer used to surface as a JSON parse error.
+        var exception = await Assert.ThrowsAsync<YogabaseRuntimeHostException>(
+            () => CallAsync(client, verb, TestContext.Current.CancellationToken));
+
+        Assert.Equal((HttpStatusCode)statusCode, exception.StatusCode);
+        Assert.Equal("UNKNOWN", exception.Code);
+        Assert.Equal(string.Empty, exception.BodyJson);
+        Assert.Null(exception.RetryAfterSeconds);
+        Assert.Equal(retryable, exception.IsRetryable);
+        Assert.Contains($"{statusCode} UNKNOWN", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(429)]
+    [InlineData(504)]
+    public async Task ABodylessRetryableAnswerIsNotWaitedOutLikeAnInstancePendingRefusal(int statusCode)
+    {
+        var callCount = 0;
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            Interlocked.Increment(ref callCount);
+            return Task.FromResult(new HttpResponseMessage((HttpStatusCode)statusCode));
+        });
+        var recordedDelays = new List<TimeSpan>();
+        await using var client = PendingClient(handler, startupPendingBudget: TimeSpan.FromSeconds(60), recordedDelays);
+
+        var heartbeat = await Assert.ThrowsAsync<YogabaseRuntimeHostException>(
+            () => client.HeartbeatOnceAsync(TestContext.Current.CancellationToken));
+        var ready = await Assert.ThrowsAsync<YogabaseRuntimeHostException>(
+            () => client.ReadyAsync(TestContext.Current.CancellationToken));
+
+        Assert.True(heartbeat.IsRetryable);
+        Assert.True(ready.IsRetryable);
+        Assert.Equal(2, Volatile.Read(ref callCount));
+        Assert.Empty(recordedDelays);
+    }
+
+    [Fact]
+    public async Task AHeartbeatThatTimedOutIsRepeatedWithTheNextSequence()
+    {
+        // 504: no answer within the relay's timeout, so the heartbeat may have been accepted; a
+        // heartbeat is repeated with the next sequence rather than the one that was sent.
+        var bodies = new List<string>();
+        var handler = new ScriptedHandler(async (request, cancellationToken) =>
+        {
+            bodies.Add(await request.Content!.ReadAsStringAsync(cancellationToken));
+            return bodies.Count == 1
+                ? new HttpResponseMessage(HttpStatusCode.GatewayTimeout)
+                : Json(HttpStatusCode.OK, LeaseBody);
+        });
+        await using var client = Client(handler);
+
+        var timedOut = await Assert.ThrowsAsync<YogabaseRuntimeHostException>(
+            () => client.HeartbeatOnceAsync(TestContext.Current.CancellationToken));
+        await client.HeartbeatOnceAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(timedOut.IsRetryable);
+        Assert.Equal(1L, ReadLong(bodies[0], "sequence"));
+        Assert.Equal(2L, ReadLong(bodies[1], "sequence"));
+    }
+
+    [Fact]
+    public async Task TheHeartbeatLoopReportsABodylessAnswerAndKeepsGoing()
+    {
+        var callCount = 0;
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            var count = Interlocked.Increment(ref callCount);
+            return Task.FromResult(count == 1
+                ? new HttpResponseMessage((HttpStatusCode)429)
+                : Json(HttpStatusCode.OK, LeaseBody));
+        });
+        await using var client = Client(handler, TimeSpan.FromMilliseconds(20));
+        var observed = new List<Exception>();
+
+        client.Connect(exception =>
+        {
+            lock (observed)
+            {
+                observed.Add(exception);
+            }
+        });
+        await WaitUntilAsync(() => Volatile.Read(ref callCount) >= 3, TestContext.Current.CancellationToken);
+
+        lock (observed)
+        {
+            var reported = Assert.IsType<YogabaseRuntimeHostException>(Assert.Single(observed));
+            Assert.Equal((HttpStatusCode)429, reported.StatusCode);
+            Assert.True(reported.IsRetryable);
+        }
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadGateway, "<html>bad gateway</html>")]
+    [InlineData(HttpStatusCode.InternalServerError, "[1,2]")]
+    [InlineData(HttpStatusCode.InternalServerError, "{\"code\":5}")]
+    [InlineData(HttpStatusCode.InternalServerError, "{\"code\":\"\"}")]
+    [InlineData(HttpStatusCode.MethodNotAllowed, "   ")]
+    public async Task ARefusalWhoseBodyNamesNoCodeStillSurfacesAsARuntimeHostException(HttpStatusCode status, string body)
+    {
+        var handler = new ScriptedHandler((_, _) => Task.FromResult(new HttpResponseMessage(status)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "text/plain"),
+        }));
+        await using var client = Client(handler);
+
+        var exception = await Assert.ThrowsAsync<YogabaseRuntimeHostException>(
+            () => client.ShutdownAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(status, exception.StatusCode);
+        Assert.Equal("UNKNOWN", exception.Code);
+        Assert.Equal(body, exception.BodyJson);
+        Assert.False(exception.IsRetryable);
+    }
+
+    [Fact]
+    public async Task OnlyTheInstancePendingCodeIsRetryableAmongTheCodedRefusals()
+    {
+        var pending = await Assert.ThrowsAsync<YogabaseRuntimeHostException>(async () =>
+        {
+            var handler = new ScriptedHandler((_, _) =>
+                Task.FromResult(Json(HttpStatusCode.ServiceUnavailable, PendingBody(retryAfterSeconds: 2))));
+            await using var client = PendingClient(handler, startupPendingBudget: TimeSpan.Zero);
+            await client.ReadyAsync(TestContext.Current.CancellationToken);
+        });
+        var terminal = await Assert.ThrowsAsync<YogabaseRuntimeHostException>(async () =>
+        {
+            var handler = new ScriptedHandler((_, _) => Task.FromResult(Json(HttpStatusCode.Forbidden, ErrorBody)));
+            await using var client = Client(handler);
+            await client.ReadyAsync(TestContext.Current.CancellationToken);
+        });
+
+        Assert.True(pending.IsRetryable);
+        Assert.False(terminal.IsRetryable);
+        Assert.False(new YogabaseRuntimeHostException("no status").IsRetryable);
+    }
+
+    [Fact]
+    public async Task AnAssignmentEventKeepsTheLowerCaseKindTheRelaySent()
+    {
+        var handler = new ScriptedHandler((_, _) => Task.FromResult(Json(
+            HttpStatusCode.OK,
+            "{\"events\":[{\"sequence\":3,\"kind\":\"allocation-released\",\"state\":\"Ready\",\"allocationId\":null,\"occurredAt\":\"2026-09-04T00:00:00+00:00\"}],\"resumeToken\":\"3\"}")));
+        await using var client = Client(handler);
+
+        var page = await client.WatchAssignmentsOnceAsync(null, TestContext.Current.CancellationToken);
+
+        Assert.Equal("allocation-released", Assert.Single(page.Events).Kind);
+    }
+
+    private static Task CallAsync(YogabaseRuntimeHostClient client, string verb, CancellationToken cancellationToken) =>
+        verb switch
+        {
+            "heartbeat" => client.HeartbeatOnceAsync(cancellationToken),
+            "ready" => client.ReadyAsync(cancellationToken),
+            "reserve" => client.ReserveAsync(TimeSpan.FromSeconds(30), cancellationToken),
+            "shutdown" => client.ShutdownAsync(cancellationToken),
+            "assignments" => client.WatchAssignmentsOnceAsync(null, cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(verb), verb, "Not a relay verb."),
+        };
 
     [Fact]
     public void PublicApiExposesNoAllocationShapedMembers()
