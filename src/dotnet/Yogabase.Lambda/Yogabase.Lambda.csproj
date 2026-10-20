@@ -5,7 +5,7 @@
     <RootNamespace>Yogabase.Lambda</RootNamespace>
     <AssemblyName>Yogabase.Lambda</AssemblyName>
     <PackageId>Yogabase.Lambda</PackageId>
-    <Version>0.1.0-preview.1</Version>
+    <Version>0.2.0-preview.1</Version>
     <Authors>Yogabase</Authors>
     <Company>Yogabase</Company>
     <Description>Preview first-party .NET context wrapper for a Yogabase Lambda: the project database, Storage, Users, Realtime, the caller, and per-invocation facts, resolved from the runtime's service provider.</Description>
