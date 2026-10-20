@@ -28,11 +28,16 @@ namespace Yogabase.Yogabase;
 /// </list>
 /// <para>
 /// Every route is relative and must be combined with its origin through
-/// <see cref="Uri(Uri, string)"/>; a leading slash would discard a base path. The same names exist
-/// in each language package of this repository (TypeScript <c>routes.ts</c>, Python
-/// <c>routes.py</c>, Java <c>YogabaseRoutes.java</c>, Dart <c>routes.dart</c>, Unity
-/// <c>YogabaseEditorRoutes.cs</c>) so a rename on the server is a single, findable edit per
-/// language.
+/// <see cref="Uri(Uri, string)"/>; a leading slash would discard a base path. No other language
+/// package keeps a routes file of its own. The TypeScript, Python, Java and Dart application
+/// routes are the URL templates of the Kiota request builders generated from the mirrored
+/// contracts (the <c>v1</c> and <c>auth</c> directories of each package, plus a <c>delivery</c>
+/// directory in Java and Dart), and the TypeScript and Python clients authored over a shared
+/// gateway channel hold the remaining routes as literals (TypeScript <c>session.ts</c>,
+/// <c>delivery.ts</c>, <c>jobs.ts</c> and <c>schedules.ts</c>; Python <c>sign_in.py</c>,
+/// <c>delivery.py</c>, <c>jobs.py</c> and <c>schedules.py</c>). The Unity Editor tooling keeps a
+/// second copy of the Control Plane group in
+/// <c>languages/unity/io.yogabase.runtime-host/Editor/YogabaseEditorRoutes.cs</c>.
 /// </para>
 /// </remarks>
 public static class YogabaseRoutes

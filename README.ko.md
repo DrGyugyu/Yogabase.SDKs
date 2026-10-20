@@ -133,7 +133,7 @@ SDK는 범용 사용자용 Control Plane 관리 API, 인프라 프로비저닝, 
 
 - Builds로 업로드하는 Lambda는 실행 종류(`Stateless` 또는 `Stateful`)와 realtime ingress/egress binding id를 명시해야 하며, 이를 빠뜨린 업로드는 수집 단계에서 `400 BUILD_LAMBDA_DECLARATION_REQUIRED`로 거부됩니다(builds 계약). `YogabaseBuildsClient`는 요청에 `Lambda`를 설정하면, Unity 게시 도구는 설정이 Lambda 아카이브 게시일 때 이 선언을 보내며, 서버 업로드는 이 필드를 보내지 않습니다. 진입점이 `RegisterLambdas`인 번들은 등록하는 Lambda id도 `registeredLambdaIds`로 명시해야 하며(없으면 `BUILD_LAMBDA_REGISTRATION_REQUIRED`로 거부되고, 단일 함수 번들에 보내면 거부됨), 두 도구 모두 등록 번들에만 이 필드를 보냅니다.
 - Lambda가 해당 함수 버전에서 선언하지 않은 topic으로 realtime 게시를 하면 `403 realtime_binding_not_declared`로 거부됩니다(Lambda runtime API이며, 미러링된 계약 중 어느 것도 이를 기술하지 않습니다). `Yogabase.Lambda`는 이를 상태 403과 해당 코드를 가진 `LambdaApiException`으로 드러냅니다.
-- runtime-host assignments 페이지는 추가형(additive) `headState`와 `headSequence`를 담습니다(runtime-host 계약). 이 저장소의 runtime-host 클라이언트는 아직 이를 읽지 않습니다.
+- runtime-host assignments 페이지는 추가형(additive) `headState`와 `headSequence`를 담습니다(runtime-host 계약). 이 저장소의 .NET runtime-host 클라이언트와 Unity runtime-host 패키지는 Control Plane이 이를 명시할 때 읽으며(이 필드가 없거나 계약 범위를 벗어난 값이면 head가 없는 것으로 읽습니다), `ReadCurrentStateAsync`는 현재 상태를 한 번의 읽기로 답하고 head가 없는 Control Plane에서는 스트림 끝까지 페이지를 넘겨 답합니다.
 - 클라이언트 bootstrap은 `X-Yogabase-Accept-Capabilities`에 `realtime-presence`를 명시한 클라이언트에게만 해당 행을 추가하고, realtime Hub에는 `TrackPresence`, `UntrackPresence`, `GetPresence`가 추가되었습니다(애플리케이션 계약). .NET 클라이언트는 이 행을 요청하고 세 호출과 `presence` 이벤트를 모두 구현합니다. 다른 언어에는 realtime 클라이언트가 없습니다.
 - 게임 서버 allocation의 `host`는 노드 내부 주소가 아니라, Agones와 같은 방식으로 고른 해당 인스턴스 노드의 설치본 광고 주소입니다. 타입이 지정된 `address`와 `addresses` 필드는 결정되었으며, 제품은 이를 받아들이는 SDK가 최소 버전이 된 뒤에만 이 필드를 내보냅니다. .NET 클라이언트는 이 필드가 있으면 읽고(인스턴스와 각 포트의 `Address`, `Addresses`), 다른 언어의 생성된 클라이언트는 알 수 없는 필드를 추가 데이터로 보관합니다.
 
