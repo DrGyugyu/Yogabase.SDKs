@@ -19,6 +19,7 @@ public sealed class ContractDigestTests
     [InlineData("yogabase-builds-v1.openapi.json")]
     [InlineData("yogabase-delivery-v1.openapi.json")]
     [InlineData("yogabase-runtime-host-v1.openapi.json")]
+    [InlineData("yogabase-runtime-host-self-v1.openapi.json")]
     public async Task ContractFileMatchesItsSha256Sidecar(string contractFileName)
     {
         var repoRoot = FindRepoRoot();
@@ -41,6 +42,7 @@ public sealed class ContractDigestTests
     [InlineData("yogabase-builds-v1.openapi.json")]
     [InlineData("yogabase-delivery-v1.openapi.json")]
     [InlineData("yogabase-runtime-host-v1.openapi.json")]
+    [InlineData("yogabase-runtime-host-self-v1.openapi.json")]
     public async Task RecordedDigestAppearsInManifestAndBothReadmes(string contractFileName)
     {
         var repoRoot = FindRepoRoot();

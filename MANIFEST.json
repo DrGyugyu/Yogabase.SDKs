@@ -146,6 +146,17 @@
     "generated": false,
     "notGeneratedReason": "The document declares instance-addressed paths (/instances/{instanceId}/...), but a hosted workload calls the self-scoped relay routes /runtime-host/v1/self/{heartbeat,ready,reserve,shutdown,assignments} and never learns or asserts its own instance id. Generating from this document would emit the wrong surface for a workload, so it is checked in and checksum-verified as the server-side reference for lifecycle states and error codes only; the workload module is hand-authored."
   },
+  "runtimeHostSelfContract": {
+    "path": "contracts/yogabase-runtime-host-self-v1.openapi.json",
+    "sha256": "a2a9e201eaee833251f66eb89acc73edd7ce06383170824d39f6b386509f95aa",
+    "mirroredOn": "2026-10-20",
+    "mirroredFrom": "A byte-identical copy of the product's published document of the same name, taken on 2026-10-20 (SHA-256 a2a9e201eaee833251f66eb89acc73edd7ce06383170824d39f6b386509f95aa). It describes the self-scoped loopback relay a hosted workload calls: POST heartbeat, ready, reserve and shutdown and GET assignments under /runtime-host/v1/self/, the lease and page schemas (including headState and headSequence), each route's refusal codes, the relay's own limits (a 64 KiB request body, 64 pending calls, a 30 second answer timeout, 100 events per page, reservations clamped to 1 to 600 seconds, a 30 second lease, a 300 second drain window and a 2 second retry hint) and the three statuses the relay answers with no body (413, 429 and 504), in its top-level x-yogabase-runtime-host-relay extension.",
+    "pathCount": 5,
+    "operationCount": 5,
+    "schemaCount": 10,
+    "generated": false,
+    "notGeneratedReason": "The authored runtime-host client (src/dotnet/Yogabase.Yogabase.RuntimeHost, and the Unity package under languages/unity/io.yogabase.runtime-host) speaks these five routes by hand, with its heartbeat loop, its wait-out of RUNTIME_HOST_INSTANCE_PENDING and its resume-token polling, and no other language has a runtime-host client. The document is checked in and checksum-verified; nothing is generated from it."
+  },
   "generator": {
     "package": "Microsoft.OpenApi.Kiota",
     "version": "1.34.1",

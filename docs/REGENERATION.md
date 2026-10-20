@@ -1,7 +1,7 @@
 # Generated client regeneration
 
 `scripts/regenerate-clients.sh` is the single regeneration entry point for the generated protocol
-clients. It verifies all four checked-in OpenAPI checksums, restores the repository-local
+clients. It verifies all five checked-in OpenAPI checksums, restores the repository-local
 Microsoft Kiota 1.34.1 tool, generates into an isolated repository-local staging directory, and
 synchronizes only generated source roots. The application contract — which carries the
 `/v1/servers/*` game-server surface — generates TypeScript, Python, Java, and Dart clients. The
@@ -42,7 +42,27 @@ workload). If Kiota generated a client from this contract, every generated metho
 Do not "fix" this by wiring the contract into the regeneration script, changing its base path, or
 generating a client against it. If a workload-facing self-scoped client is ever needed, it must be
 generated from a contract whose paths are actually shaped as `/runtime-host/v1/self/...` — that is
-a new/updated contract, not a reinterpretation of this one.
+a new/updated contract, not a reinterpretation of this one. The product has since published such a
+contract (the fifth, described next); the SDK checks it in and does not generate from it either.
+
+### `contracts/yogabase-runtime-host-self-v1.openapi.json` is checked in but not generated
+
+The fifth contract is that new, self-scoped document. Its paths are shaped as
+`/runtime-host/v1/self/{heartbeat|ready|reserve|shutdown|assignments}` (four `POST`s and a `GET`),
+which are exactly the loopback relay routes a workload's runtime-host client speaks, and it carries
+the lease and page schemas, each route's refusal codes and the relay's own limits (64 KiB request
+body, 64 pending calls, 30 s answer timeout, 100 events per page, reservations clamped to 1-600 s,
+30 s lease, 300 s drain window, 2 s retry hint) in its `x-yogabase-runtime-host-relay` extension.
+It was mirrored on 2026-10-20.
+
+**The SDK does not generate from it**, as it does not from the instance-addressed document above:
+the contract and its `.sha256` sidecar are recorded here, and this script verifies the checksum, but
+no `generate_*` call reads it. The only runtime-host client is the authored one in
+`src/dotnet/Yogabase.Yogabase.RuntimeHost` and the Unity package under
+`languages/unity/io.yogabase.runtime-host`, which carry the heartbeat loop, the wait-out of
+`RUNTIME_HOST_INSTANCE_PENDING` and the resume-token polling. Re-syncing it follows the note
+above: copy the product file, regenerate the `.sha256` sidecar, and update the digest in
+`MANIFEST.json` (`runtimeHostSelfContract`) and both READMEs, where `ContractDigestTests` pins it.
 
 ```text
 ./scripts/regenerate-clients.sh
