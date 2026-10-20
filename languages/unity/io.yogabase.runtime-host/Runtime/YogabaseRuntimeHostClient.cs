@@ -18,6 +18,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -49,7 +50,11 @@ namespace Yogabase.Yogabase.RuntimeHost
 /// throw the same exception with the status, the code <c>UNKNOWN</c> and an empty
 /// <see cref="YogabaseRuntimeHostException.BodyJson"/>, and
 /// <see cref="YogabaseRuntimeHostException.IsRetryable"/> says whether the contract marks the
-/// answer worth repeating (429 and 504 yes, 413 no).
+/// answer worth repeating (429 and 504 yes, 413 no). A call that gets no answer within
+/// <see cref="YogabaseRuntimeHostOptions.RequestTimeout"/> throws the same exception, with a status
+/// of 0 and the code <see cref="YogabaseRuntimeHostException.RequestTimeoutCode"/>, rather than a
+/// bare cancellation; only the token a caller passes in cancels as
+/// <see cref="OperationCanceledException"/>.
 ///
 /// This is not a general-purpose HTTP client. The <see cref="HttpClient"/> it owns is built with
 /// redirects, proxying, cookies, default credentials, and pre-authentication all disabled, and it
@@ -74,6 +79,7 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
     private readonly HttpClient http;
     private readonly TimeSpan heartbeatInterval;
     private readonly TimeSpan startupPendingBudget;
+    private readonly TimeSpan requestTimeout;
     private readonly Func<TimeSpan, CancellationToken, Task> pendingDelay;
     private readonly CancellationTokenSource stopping = new();
     private Task? heartbeatLoop;
@@ -114,6 +120,7 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
 
         heartbeatInterval = options.HeartbeatInterval;
         startupPendingBudget = options.StartupPendingBudget;
+        requestTimeout = options.RequestTimeout;
         pendingDelay = options.StartupPendingDelay ?? Task.Delay;
         http = new HttpClient(handler)
         {
@@ -187,7 +194,7 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
     public Task<RuntimeHostLease> ShutdownAsync(CancellationToken cancellationToken = default) =>
         PostLeaseAsync("shutdown", new JsonObject(), cancellationToken);
 
-    /// <summary>One poll of the assignment watch; the caller loops this on its own cadence, or uses <see cref="WatchAssignmentsAsync"/>.</summary>
+    /// <summary>One poll of the assignment watch; the caller loops this on its own cadence, or uses <see cref="WatchAssignmentsAsync(TimeSpan, CancellationToken)"/>.</summary>
     /// <param name="resumeToken">The resume token from a previous page, or null/empty to start from the beginning.</param>
     /// <param name="cancellationToken">A token to cancel the call.</param>
     /// <returns>The next page of assignment events and the resume token for the following poll.</returns>
@@ -196,13 +203,9 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         var query = string.IsNullOrEmpty(resumeToken) ? string.Empty : $"?resumeToken={Uri.EscapeDataString(resumeToken)}";
-        using var response = await http.GetAsync($"/runtime-host/v1/self/assignments{query}", cancellationToken)
-            .ConfigureAwait(false);
-        var text = await ReadBodyAsync(response, cancellationToken).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode)
-        {
-            throw ToRuntimeHostException(response.StatusCode, text);
-        }
+        var text = await SendForBodyAsync(
+            () => http.GetAsync($"/runtime-host/v1/self/assignments{query}", cancellationToken),
+            cancellationToken).ConfigureAwait(false);
 
         var node = JsonNode.Parse(text) as JsonObject
             ?? throw new InvalidOperationException("The assignments route returned no JSON object body.");
@@ -272,37 +275,110 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
             ? state
             : null;
 
+    // The contract makes headSequence at least 1 (the registered event is always the first), so 0
+    // and below are outside it, the same as an absent or non-integer member.
     private static long? ReadHeadSequence(JsonNode? value) =>
-        value is JsonValue scalar && scalar.TryGetValue<long>(out var sequence) && sequence >= 0
+        value is JsonValue scalar && scalar.TryGetValue<long>(out var sequence) && sequence >= 1
             ? sequence
             : null;
 
     /// <summary>
     /// Polls <see cref="WatchAssignmentsOnceAsync"/> on the given interval and yields each event in
-    /// order. A page whose resume token is empty or absent does not advance the cursor -- the
-    /// previously held token is presented again on the next poll; only a non-empty token replaces
-    /// it. Like the heartbeat loop, a transient failure does not stop the poll; the sequence ends
-    /// cleanly when <paramref name="cancellationToken"/> is canceled.
+    /// order, reporting no failure to anyone: this is
+    /// <see cref="WatchAssignmentsAsync(TimeSpan, Action{Exception}?, CancellationToken)"/> with no
+    /// callback, and its remarks say what a failed poll does.
     /// </summary>
     /// <param name="pollInterval">The delay between polls.</param>
     /// <param name="cancellationToken">A token to end the watch.</param>
     /// <returns>An asynchronous sequence of assignment events.</returns>
+    public IAsyncEnumerable<RuntimeHostAssignmentEvent> WatchAssignmentsAsync(
+        TimeSpan pollInterval,
+        CancellationToken cancellationToken = default) =>
+        WatchAssignmentsAsync(pollInterval, null, cancellationToken);
+
+    /// <summary>
+    /// Polls <see cref="WatchAssignmentsOnceAsync"/> on the given interval and yields each event in
+    /// order. A page whose resume token is empty or absent does not advance the cursor -- the
+    /// previously held token is presented again on the next poll; only a non-empty token replaces
+    /// it. The sequence ends cleanly when the delay between polls is canceled through
+    /// <paramref name="cancellationToken"/>; canceling while a request is in flight throws
+    /// <see cref="OperationCanceledException"/>. Disposing the client ends a running watch the same
+    /// way: with the cancellation (or <see cref="ObjectDisposedException"/>) of the call it was in,
+    /// not with a report and another poll.
+    ///
+    /// What a failed poll does follows the document's refusals for the assignments route:
+    /// <list type="bullet">
+    /// <item><description>
+    /// A refusal the document names for the assignments route and marks terminal --
+    /// <c>RUNTIME_HOST_RELAY_INVALID</c>, <c>RUNTIME_HOST_REQUEST_INVALID</c>,
+    /// <c>RUNTIME_HOST_RESUME_TOKEN_INVALID</c>, <c>RUNTIME_HOST_STALE_EPOCH</c> and
+    /// <c>RUNTIME_HOST_WRONG_GENERATION</c> -- ends the watch: the <see cref="YogabaseRuntimeHostException"/>
+    /// is thrown out of the enumeration. Polling again would repeat the same refusal (or, for a stale
+    /// epoch or generation, ask under an incarnation that is no longer this process's).
+    /// </description></item>
+    /// <item><description>
+    /// A retryable answer (<see cref="YogabaseRuntimeHostException.IsRetryable"/>: the pending
+    /// refusal, <c>429</c>, <c>504</c>, or the client's own request timeout) and a transport fault
+    /// (<see cref="HttpRequestException"/>, <see cref="IOException"/>) are tried again on the next
+    /// tick, silently, with the same resume token.
+    /// </description></item>
+    /// <item><description>
+    /// Anything else -- a refusal the document does not name for this route, an answer that is not a
+    /// readable page -- is reported to <paramref name="onFailure"/> and the watch keeps polling. A
+    /// failure is reported once: the same failure repeating on consecutive polls is not reported
+    /// again until a poll succeeds or a different failure intervenes. The callback runs on the
+    /// enumerating thread and must not block; a throwing callback is itself swallowed.
+    /// </description></item>
+    /// </list>
+    /// </summary>
+    /// <param name="pollInterval">The delay between polls.</param>
+    /// <param name="onFailure">
+    /// Invoked, best-effort, with each failure that neither ends the watch nor is retried silently;
+    /// null for none, in which case such a failure is not observable.
+    /// </param>
+    /// <param name="cancellationToken">A token to end the watch.</param>
+    /// <returns>An asynchronous sequence of assignment events.</returns>
     public async IAsyncEnumerable<RuntimeHostAssignmentEvent> WatchAssignmentsAsync(
         TimeSpan pollInterval,
+        Action<Exception>? onFailure,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         string? resumeToken = null;
+        string? lastReported = null;
         while (!cancellationToken.IsCancellationRequested)
         {
             RuntimeHostAssignmentPage? page = null;
             try
             {
                 page = await WatchAssignmentsOnceAsync(resumeToken, cancellationToken).ConfigureAwait(false);
+                lastReported = null;
             }
-            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            catch (Exception exception) when (!cancellationToken.IsCancellationRequested && !disposed)
             {
-                // A transient relay/backend failure does not stop the watch: like the heartbeat
-                // loop, it keeps polling on the next tick rather than exiting.
+                var refusal = exception as YogabaseRuntimeHostException;
+                if (refusal is not null && IsTerminalForAssignments(refusal))
+                {
+                    throw;
+                }
+
+                if (!RetriesSilently(exception))
+                {
+                    var signature = refusal is not null
+                        ? $"{(int)refusal.StatusCode} {refusal.Code}"
+                        : exception.GetType().FullName;
+                    if (!string.Equals(signature, lastReported, StringComparison.Ordinal))
+                    {
+                        lastReported = signature;
+                        try
+                        {
+                            onFailure?.Invoke(exception);
+                        }
+                        catch (Exception)
+                        {
+                            // The callback's own failure must not break the watch.
+                        }
+                    }
+                }
             }
 
             if (page is not null)
@@ -395,13 +471,9 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
     private async Task<RuntimeHostLease> PostLeaseAsync(string verb, JsonObject body, CancellationToken cancellationToken)
     {
         using var content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
-        using var response = await http.PostAsync($"/runtime-host/v1/self/{verb}", content, cancellationToken)
-            .ConfigureAwait(false);
-        var text = await ReadBodyAsync(response, cancellationToken).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode)
-        {
-            throw ToRuntimeHostException(response.StatusCode, text);
-        }
+        var text = await SendForBodyAsync(
+            () => http.PostAsync($"/runtime-host/v1/self/{verb}", content, cancellationToken),
+            cancellationToken).ConfigureAwait(false);
 
         var node = JsonNode.Parse(text) as JsonObject
             ?? throw new InvalidOperationException($"The {verb} route returned no JSON object body.");
@@ -410,6 +482,52 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
             node["heartbeatSequence"]!.GetValue<long>(),
             node["leaseExpiresAt"]!.GetValue<DateTimeOffset>(),
             node["eventSequence"]!.GetValue<long>());
+    }
+
+    // The refusals the document lists for GET /runtime-host/v1/self/assignments, from the relay and
+    // from the Control Plane, other than RUNTIME_HOST_INSTANCE_PENDING (the one retryable code). Each
+    // is terminal for the call that produced it, and a watch that polls again presents the same
+    // token under the same stamp. RUNTIME_HOST_UNAVAILABLE, the closed-gate answer, is not listed
+    // for this route (this build's gate is open) and is reported rather than ended.
+    private static bool IsTerminalForAssignments(YogabaseRuntimeHostException refusal) =>
+        refusal.Code is "RUNTIME_HOST_RELAY_INVALID"
+            or "RUNTIME_HOST_REQUEST_INVALID"
+            or "RUNTIME_HOST_RESUME_TOKEN_INVALID"
+            or "RUNTIME_HOST_STALE_EPOCH"
+            or "RUNTIME_HOST_WRONG_GENERATION";
+
+    // What the watch tries again without telling anyone: an answer the contract marks retryable, and
+    // a fault of the transport underneath it.
+    private static bool RetriesSilently(Exception exception) =>
+        exception is YogabaseRuntimeHostException { IsRetryable: true }
+            or HttpRequestException
+            or IOException;
+
+    // Sends one request and returns its success body; a non-success answer throws as a refusal.
+    // HttpClient reports its own Timeout as a cancellation that the caller's token did not ask for,
+    // which would reach a caller as a bare TaskCanceledException that looks like the caller's own
+    // cancel. That case, and only that case, is turned into a retryable YogabaseRuntimeHostException:
+    // the caller's token being cancelled, or the client being disposed under the call, still
+    // propagates as the OperationCanceledException it is.
+    private async Task<string> SendForBodyAsync(
+        Func<Task<HttpResponseMessage>> send,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await send().ConfigureAwait(false);
+            var text = await ReadBodyAsync(response, cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                throw ToRuntimeHostException(response.StatusCode, text);
+            }
+
+            return text;
+        }
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested && !disposed)
+        {
+            throw YogabaseRuntimeHostException.ForRequestTimeout(requestTimeout, exception);
+        }
     }
 
     // A refusal the Control Plane or the relay chose is a JSON {code, detail} body, but the relay
@@ -432,17 +550,14 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
         try
         {
             using var document = JsonDocument.Parse(raw);
-            if (document.RootElement.ValueKind == JsonValueKind.Object)
+            // A refusal is {code, detail[, retryAfterSeconds]}: only `code` names it. A body that
+            // names none (an RFC 9457 `title` included, which the relay never sends) is UNKNOWN.
+            if (document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty("code", out var value)
+                && value.ValueKind == JsonValueKind.String
+                && !string.IsNullOrEmpty(value.GetString()))
             {
-                foreach (var name in new[] { "code", "title" })
-                {
-                    if (document.RootElement.TryGetProperty(name, out var value)
-                        && value.ValueKind == JsonValueKind.String
-                        && !string.IsNullOrEmpty(value.GetString()))
-                    {
-                        return value.GetString()!;
-                    }
-                }
+                return value.GetString()!;
             }
         }
         catch (JsonException)

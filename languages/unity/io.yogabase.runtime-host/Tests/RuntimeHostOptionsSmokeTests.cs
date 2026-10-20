@@ -23,7 +23,10 @@ namespace Yogabase.Yogabase.RuntimeHost.Tests
 
             Assert.AreEqual(new Uri("http://127.0.0.1:8090"), options.Endpoint);
             Assert.AreEqual(TimeSpan.FromSeconds(2), options.HeartbeatInterval);
-            Assert.AreEqual(TimeSpan.FromSeconds(10), options.RequestTimeout);
+            // The relay's 30 second answer timeout plus a margin, so its own 504 can arrive.
+            Assert.AreEqual(
+                TimeSpan.FromSeconds(YogabaseRuntimeHostOptions.RelayAnswerTimeoutSeconds + YogabaseRuntimeHostOptions.RequestTimeoutMarginSeconds),
+                options.RequestTimeout);
         }
 
         [Test]

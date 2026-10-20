@@ -331,6 +331,150 @@ public sealed class YogabaseRuntimeHostContractTests
         Assert.Empty(delays);
     }
 
+    public static TheoryData<string, int> TerminalRefusalsOfTheAssignmentsRoute()
+    {
+        // Every code the document lists for the assignments route, from the relay and from the
+        // Control Plane, except RUNTIME_HOST_INSTANCE_PENDING, the one retryable code.
+        var data = new TheoryData<string, int>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var section in new[] { "relay", "controlPlane" })
+        {
+            foreach (var code in Relay.GetProperty("refusalCodes").GetProperty(section).GetProperty("assignments").EnumerateObject())
+            {
+                if (code.Name != PendingCode && seen.Add(code.Name))
+                {
+                    data.Add(code.Name, code.Value.GetInt32());
+                }
+            }
+        }
+
+        return data;
+    }
+
+    [Fact]
+    public void TheAssignmentsRouteListsThePendingRefusalAndTheTerminalOnesAreTheRest()
+    {
+        var codes = Relay.GetProperty("refusalCodes").GetProperty("controlPlane").GetProperty("assignments");
+
+        // Guard against a vacuous theory: the pending refusal is on this route, and so is the
+        // resume-token refusal and the stale-epoch one the watch must end on.
+        Assert.True(codes.TryGetProperty(PendingCode, out _));
+        Assert.True(codes.TryGetProperty("RUNTIME_HOST_STALE_EPOCH", out _));
+        Assert.Contains(
+            "RUNTIME_HOST_RESUME_TOKEN_INVALID",
+            Relay.GetProperty("refusalCodes").GetProperty("relay").GetProperty("assignments").EnumerateObject().Select(code => code.Name));
+        Assert.NotEmpty(TerminalRefusalsOfTheAssignmentsRoute());
+    }
+
+    [Theory]
+    [MemberData(nameof(TerminalRefusalsOfTheAssignmentsRoute))]
+    public async Task EveryTerminalRefusalTheDocumentListsForAssignmentsEndsTheWatch(string code, int status)
+    {
+        var callCount = 0;
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            Interlocked.Increment(ref callCount);
+            // A retry hint in the body on purpose: only the code decides whether a refusal is terminal.
+            return Task.FromResult(Json(
+                (HttpStatusCode)status,
+                $"{{\"code\":\"{code}\",\"detail\":\"terminal\",\"retryAfterSeconds\":1}}"));
+        });
+        await using var client = Client(handler);
+        var reported = new List<Exception>();
+        // A watch that should have ended on its own and does not fails after ten seconds as a
+        // cancellation, rather than hanging the run.
+        using var guard = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        guard.CancelAfter(TimeSpan.FromSeconds(10));
+
+        var exception = await Assert.ThrowsAsync<YogabaseRuntimeHostException>(async () =>
+        {
+            await foreach (var _ in client.WatchAssignmentsAsync(
+                TimeSpan.FromMilliseconds(5),
+                reported.Add,
+                guard.Token))
+            {
+            }
+        });
+
+        Assert.Equal(code, exception.Code);
+        Assert.Equal((HttpStatusCode)status, exception.StatusCode);
+        Assert.False(exception.IsRetryable);
+        Assert.Equal(1, Volatile.Read(ref callCount));
+        Assert.Empty(reported);
+    }
+
+    [Fact]
+    public async Task TheInstancePendingRefusalDoesNotEndTheWatchAndItIsNotReported()
+    {
+        var status = Relay.GetProperty("refusalCodes").GetProperty("controlPlane").GetProperty("assignments")
+            .GetProperty(PendingCode).GetInt32();
+        var callCount = 0;
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        stop.CancelAfter(TimeSpan.FromSeconds(10));
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            var count = Interlocked.Increment(ref callCount);
+            return Task.FromResult(count < 3
+                ? Json((HttpStatusCode)status, $"{{\"code\":\"{PendingCode}\",\"detail\":\"pending\",\"retryAfterSeconds\":2}}")
+                : Ok("{\"events\":[{\"sequence\":1,\"kind\":\"registered\",\"state\":\"Starting\",\"allocationId\":null,\"occurredAt\":\"2026-10-20T00:00:00+00:00\"}],\"resumeToken\":\"1\"}"));
+        });
+        await using var client = Client(handler);
+        var reported = new List<Exception>();
+        var kinds = new List<string>();
+
+        await foreach (var assignmentEvent in client.WatchAssignmentsAsync(
+            TimeSpan.FromMilliseconds(5),
+            reported.Add,
+            stop.Token))
+        {
+            kinds.Add(assignmentEvent.Kind);
+            stop.Cancel();
+        }
+
+        Assert.Equal(["registered"], kinds);
+        Assert.Equal(3, Volatile.Read(ref callCount));
+        Assert.Empty(reported);
+    }
+
+    [Fact]
+    public async Task TheClosedGateAnswerIsReportedByTheWatchRatherThanEndingIt()
+    {
+        // RUNTIME_HOST_UNAVAILABLE is not listed for the assignments route (this build's gate is
+        // open and the document says it never answers), so the watch does not end on it: it reports
+        // it once and keeps polling.
+        var gate = Relay.GetProperty("gate");
+        var code = gate.GetProperty("code").GetString()!;
+        var status = gate.GetProperty("status").GetInt32();
+        Assert.DoesNotContain(
+            code,
+            Relay.GetProperty("refusalCodes").GetProperty("controlPlane").GetProperty("assignments").EnumerateObject().Select(item => item.Name));
+        var callCount = 0;
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        stop.CancelAfter(TimeSpan.FromSeconds(10));
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            var count = Interlocked.Increment(ref callCount);
+            return Task.FromResult(count < 3
+                ? Json((HttpStatusCode)status, $"{{\"code\":\"{code}\",\"detail\":\"closed\"}}")
+                : Ok("{\"events\":[{\"sequence\":1,\"kind\":\"registered\",\"state\":\"Starting\",\"allocationId\":null,\"occurredAt\":\"2026-10-20T00:00:00+00:00\"}],\"resumeToken\":\"1\"}"));
+        });
+        await using var client = Client(handler);
+        var reported = new List<Exception>();
+        var events = 0;
+
+        await foreach (var _ in client.WatchAssignmentsAsync(TimeSpan.FromMilliseconds(5), reported.Add, stop.Token))
+        {
+            events++;
+            stop.Cancel();
+        }
+
+        Assert.Equal(1, events);
+        Assert.Equal(3, Volatile.Read(ref callCount));
+        var refusal = Assert.IsType<YogabaseRuntimeHostException>(Assert.Single(reported));
+        Assert.Equal(code, refusal.Code);
+        Assert.Equal((HttpStatusCode)status, refusal.StatusCode);
+    }
+
     // ----------------------------------------------------------------------------------------
     // Limits and request shapes
     // ----------------------------------------------------------------------------------------
@@ -371,6 +515,25 @@ public sealed class YogabaseRuntimeHostContractTests
         // Nothing the client sends comes near the body limit.
         var bodyLimit = limits.GetProperty("maximumRequestBodyBytes").GetInt32();
         Assert.All(bodies, body => Assert.True(Encoding.UTF8.GetByteCount(body) < bodyLimit));
+    }
+
+    [Fact]
+    public void TheDefaultRequestTimeoutOutlastsTheRelaysAnswerTimeout()
+    {
+        var answerTimeout = Relay.GetProperty("limits").GetProperty("answerTimeoutSeconds").GetInt32();
+        var defaultTimeout = new YogabaseRuntimeHostOptions().RequestTimeout;
+
+        // The figure the client carries is the document's, so a re-mirror that moves it fails here.
+        Assert.Equal(YogabaseRuntimeHostOptions.RelayAnswerTimeoutSeconds, answerTimeout);
+        Assert.True(YogabaseRuntimeHostOptions.RequestTimeoutMarginSeconds > 0);
+
+        // A client that waits for the whole answer timeout still has time to receive the relay's own
+        // bodyless 504 instead of cancelling locally just before it.
+        Assert.Equal(
+            TimeSpan.FromSeconds(answerTimeout + YogabaseRuntimeHostOptions.RequestTimeoutMarginSeconds),
+            defaultTimeout);
+        Assert.True(defaultTimeout > TimeSpan.FromSeconds(answerTimeout));
+        Assert.Contains("answerTimeoutSeconds", Relay.GetProperty("bodylessStatuses").GetProperty("504").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]

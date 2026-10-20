@@ -249,6 +249,7 @@ public sealed class YogabaseRuntimeHostClientTests
     [InlineData("{\"events\":[],\"resumeToken\":\"\",\"headState\":7,\"headSequence\":\"x\"}")]
     [InlineData("{\"events\":[],\"resumeToken\":\"\",\"headState\":null,\"headSequence\":null}")]
     [InlineData("{\"events\":[],\"resumeToken\":\"\",\"headState\":\"\",\"headSequence\":-1}")]
+    [InlineData("{\"events\":[],\"resumeToken\":\"\",\"headState\":\"\",\"headSequence\":0}")]
     public async Task AMalformedHeadIsNoHeadRatherThanAFailure(string body)
     {
         var handler = new ScriptedHandler((_, _) => Task.FromResult(Json(HttpStatusCode.OK, body)));
@@ -259,6 +260,46 @@ public sealed class YogabaseRuntimeHostClientTests
         Assert.False(page.HasHead);
         Assert.Null(page.HeadState);
         Assert.Null(page.HeadSequence);
+    }
+
+    [Theory]
+    [InlineData(0L)]
+    [InlineData(-1L)]
+    [InlineData(long.MinValue)]
+    public async Task AHeadSequenceBelowOneIsReadAsNoSequence(long headSequence)
+    {
+        // The contract makes headSequence at least 1; 0 and below are outside it, so they read as
+        // an absent sequence does: the state the page states is kept, the sequence is not.
+        var handler = new ScriptedHandler((_, _) => Task.FromResult(Json(
+            HttpStatusCode.OK,
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"{{\"events\":[],\"resumeToken\":\"3\",\"headState\":\"Ready\",\"headSequence\":{headSequence}}}"))));
+        await using var client = Client(handler);
+
+        var page = await client.WatchAssignmentsOnceAsync("3", TestContext.Current.CancellationToken);
+        var current = await client.ReadCurrentStateAsync(TestContext.Current.CancellationToken);
+
+        Assert.Null(page.HeadSequence);
+        Assert.Equal("Ready", page.HeadState);
+        Assert.True(page.HasHead);
+        Assert.Null(current.Sequence);
+        Assert.Equal("Ready", current.State);
+        Assert.True(current.ReadFromHead);
+    }
+
+    [Fact]
+    public async Task AHeadSequenceOfOneIsTheSmallestTheContractAllows()
+    {
+        var handler = new ScriptedHandler((_, _) => Task.FromResult(Json(
+            HttpStatusCode.OK,
+            "{\"events\":[],\"resumeToken\":\"1\",\"headState\":\"Healthy\",\"headSequence\":1}")));
+        await using var client = Client(handler);
+
+        var page = await client.WatchAssignmentsOnceAsync("1", TestContext.Current.CancellationToken);
+
+        Assert.Equal(1L, page.HeadSequence);
+        Assert.Equal("Healthy", page.HeadState);
     }
 
     [Fact]
@@ -742,6 +783,406 @@ public sealed class YogabaseRuntimeHostClientTests
         Assert.Equal("allocation-released", Assert.Single(page.Events).Kind);
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden, "{\"title\":\"Forbidden\",\"status\":403}")]
+    [InlineData(HttpStatusCode.BadRequest, "{\"type\":\"about:blank\",\"title\":\"Bad Request\",\"detail\":\"x\"}")]
+    [InlineData(HttpStatusCode.Conflict, "{\"title\":\"Conflict\",\"code\":null}")]
+    [InlineData(HttpStatusCode.Conflict, "{\"title\":\"Conflict\",\"code\":\"\"}")]
+    [InlineData(HttpStatusCode.Conflict, "{\"title\":\"Conflict\",\"code\":7}")]
+    public async Task ARefusalThatOnlyCarriesATitleReadsAsUnknown(HttpStatusCode status, string body)
+    {
+        // The relay's refusals are {code, detail}, never an RFC 9457 problem document, so a title is
+        // not a code and is not read as one.
+        var handler = new ScriptedHandler((_, _) => Task.FromResult(Json(status, body)));
+        await using var client = Client(handler);
+
+        var exception = await Assert.ThrowsAsync<YogabaseRuntimeHostException>(
+            () => client.ShutdownAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal("UNKNOWN", exception.Code);
+        Assert.Equal(status, exception.StatusCode);
+        Assert.Equal(body, exception.BodyJson);
+        Assert.False(exception.IsRetryable);
+    }
+
+    [Fact]
+    public async Task ARefusalNamesItselfByItsCodeEvenWhenItAlsoCarriesATitle()
+    {
+        var handler = new ScriptedHandler((_, _) => Task.FromResult(Json(
+            HttpStatusCode.Conflict,
+            "{\"title\":\"Conflict\",\"code\":\"RUNTIME_HOST_TERMINATED\",\"detail\":\"x\"}")));
+        await using var client = Client(handler);
+
+        var exception = await Assert.ThrowsAsync<YogabaseRuntimeHostException>(
+            () => client.ShutdownAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal("RUNTIME_HOST_TERMINATED", exception.Code);
+    }
+
+    // ----------------------------------------------------------------------------------------
+    // The request timeout
+    // ----------------------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("heartbeat")]
+    [InlineData("ready")]
+    [InlineData("reserve")]
+    [InlineData("shutdown")]
+    [InlineData("assignments")]
+    public async Task ACallThatGetsNoAnswerWithinTheRequestTimeoutThrowsARetryableRuntimeHostException(string verb)
+    {
+        var handler = new ScriptedHandler(async (_, cancellationToken) =>
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return Json(HttpStatusCode.OK, LeaseBody);
+        });
+        await using var client = Client(handler, requestTimeout: TimeSpan.FromMilliseconds(100));
+
+        // The exact type: HttpClient's own timeout used to reach the caller as a bare
+        // TaskCanceledException, indistinguishable from the caller cancelling.
+        var exception = await Assert.ThrowsAsync<YogabaseRuntimeHostException>(
+            () => CallAsync(client, verb, TestContext.Current.CancellationToken));
+
+        Assert.Equal(YogabaseRuntimeHostException.RequestTimeoutCode, exception.Code);
+        Assert.Equal((HttpStatusCode)0, exception.StatusCode);
+        Assert.True(exception.IsRetryable);
+        Assert.Equal(string.Empty, exception.BodyJson);
+        Assert.Null(exception.RetryAfterSeconds);
+        Assert.Contains("timed out", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("request timeout of 0.1 seconds", exception.Message, StringComparison.Ordinal);
+        Assert.IsAssignableFrom<OperationCanceledException>(exception.InnerException);
+    }
+
+    [Theory]
+    [InlineData("heartbeat")]
+    [InlineData("ready")]
+    [InlineData("reserve")]
+    [InlineData("shutdown")]
+    [InlineData("assignments")]
+    public async Task TheCallersOwnCancellationStillCancelsAsAnOperationCanceledException(string verb)
+    {
+        var handler = new ScriptedHandler(async (_, cancellationToken) =>
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return Json(HttpStatusCode.OK, LeaseBody);
+        });
+        await using var client = Client(handler);
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromMilliseconds(100));
+
+        // ThrowsAnyAsync<OperationCanceledException> does not accept a YogabaseRuntimeHostException.
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => CallAsync(client, verb, cancellation.Token));
+    }
+
+    [Fact]
+    public async Task DisposingTheClientUnderACallIsACancellationNotARequestTimeout()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handler = new ScriptedHandler(async (_, cancellationToken) =>
+        {
+            started.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return Json(HttpStatusCode.OK, LeaseBody);
+        });
+        var client = Client(handler);
+        var call = client.ShutdownAsync(TestContext.Current.CancellationToken);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        await client.DisposeAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => call.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task TheHeartbeatLoopReportsALocalTimeoutAndKeepsGoing()
+    {
+        var callCount = 0;
+        var handler = new ScriptedHandler(async (_, cancellationToken) =>
+        {
+            if (Interlocked.Increment(ref callCount) == 1)
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+
+            return Json(HttpStatusCode.OK, LeaseBody);
+        });
+        await using var client = Client(handler, TimeSpan.FromMilliseconds(20), TimeSpan.FromMilliseconds(100));
+        var observed = new List<Exception>();
+
+        client.Connect(exception =>
+        {
+            lock (observed)
+            {
+                observed.Add(exception);
+            }
+        });
+        await WaitUntilAsync(() => Volatile.Read(ref callCount) >= 3, TestContext.Current.CancellationToken);
+
+        lock (observed)
+        {
+            var reported = Assert.IsType<YogabaseRuntimeHostException>(Assert.Single(observed));
+            Assert.Equal(YogabaseRuntimeHostException.RequestTimeoutCode, reported.Code);
+            Assert.True(reported.IsRetryable);
+        }
+    }
+
+    [Fact]
+    public async Task ALocalTimeoutIsNotWaitedOutLikeAnInstancePendingRefusal()
+    {
+        var callCount = 0;
+        var handler = new ScriptedHandler(async (_, cancellationToken) =>
+        {
+            Interlocked.Increment(ref callCount);
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return Json(HttpStatusCode.OK, LeaseBody);
+        });
+        var recordedDelays = new List<TimeSpan>();
+        await using var client = new YogabaseRuntimeHostClient(
+            new YogabaseRuntimeHostOptions
+            {
+                Endpoint = new Uri("http://127.0.0.1:8090"),
+                RequestTimeout = TimeSpan.FromMilliseconds(100),
+                StartupPendingBudget = TimeSpan.FromSeconds(60),
+                StartupPendingDelay = (delay, _) =>
+                {
+                    recordedDelays.Add(delay);
+                    return Task.CompletedTask;
+                },
+            },
+            handler);
+
+        var exception = await Assert.ThrowsAsync<YogabaseRuntimeHostException>(
+            () => client.ReadyAsync(TestContext.Current.CancellationToken));
+
+        Assert.True(exception.IsRetryable);
+        Assert.Equal(1, Volatile.Read(ref callCount));
+        Assert.Empty(recordedDelays);
+    }
+
+    // ----------------------------------------------------------------------------------------
+    // The assignment watch
+    // ----------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task AWatchEndsByThrowingOnATerminalRefusalAfterDeliveringTheEventsBeforeIt()
+    {
+        var queries = new List<string>();
+        var handler = new ScriptedHandler((request, _) =>
+        {
+            queries.Add(request.RequestUri!.Query);
+            return Task.FromResult(queries.Count == 1
+                ? Json(HttpStatusCode.OK, AssignmentsBodyWithToken("1"))
+                : Json(HttpStatusCode.BadRequest, TerminalBody("RUNTIME_HOST_RESUME_TOKEN_INVALID")));
+        });
+        await using var client = Client(handler);
+        var reported = new List<Exception>();
+        var events = new List<RuntimeHostAssignmentEvent>();
+        using var guard = WatchGuard();
+
+        var exception = await Assert.ThrowsAsync<YogabaseRuntimeHostException>(async () =>
+        {
+            await foreach (var assignmentEvent in client.WatchAssignmentsAsync(
+                TimeSpan.FromMilliseconds(5),
+                reported.Add,
+                guard.Token))
+            {
+                events.Add(assignmentEvent);
+            }
+        });
+
+        Assert.Equal("RUNTIME_HOST_RESUME_TOKEN_INVALID", exception.Code);
+        Assert.Equal(HttpStatusCode.BadRequest, exception.StatusCode);
+        Assert.False(exception.IsRetryable);
+        Assert.Equal(1L, Assert.Single(events).Sequence);
+
+        // The watch is over: nothing polls again, and nothing was reported through the callback.
+        await Task.Delay(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
+        Assert.Equal(["", "?resumeToken=1"], queries);
+        Assert.Empty(reported);
+    }
+
+    [Fact]
+    public async Task AWatchWithNoCallbackEndsOnATerminalRefusalToo()
+    {
+        var callCount = 0;
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            Interlocked.Increment(ref callCount);
+            return Task.FromResult(Json(HttpStatusCode.Forbidden, TerminalBody("RUNTIME_HOST_STALE_EPOCH")));
+        });
+        await using var client = Client(handler);
+        using var guard = WatchGuard();
+
+        var exception = await Assert.ThrowsAsync<YogabaseRuntimeHostException>(async () =>
+        {
+            await foreach (var _ in client.WatchAssignmentsAsync(TimeSpan.FromMilliseconds(5), guard.Token))
+            {
+            }
+        });
+
+        Assert.Equal("RUNTIME_HOST_STALE_EPOCH", exception.Code);
+        Assert.Equal(1, Volatile.Read(ref callCount));
+    }
+
+    [Fact]
+    public async Task AWatchKeepsPollingThroughRetryableAnswersAndTransportFaultsWithTheSameToken()
+    {
+        var queries = new List<string>();
+        var handler = new ScriptedHandler(async (request, cancellationToken) =>
+        {
+            queries.Add(request.RequestUri!.Query);
+            switch (queries.Count)
+            {
+                case 1:
+                    return Json(HttpStatusCode.OK, AssignmentsBodyWithToken("5"));
+                case 2:
+                    return Json(HttpStatusCode.ServiceUnavailable, PendingBody(retryAfterSeconds: 2));
+                case 3:
+                    return new HttpResponseMessage((HttpStatusCode)429);
+                case 4:
+                    return new HttpResponseMessage(HttpStatusCode.GatewayTimeout);
+                case 5:
+                    throw new HttpRequestException("connection refused");
+                case 6:
+                    // No answer within the request timeout: the client's own timeout, retryable.
+                    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                    return Json(HttpStatusCode.OK, PageOf([], "5"));
+                default:
+                    return Json(HttpStatusCode.OK, PageOf([(6, "Ready")], "6"));
+            }
+        });
+        await using var client = Client(handler, requestTimeout: TimeSpan.FromMilliseconds(100));
+        var reported = new List<Exception>();
+
+        var events = await CollectUntilAsync(client, lastSequence: 6, reported.Add);
+
+        Assert.Equal([1L, 6L], events.Select(item => item.Sequence));
+        Assert.Equal(
+            ["", "?resumeToken=5", "?resumeToken=5", "?resumeToken=5", "?resumeToken=5", "?resumeToken=5", "?resumeToken=5"],
+            queries);
+        Assert.Empty(reported);
+    }
+
+    [Fact]
+    public async Task AWatchReportsAFailureItDoesNotRetrySilentlyOnceAndKeepsPolling()
+    {
+        const string BadGateway = "<html>bad gateway</html>";
+        var callCount = 0;
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            var response = Interlocked.Increment(ref callCount) switch
+            {
+                // The same unexplained failure three polls running ...
+                1 or 2 or 3 => new HttpResponseMessage(HttpStatusCode.BadGateway)
+                {
+                    Content = new StringContent(BadGateway, Encoding.UTF8, "text/html"),
+                },
+                // ... then a different one twice: a page that is not JSON.
+                4 or 5 => Json(HttpStatusCode.OK, "not json"),
+                6 => Json(HttpStatusCode.OK, PageOf([(7, "Ready")], "7")),
+                // The first failure again after a good page is a new report.
+                7 => new HttpResponseMessage(HttpStatusCode.BadGateway)
+                {
+                    Content = new StringContent(BadGateway, Encoding.UTF8, "text/html"),
+                },
+                _ => Json(HttpStatusCode.OK, PageOf([(8, "Ready")], "8")),
+            };
+            return Task.FromResult(response);
+        });
+        await using var client = Client(handler);
+        var reported = new List<Exception>();
+
+        // The callback throws; that must not end the watch.
+        var events = await CollectUntilAsync(
+            client,
+            lastSequence: 8,
+            exception =>
+            {
+                reported.Add(exception);
+                throw new InvalidOperationException("callback boom");
+            });
+
+        Assert.Equal([7L, 8L], events.Select(item => item.Sequence));
+        Assert.Equal(8, Volatile.Read(ref callCount));
+        Assert.Equal(3, reported.Count);
+        var first = Assert.IsType<YogabaseRuntimeHostException>(reported[0]);
+        Assert.Equal(HttpStatusCode.BadGateway, first.StatusCode);
+        Assert.Equal("UNKNOWN", first.Code);
+        Assert.IsAssignableFrom<JsonException>(reported[1]);
+        var again = Assert.IsType<YogabaseRuntimeHostException>(reported[2]);
+        Assert.Equal(HttpStatusCode.BadGateway, again.StatusCode);
+    }
+
+    [Fact]
+    public async Task AWatchReportsARefusalTheDocumentDoesNotNameForTheRouteAndKeepsPolling()
+    {
+        var callCount = 0;
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            var count = Interlocked.Increment(ref callCount);
+            return Task.FromResult(count == 1
+                ? Json(HttpStatusCode.Conflict, TerminalBody("RUNTIME_HOST_TERMINATED"))
+                : Json(HttpStatusCode.OK, PageOf([(2, "Terminated")], "2")));
+        });
+        await using var client = Client(handler);
+        var reported = new List<Exception>();
+
+        var events = await CollectUntilAsync(client, lastSequence: 2, reported.Add);
+
+        Assert.Equal(2L, Assert.Single(events).Sequence);
+        var refusal = Assert.IsType<YogabaseRuntimeHostException>(Assert.Single(reported));
+        Assert.Equal("RUNTIME_HOST_TERMINATED", refusal.Code);
+    }
+
+    [Fact]
+    public async Task DisposingTheClientEndsARunningWatchInsteadOfPollingADisposedClient()
+    {
+        var firstPoll = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            firstPoll.TrySetResult();
+            return Task.FromResult(new HttpResponseMessage((HttpStatusCode)429));
+        });
+        var client = Client(handler);
+        var reported = new List<Exception>();
+        using var guard = WatchGuard();
+        var watch = Record.ExceptionAsync(async () =>
+        {
+            await foreach (var _ in client.WatchAssignmentsAsync(TimeSpan.FromMilliseconds(5), reported.Add, guard.Token))
+            {
+            }
+        });
+        await firstPoll.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        await client.DisposeAsync();
+        var exception = await watch.AsTask().WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        Assert.True(exception is ObjectDisposedException or OperationCanceledException, exception?.ToString());
+        Assert.Empty(reported);
+    }
+
+    [Fact]
+    public async Task CancellingAWatchStillEndsItEvenWhileItIsRetrying()
+    {
+        var handler = new ScriptedHandler((_, _) => Task.FromResult(new HttpResponseMessage((HttpStatusCode)429)));
+        await using var client = Client(handler);
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        stop.CancelAfter(TimeSpan.FromMilliseconds(100));
+
+        // The 429s are retried silently until the caller's token ends the watch; the end is a
+        // cancellation (or, when it lands in the delay, a clean end), never a runtime-host exception.
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await foreach (var _ in client.WatchAssignmentsAsync(TimeSpan.FromMilliseconds(5), stop.Token))
+            {
+            }
+        });
+
+        Assert.True(exception is null or OperationCanceledException);
+    }
+
     private static Task CallAsync(YogabaseRuntimeHostClient client, string verb, CancellationToken cancellationToken) =>
         verb switch
         {
@@ -849,15 +1290,53 @@ public sealed class YogabaseRuntimeHostClientTests
         }
     }
 
-    private static YogabaseRuntimeHostClient Client(HttpMessageHandler handler, TimeSpan? heartbeatInterval = null) =>
+    private static YogabaseRuntimeHostClient Client(
+        HttpMessageHandler handler,
+        TimeSpan? heartbeatInterval = null,
+        TimeSpan? requestTimeout = null) =>
         new(
             new YogabaseRuntimeHostOptions
             {
                 Endpoint = new Uri("http://127.0.0.1:8090"),
                 HeartbeatInterval = heartbeatInterval ?? TimeSpan.FromSeconds(2),
-                RequestTimeout = TimeSpan.FromSeconds(10),
+                RequestTimeout = requestTimeout ?? TimeSpan.FromSeconds(10),
             },
             handler);
+
+    // A watch that should have ended on its own and does not fails after ten seconds as a
+    // cancellation, rather than hanging the run.
+    private static CancellationTokenSource WatchGuard()
+    {
+        var guard = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        guard.CancelAfter(TimeSpan.FromSeconds(10));
+        return guard;
+    }
+
+    // Watches until the event with `lastSequence` (or a later one) arrives and then ends the watch
+    // from the consumer's side, so the watch's own end is a clean one. A watch that never gets there
+    // fails after ten seconds as a cancellation instead of hanging the run.
+    private static async Task<List<RuntimeHostAssignmentEvent>> CollectUntilAsync(
+        YogabaseRuntimeHostClient client,
+        long lastSequence,
+        Action<Exception>? onFailure = null)
+    {
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        stop.CancelAfter(TimeSpan.FromSeconds(10));
+        var events = new List<RuntimeHostAssignmentEvent>();
+        await foreach (var assignmentEvent in client.WatchAssignmentsAsync(
+            TimeSpan.FromMilliseconds(5),
+            onFailure,
+            stop.Token))
+        {
+            events.Add(assignmentEvent);
+            if (assignmentEvent.Sequence >= lastSequence)
+            {
+                stop.Cancel();
+            }
+        }
+
+        return events;
+    }
 
     // A client whose RUNTIME_HOST_INSTANCE_PENDING wait never actually sleeps: `recordedDelays`
     // (when supplied) captures each wait the client would have taken, so

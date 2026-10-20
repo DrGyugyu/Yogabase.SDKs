@@ -224,6 +224,19 @@ refusal at once. The relay's three bodyless answers, `413`, `429` and `504`, thr
 refusal, `429` and `504` and false for `413`. `Connect(onHeartbeatFailure)` reports the failures the
 background loop otherwise swallows. See `docs/UNITY_DEDICATED_SERVER.md` for the details.
 
+`YogabaseRuntimeHostOptions.RequestTimeout` defaults to the relay's 30 second answer timeout plus 10
+seconds, so a call the relay cannot get answered ends with its `504`. A call that gets no answer within
+the timeout throws `YogabaseRuntimeHostException` (status 0, code `CLIENT_REQUEST_TIMEOUT`,
+`IsRetryable` true), not a bare cancellation; only the token you pass in cancels as
+`OperationCanceledException`. A refusal's code is read from `code` alone, so a body with only a `title`
+reads as `UNKNOWN`.
+
+`WatchAssignmentsAsync(pollInterval, onFailure, token)` ends by throwing on a refusal the contract makes
+terminal for the assignments route (`RUNTIME_HOST_RELAY_INVALID`, `RUNTIME_HOST_REQUEST_INVALID`,
+`RUNTIME_HOST_RESUME_TOKEN_INVALID`, `RUNTIME_HOST_STALE_EPOCH`, `RUNTIME_HOST_WRONG_GENERATION`),
+retries a retryable answer or a transport fault on the next tick, and reports anything else once through
+`onFailure` while it keeps polling. A page head whose `headSequence` is below 1 reads as no sequence.
+
 Two environment variables matter at runtime, both injected by the Yogabase platform into the
 workload's process environment:
 

@@ -18,6 +18,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Net;
 using System.Text.Json;
 
@@ -71,7 +72,9 @@ public sealed record RuntimeHostAssignmentEvent(
 /// </param>
 /// <param name="HeadSequence">
 /// The newest event's sequence when the page was read; a resume token equal to it has read every
-/// event. Null under the same conditions as <paramref name="HeadState"/>.
+/// event. The contract makes it at least 1, so a value below 1 (like an absent or non-integer one)
+/// reads as no sequence. Null under the same conditions as <paramref name="HeadState"/>, and also
+/// when the page states a head state but no usable sequence.
 /// </param>
 public sealed record RuntimeHostAssignmentPage(
     IReadOnlyList<RuntimeHostAssignmentEvent> Events,
@@ -109,12 +112,23 @@ public sealed record RuntimeHostCurrentState(string? State, long? Sequence, bool
 /// Raised when a self-scoped runtime-host call is refused; the caller decides whether that is expected.
 /// Most refusals carry a <c>{code, detail}</c> body, but the relay answers 413, 429 and 504 with no
 /// body at all: those arrive here too, with their <see cref="StatusCode"/>, the code <c>"UNKNOWN"</c>
-/// and an empty <see cref="BodyJson"/>.
+/// and an empty <see cref="BodyJson"/>. A call that got no answer at all within
+/// <see cref="YogabaseRuntimeHostOptions.RequestTimeout"/> arrives here as well, with a
+/// <see cref="StatusCode"/> of 0 and the code <see cref="RequestTimeoutCode"/>: it was the client
+/// that gave up, not the relay.
 /// </summary>
 public sealed class YogabaseRuntimeHostException : Exception
 {
     /// <summary>The one refusal code the contract marks retryable: the member has not reported this Pod incarnation yet.</summary>
     internal const string InstancePendingCode = "RUNTIME_HOST_INSTANCE_PENDING";
+
+    /// <summary>
+    /// The code of an exception the client raised itself because no answer, not even the relay's own
+    /// <c>504</c>, arrived within <see cref="YogabaseRuntimeHostOptions.RequestTimeout"/>. It names no
+    /// relay refusal and is deliberately outside the <c>RUNTIME_HOST_*</c> codes the document lists;
+    /// the exception's <see cref="StatusCode"/> is 0 and its <see cref="BodyJson"/> is empty.
+    /// </summary>
+    public const string RequestTimeoutCode = "CLIENT_REQUEST_TIMEOUT";
 
     private const int TooManyRequests = 429;
 
@@ -163,7 +177,17 @@ public sealed class YogabaseRuntimeHostException : Exception
             || (int)statusCode == GatewayTimeout;
     }
 
-    /// <summary>The HTTP status code the relay returned.</summary>
+    private YogabaseRuntimeHostException(string message, Exception innerException, string code)
+        : base(message, innerException)
+    {
+        // No answer arrived, so there is no status and no body; the call may or may not have taken
+        // effect, which is what makes it retryable in the way a 504 is.
+        Code = code;
+        BodyJson = string.Empty;
+        IsRetryable = true;
+    }
+
+    /// <summary>The HTTP status code the relay returned, or 0 when no answer arrived (<see cref="RequestTimeoutCode"/>).</summary>
     public HttpStatusCode StatusCode { get; }
 
     /// <summary>The relay-reported error code. Never null; <c>"UNKNOWN"</c> when the body names none.</summary>
@@ -182,8 +206,11 @@ public sealed class YogabaseRuntimeHostException : Exception
     /// were, and a heartbeat is repeated with the next sequence, which
     /// <see cref="YogabaseRuntimeHostClient.HeartbeatOnceAsync"/> sends). False for 413 (the body is
     /// larger than the relay accepts, so repeating it fails the same way) and for every other answer,
-    /// each of which is terminal for the call that produced it. The client itself waits out only
-    /// <c>RUNTIME_HOST_INSTANCE_PENDING</c>, and only on a heartbeat or a ready call.
+    /// each of which is terminal for the call that produced it. Also true when the client's own
+    /// <see cref="YogabaseRuntimeHostOptions.RequestTimeout"/> ran out first
+    /// (<see cref="RequestTimeoutCode"/>), which leaves the call in the same state as a <c>504</c>.
+    /// The client itself waits out only <c>RUNTIME_HOST_INSTANCE_PENDING</c>, and only on a heartbeat
+    /// or a ready call.
     /// </summary>
     public bool IsRetryable { get; }
 
@@ -196,6 +223,15 @@ public sealed class YogabaseRuntimeHostException : Exception
     /// <see cref="Code"/>, never by the presence of this hint.
     /// </summary>
     public int? RetryAfterSeconds { get; }
+
+    /// <summary>The exception for a call the client gave up on after <paramref name="timeout"/> without any answer.</summary>
+    internal static YogabaseRuntimeHostException ForRequestTimeout(TimeSpan timeout, Exception innerException) =>
+        new YogabaseRuntimeHostException(
+            "runtime-host call timed out: no answer within the request timeout of "
+                + timeout.TotalSeconds.ToString("0.###", CultureInfo.InvariantCulture)
+                + " seconds (the call may or may not have taken effect).",
+            innerException,
+            RequestTimeoutCode);
 
     private static int? ParseRetryAfterSeconds(string bodyJson)
     {
