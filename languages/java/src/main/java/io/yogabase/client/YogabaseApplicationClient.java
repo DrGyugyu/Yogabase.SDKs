@@ -1,6 +1,7 @@
 package io.yogabase.client;
 
 import com.microsoft.kiota.RequestAdapter;
+import com.microsoft.kiota.bundle.DefaultRequestAdapter;
 import java.net.URI;
 import java.util.Objects;
 import java.util.UUID;
@@ -19,6 +20,15 @@ public final class YogabaseApplicationClient {
         this.origin = YogabaseClientOrigin.requireOrigin(applicationOrigin, "applicationOrigin");
         requestAdapter.setBaseUrl(YogabaseClientOrigin.baseUrl(this.origin));
         this.api = new YogabaseApiClient(requestAdapter);
+    }
+
+    /**
+     * The application client of a signed-in user: a Kiota bundle adapter whose bearer is the session's, bound to the
+     * gateway origin the user signed in at ({@link YogabaseSignIn}).
+     */
+    public static YogabaseApplicationClient forSession(YogabaseSession session) {
+        Objects.requireNonNull(session, "session");
+        return new YogabaseApplicationClient(new DefaultRequestAdapter(session.authenticationProvider()), session.gatewayOrigin());
     }
 
     public URI origin() {
