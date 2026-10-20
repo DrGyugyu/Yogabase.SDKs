@@ -108,9 +108,8 @@ public sealed class ContractDigestTests
     /// <summary>
     /// The application contract declares the restored client Data API (the product implemented it on
     /// 2026-09-23) and its requested-only <c>data-rest</c> capability, and the generated TypeScript,
-    /// Python, Java and Dart clients are produced from exactly that. The authored .NET client has no
-    /// Data client and does not request the row, which is a decision recorded in the READMEs rather
-    /// than something this contract implies, so the test pins the contract's side of it. Read
+    /// Python, Java and Dart clients are produced from exactly that. The authored .NET client's Data
+    /// client requests the row and is held to the same document by <see cref="DataContractTests"/>. Read
     /// structurally rather than as text: the document explains the 2026-09-08 withdrawal in its
     /// description, and that prose must not count as a declaration.
     /// </summary>
@@ -140,7 +139,7 @@ public sealed class ContractDigestTests
             .EnumerateArray().Select(static value => value.GetString()).ToArray();
         // realtime-presence and data-rest are requested-only: a gateway adds their rows after the four
         // core rows only for a client that names them in X-Yogabase-Accept-Capabilities, and the
-        // authored .NET client names only realtime-presence.
+        // authored .NET client names both.
         Assert.Equal(["auth", "storage", "functions-rest", "realtime-subscribe", "realtime-presence", "data-rest"], capabilityIds);
         Assert.True(root.TryGetProperty("x-yogabase-data-api", out _));
     }

@@ -1004,19 +1004,21 @@ public sealed class BuildsAndServersTests
     }
 
     // ---------------------------------------------------------------------------------------
-    // Withdrawn Data API
+    // The restored Data API's capability row
     // ---------------------------------------------------------------------------------------
 
     [Fact]
-    public void ABootstrapStillCarryingTheWithdrawnDataCapabilityIsAcceptedAndIgnored()
+    public void ABootstrapCarryingTheDataCapabilityIsAcceptedAndRead()
     {
-        var legacy = new List<YogabaseCapability>(YogabaseClientTests.Capabilities())
+        // The row an installation adds for a client that names data-rest, and the one an installation that
+        // predates the 2026-09-08 removal published by default: the same id, read the same way.
+        var withData = new List<YogabaseCapability>(YogabaseClientTests.Capabilities())
         {
-            new() { Id = YogabaseCapability.WithdrawnDataRest, Available = true },
+            new() { Id = YogabaseCapability.DataRest, Available = true },
         };
 
         using var client = YogabaseClient.FromConfiguration(
-            ConfigurationWith(legacy),
+            ConfigurationWith(withData),
             new YogabaseClientOptions
             {
                 AllowInsecureLoopback = true,
@@ -1024,7 +1026,28 @@ public sealed class BuildsAndServersTests
             });
 
         Assert.True(client.Configuration.IsAvailable("auth"));
-        Assert.False(client.Configuration.IsAvailable(YogabaseCapability.WithdrawnDataRest));
+        Assert.True(client.Configuration.IsAvailable(YogabaseCapability.DataRest));
+        Assert.Equal(YogabaseCapability.DataRest, YogabaseCapability.WithdrawnDataRest);
+    }
+
+    [Fact]
+    public void ABootstrapCarryingBothRequestedRowsIsAcceptedAndASeventhRowIsRefused()
+    {
+        var six = new List<YogabaseCapability>(YogabaseClientTests.Capabilities())
+        {
+            new() { Id = YogabaseCapability.RealtimePresence, Available = false, UnavailableReason = "realtime-subscribe-unavailable" },
+            new() { Id = YogabaseCapability.DataRest, Available = false, UnavailableReason = "data-api-disabled" },
+        };
+        using (var client = YogabaseClient.FromConfiguration(ConfigurationWith(six), new YogabaseClientOptions { AllowInsecureLoopback = true }))
+        {
+            Assert.Equal(6, client.Configuration.Capabilities.Count);
+            Assert.False(client.Configuration.IsAvailable(YogabaseCapability.DataRest));
+        }
+
+        var duplicate = new List<YogabaseCapability>(six) { new() { Id = YogabaseCapability.DataRest, Available = true } };
+        Assert.Throws<ArgumentException>(() => YogabaseClient.FromConfiguration(
+            ConfigurationWith(duplicate),
+            new YogabaseClientOptions { AllowInsecureLoopback = true }));
     }
 
     [Fact]

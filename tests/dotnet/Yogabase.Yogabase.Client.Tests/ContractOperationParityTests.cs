@@ -26,8 +26,8 @@ namespace Yogabase.Tests;
 /// </para>
 /// <para>
 /// An exclusion is an operation a language has no surface for on purpose. There is exactly one family, the
-/// Data API in the .NET client, and the test pins the list so that a new exclusion cannot be added without
-/// editing this file's reason for it.
+/// provider return routes in the .NET client (a browser calls them, never an application), and the test pins
+/// the list so that a new exclusion cannot be added without editing this file's reason for it.
 /// </para>
 /// </remarks>
 public sealed class ContractOperationParityTests
@@ -130,18 +130,11 @@ public sealed class ContractOperationParityTests
     };
 
     /// <summary>
-    /// The operations the .NET client has no surface for, each with the reason. The Data API was restored by the
-    /// owner decision of 2026-09-17 and the generated clients carry it, but the .NET package has no Data client
-    /// (its README says so under "Reading and writing data"): a .NET application reaches its data through a
-    /// Lambda, which runs server-side with a full-access database context.
+    /// The operations the .NET client has no surface for, each with the reason. The Data API's five operations
+    /// were excluded until the .NET package gained its Data client (IYogabaseData); they are .NET calls now.
     /// </summary>
     private static readonly IReadOnlyDictionary<string, string> DotNetExclusions = new Dictionary<string, string>(StringComparer.Ordinal)
     {
-        ["selectYogabaseData"] = DataReason,
-        ["insertYogabaseData"] = DataReason,
-        ["upsertYogabaseData"] = DataReason,
-        ["updateYogabaseData"] = DataReason,
-        ["deleteYogabaseData"] = DataReason,
         ["receiveYogabaseExternalLogin"] = ReturnReason,
         ["returnYogabaseExternalLogin"] = ReturnReason,
     };
@@ -150,10 +143,6 @@ public sealed class ContractOperationParityTests
         "The provider's return address is called by the user's browser (a GET) or by the provider's form_post (Apple), never by "
         + "an application: the .NET package starts the sign-in, the application opens the address in the browser, and the "
         + "gateway relays the browser to the application's redirect URI, which CompleteExternalSignInAsync reads.";
-    private const string DataReason =
-        "The .NET package has no Data API client by decision, recorded in its README under 'Reading and writing data': "
-        + "a .NET application reaches its project's data through a Lambda, Auth, Storage and Realtime, and the package does "
-        + "not name data-rest in X-Yogabase-Accept-Capabilities.";
 
     /// <summary>
     /// What each .NET call must send first. A call may fail afterwards (the recording handler answers every request
@@ -204,7 +193,14 @@ public sealed class ContractOperationParityTests
         ["listYogabaseGameServers"] = [new("IYogabaseServers.ListAsync", c => c.Servers.ListAsync())],
         ["getYogabaseGameServer"] = [new("IYogabaseServers.GetAsync", c => c.Servers.GetAsync("srv-01"))],
         ["stopYogabaseGameServer"] = [new("IYogabaseServers.StopAsync", c => c.Servers.StopAsync("srv-01"))],
+        ["selectYogabaseData"] = [new("IYogabaseData.SelectAsync", c => c.Data.SelectAsync("notes"))],
+        ["insertYogabaseData"] = [new("IYogabaseData.InsertAsync", c => c.Data.InsertAsync("notes", new YogabaseDataInsertRequest { Rows = [DataRow()] }))],
+        ["upsertYogabaseData"] = [new("IYogabaseData.UpsertAsync", c => c.Data.UpsertAsync("notes", new YogabaseDataUpsertRequest { Rows = [DataRow()], OnConflict = ["id"] }))],
+        ["updateYogabaseData"] = [new("IYogabaseData.UpdateAsync", c => c.Data.UpdateAsync("notes", new YogabaseDataUpdateRequest { Values = DataRow(), Filters = [YogabaseDataFilter.Eq("id", 1)] }))],
+        ["deleteYogabaseData"] = [new("IYogabaseData.DeleteAsync", c => c.Data.DeleteAsync("notes", new YogabaseDataDeleteRequest { Filters = [YogabaseDataFilter.Eq("id", 1)] }))],
     };
+
+    private static JsonElement DataRow() => JsonSerializer.SerializeToElement(new { id = 1, body = "hello" });
 
     private const string ConfigurationOperation = "getYogabaseClientConfiguration";
     private const string Redirect = "io.yogabase.app:/oauth/callback";
@@ -241,11 +237,11 @@ public sealed class ContractOperationParityTests
     }
 
     [Fact]
-    public void EveryExclusionStatesItsReasonAndTheOnlyOnesAreTheDotNetDataAndBrowserReturnOperations()
+    public void EveryExclusionStatesItsReasonAndTheOnlyOnesAreTheBrowserReturnOperations()
     {
         Assert.All(DotNetExclusions.Values, static reason => Assert.True(reason.Length > 80, "An exclusion must say why."));
         Assert.Equal(
-            ["deleteYogabaseData", "insertYogabaseData", "receiveYogabaseExternalLogin", "returnYogabaseExternalLogin", "selectYogabaseData", "updateYogabaseData", "upsertYogabaseData"],
+            ["receiveYogabaseExternalLogin", "returnYogabaseExternalLogin"],
             DotNetExclusions.Keys.Order(StringComparer.Ordinal));
     }
 
@@ -590,7 +586,8 @@ public sealed class ContractOperationParityTests
                 OidcScopes = ["openid", "offline_access"],
                 OidcRedirectUris = ["io.yogabase.app:/oauth/callback"],
                 RealtimePath = "/v1/realtime",
-                Capabilities = YogabaseClientTests.Capabilities(),
+                // The Data API's row is requested-only; it is available here so its calls reach the transport.
+                Capabilities = [.. YogabaseClientTests.Capabilities(), new YogabaseCapability { Id = YogabaseCapability.DataRest, Available = true }],
                 IssuedAt = DateTimeOffset.Parse("2026-10-03T00:00:00+00:00", System.Globalization.CultureInfo.InvariantCulture),
             },
             new YogabaseClientOptions
