@@ -1,0 +1,517 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Yogabase Runtime Host Self API",
+    "version": "v1",
+    "description": "The self-scoped runtime-host routes a hosted workload calls on its own Pod's loopback relay (the runtime-host-relay role, RuntimeHostRelayProcess). This is the workload side of the runtime-host lifecycle that yogabase-runtime-host-v1.openapi.json describes instance-addressed for the Control Plane's backend: the same lease, the same assignment page and the same lifecycle, reached without naming an instance and without any credential. The relay holds each call; the member's cluster agent collects it from the relay's in-cluster port, stamps the Pod incarnation it observed itself (Pod UID, workload generation and its live fleet-session epoch), and forwards it over its own outbound, mutually authenticated fleet session; the Control Plane resolves the exact instance from that stamp alone and its answer travels back the same way to the waiting call. Nothing the workload sends names or changes its identity. Allocation and release are backend-only and are not on this surface. Every answer is a JSON body under the status the Control Plane or the relay chose; a refusal is {code, detail}, not an RFC 9457 problem document, because the relay hop carries a status and a body and nothing else. Members a later Control Plane adds to an answer are additive: a consumer ignores members it does not know."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8090",
+      "description": "The Pod-local loopback relay. It listens on the loopback addresses only (127.0.0.1 and ::1); the workload's YOGABASE_RUNTIME_HOST_ENDPOINT names it. Plain HTTP/1.1: the call never leaves the Pod's network namespace."
+    }
+  ],
+  "security": [],
+  "x-yogabase-runtime-host-relay": {
+    "scope": "The five self-scoped lifecycle routes /runtime-host/v1/self/{heartbeat|ready|reserve|shutdown|assignments} of a workload-origin relay call, which are exactly the routes RuntimeHostRelayValidator lets a workload's call reach. The gateway-origin game-server routes the member's application gateway relays are a different origin on a different listener and are not part of this contract.",
+    "transport": "Loopback only, with no credential of any kind: no Authorization header, no API key, no binding envelope and no instance id is sent or read. The relay process answers the cluster agent on a second, in-cluster port (8091: /relay/v1/pending and /relay/v1/responses) that a NetworkPolicy opens to agent Pods only and that is not part of this contract; each of the two surfaces answers 404 on the other's port.",
+    "identity": "The cluster agent stamps podUid, workloadGeneration and its live sessionEpoch on every call from its own Pod observation. A call stamped under an earlier fleet session than the frame it arrives in is refused 403 RUNTIME_HOST_STALE_EPOCH; a workload generation other than the instance's is refused 403 RUNTIME_HOST_WRONG_GENERATION. The lease names the instanceId the Control Plane resolved, for diagnostics only: no route on this surface takes it.",
+    "methods": {
+      "accepted": ["GET", "POST"],
+      "statement": "The relay maps GET and POST on /runtime-host/v1/self/{verb} and forwards either method for every verb, and the Control Plane dispatches on the verb alone, so each route answers the same under the other method. The method each operation names is the contract and the one Yogabase's own callers send; the other is accepted today and is not part of the contract. Any other method is answered 405 by the relay."
+    },
+    "reading": "The Control Plane reads a relayed body with the JSON Web defaults and refuses less than the request schemas here describe: member names match case-insensitively, a number may arrive as a JSON string, unknown members are ignored, and an absent or empty body reads as every member at its default (sequence 0, seconds 0, no resumeToken). ready and shutdown read no body at all. A heartbeat, reserve or assignments body that is not JSON, or whose member does not fit its type, is refused 400 RUNTIME_HOST_REQUEST_INVALID. The instance-addressed backend route, by contrast, refuses unknown members.",
+    "limits": {
+      "maximumRequestBodyBytes": 65536,
+      "maximumPendingCalls": 64,
+      "answerTimeoutSeconds": 30,
+      "maximumEventsPerPage": 100,
+      "minimumReservationSeconds": 1,
+      "maximumReservationSeconds": 600,
+      "leaseSeconds": 30,
+      "drainWindowSeconds": 300,
+      "instancePendingRetryAfterSeconds": 2
+    },
+    "refusals": "Every refusal with a body is application/json {code, detail}, and RUNTIME_HOST_INSTANCE_PENDING alone adds retryAfterSeconds. The detail is a fixed sentence naming the cause; it never quotes the request. Each code is listed below under the operation that can answer it and the side that answers it: the relay itself, before anything is forwarded, or the Control Plane, whose status and body the relay returns verbatim. RUNTIME_HOST_INSTANCE_PENDING is the one retryable code; every other one is terminal for the call that produced it.",
+    "refusalCodes": {
+      "relay": {
+        "heartbeat": { "RUNTIME_HOST_RELAY_INVALID": 400 },
+        "ready": { "RUNTIME_HOST_RELAY_INVALID": 400 },
+        "reserve": { "RUNTIME_HOST_RELAY_INVALID": 400 },
+        "shutdown": { "RUNTIME_HOST_RELAY_INVALID": 400 },
+        "assignments": { "RUNTIME_HOST_RELAY_INVALID": 400, "RUNTIME_HOST_RESUME_TOKEN_INVALID": 400 }
+      },
+      "controlPlane": {
+        "heartbeat": {
+          "RUNTIME_HOST_REQUEST_INVALID": 400,
+          "RUNTIME_HOST_STALE_EPOCH": 403,
+          "RUNTIME_HOST_WRONG_GENERATION": 403,
+          "RUNTIME_HOST_STALE_SEQUENCE": 403,
+          "RUNTIME_HOST_TERMINATED": 409,
+          "RUNTIME_HOST_INSTANCE_PENDING": 503
+        },
+        "ready": {
+          "RUNTIME_HOST_STALE_EPOCH": 403,
+          "RUNTIME_HOST_WRONG_GENERATION": 403,
+          "RUNTIME_HOST_INVALID_TRANSITION": 409,
+          "RUNTIME_HOST_READINESS_EVIDENCE_REQUIRED": 409,
+          "RUNTIME_HOST_SHUTDOWN_IN_PROGRESS": 409,
+          "RUNTIME_HOST_INSTANCE_PENDING": 503
+        },
+        "reserve": {
+          "RUNTIME_HOST_REQUEST_INVALID": 400,
+          "RUNTIME_HOST_STALE_EPOCH": 403,
+          "RUNTIME_HOST_WRONG_GENERATION": 403,
+          "RUNTIME_HOST_NOT_READY": 409,
+          "RUNTIME_HOST_ALREADY_ALLOCATED": 409,
+          "RUNTIME_HOST_INSTANCE_PENDING": 503
+        },
+        "shutdown": {
+          "RUNTIME_HOST_STALE_EPOCH": 403,
+          "RUNTIME_HOST_WRONG_GENERATION": 403,
+          "RUNTIME_HOST_TERMINATED": 409,
+          "RUNTIME_HOST_INSTANCE_PENDING": 503
+        },
+        "assignments": {
+          "RUNTIME_HOST_REQUEST_INVALID": 400,
+          "RUNTIME_HOST_RESUME_TOKEN_INVALID": 400,
+          "RUNTIME_HOST_STALE_EPOCH": 403,
+          "RUNTIME_HOST_WRONG_GENERATION": 403,
+          "RUNTIME_HOST_INSTANCE_PENDING": 503
+        }
+      }
+    },
+    "bodylessStatuses": {
+      "413": "The request body is larger than maximumRequestBodyBytes; the relay's listener refuses it before the call is read.",
+      "429": "maximumPendingCalls calls of this Pod are already waiting for their answers; nothing was forwarded. Retry once one of them is answered.",
+      "504": "No answer arrived within answerTimeoutSeconds: the agent did not collect the call, refused to forward it, or its fleet session was replaced before the Control Plane's answer could travel back. The call may or may not have taken effect: ready, reserve, shutdown and the assignments read can be repeated as they were, and a heartbeat is repeated with the next sequence, because a sequence other than 1 that was accepted is refused when it is sent again."
+    },
+    "outsideTheAllowlist": {
+      "allocate": {
+        "status": 403,
+        "code": "RUNTIME_HOST_RELAY_ALLOCATION_BACKEND_ONLY",
+        "statement": "/runtime-host/v1/self/allocate, under either method, is refused by the relay with its own code: allocation placement is a backend-only Control Plane operation and a workload cannot allocate itself. Nothing is forwarded."
+      },
+      "anyOtherVerb": {
+        "status": 400,
+        "code": "RUNTIME_HOST_RELAY_INVALID",
+        "statement": "Any other path segment under /runtime-host/v1/self/ is refused by the relay as not relayable. Nothing is forwarded."
+      }
+    },
+    "gate": {
+      "code": "RUNTIME_HOST_UNAVAILABLE",
+      "status": 503,
+      "open": true,
+      "statement": "A build whose compiled runtime-host gate (CapabilityGate.RuntimeHostV1) is closed answers every forwarded call 503 RUNTIME_HOST_UNAVAILABLE. This build's gate is open, so it never does."
+    }
+  },
+  "paths": {
+    "/runtime-host/v1/self/heartbeat": {
+      "post": {
+        "operationId": "runtimeHostSelfHeartbeat",
+        "summary": "Renew this Pod's bounded health lease.",
+        "description": "Carries the workload's heartbeat counter, which starts at 1 and moves forward by one per heartbeat. An accepted heartbeat renews the lease for leaseSeconds from the moment it is read. A sequence that does not move past the last accepted one is refused 403 RUNTIME_HOST_STALE_SEQUENCE and renews nothing, with two exceptions that a restarted workload relies on: sequence 1 is always admitted, and so is any sequence while the instance is Starting or Unknown. A heartbeat from Starting or Unknown moves the instance to Healthy, never to Ready. A heartbeat whose only effect is the renewed lease appends no assignment event, so eventSequence does not move.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HeartbeatRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Lease" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/TransitionRefused" },
+          "413": { "$ref": "#/components/responses/PayloadTooLarge" },
+          "429": { "$ref": "#/components/responses/TooManyPendingCalls" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
+          "504": { "$ref": "#/components/responses/AnswerTimedOut" }
+        }
+      }
+    },
+    "/runtime-host/v1/self/ready": {
+      "post": {
+        "operationId": "runtimeHostSelfRequestReady",
+        "summary": "Request readiness; granted only with accepted member-observation evidence.",
+        "description": "Ready is a request, not a self-declaration. It is granted only from Healthy and only once the Control Plane has accepted the cluster agent's signed readiness observation for this exact Pod incarnation; otherwise it is refused 409 RUNTIME_HOST_READINESS_EVIDENCE_REQUIRED and the instance stays Healthy. A repeat while Ready is answered 200 with nothing changed. It is refused 409 RUNTIME_HOST_SHUTDOWN_IN_PROGRESS while Draining or ShutdownRequested and 409 RUNTIME_HOST_INVALID_TRANSITION from any other state. Any request body is ignored.",
+        "responses": {
+          "200": { "$ref": "#/components/responses/Lease" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/TransitionRefused" },
+          "413": { "$ref": "#/components/responses/PayloadTooLarge" },
+          "429": { "$ref": "#/components/responses/TooManyPendingCalls" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
+          "504": { "$ref": "#/components/responses/AnswerTimedOut" }
+        }
+      }
+    },
+    "/runtime-host/v1/self/reserve": {
+      "post": {
+        "operationId": "runtimeHostSelfReserve",
+        "summary": "Hold this Ready instance for an imminent allocation, for a bounded window.",
+        "description": "Places or renews a reservation on this instance while it is Ready or Reserved. The window is clamped to minimumReservationSeconds–maximumReservationSeconds, never refused for being out of range; an expired reservation returns the instance to Ready. It is refused 409 RUNTIME_HOST_ALREADY_ALLOCATED once the instance is allocated and 409 RUNTIME_HOST_NOT_READY from any other state. Reserving never allocates: allocation stays a backend-only Control Plane operation this surface does not offer.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReserveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Lease" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/TransitionRefused" },
+          "413": { "$ref": "#/components/responses/PayloadTooLarge" },
+          "429": { "$ref": "#/components/responses/TooManyPendingCalls" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
+          "504": { "$ref": "#/components/responses/AnswerTimedOut" }
+        }
+      }
+    },
+    "/runtime-host/v1/self/shutdown": {
+      "post": {
+        "operationId": "runtimeHostSelfRequestShutdown",
+        "summary": "Begin an auditable drain toward shutdown.",
+        "description": "Withdraws readiness at once, voids any reservation and opens a drain window of drainWindowSeconds; the instance becomes Draining. It is idempotent: a repeat while Draining or ShutdownRequested is answered 200 with nothing changed. From Starting (registered, never heartbeated, nothing to drain) it is acknowledged 200 and nothing transitions, so a restarted process can still become Healthy. It is refused 409 RUNTIME_HOST_TERMINATED once the instance is terminated. This route never deletes anything: termination follows only the local actuator's report of deleting this exact Pod. Any request body is ignored.",
+        "responses": {
+          "200": { "$ref": "#/components/responses/Lease" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/TransitionRefused" },
+          "413": { "$ref": "#/components/responses/PayloadTooLarge" },
+          "429": { "$ref": "#/components/responses/TooManyPendingCalls" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
+          "504": { "$ref": "#/components/responses/AnswerTimedOut" }
+        }
+      }
+    },
+    "/runtime-host/v1/self/assignments": {
+      "get": {
+        "operationId": "runtimeHostSelfReadAssignments",
+        "summary": "Read this instance's append-only assignment event stream.",
+        "description": "The polling read and the resume path are the same read: events are append-only with a per-instance monotonic sequence, the resume token is the last sequence the caller has processed, and a page returns at most maximumEventsPerPage events after it with the next resume token. Replaying a token re-delivers the same events in the same order, so a consumer must be idempotent. A token that is not unsigned decimal digits fitting a 64-bit integer, or that is ahead of the stream, is refused 400 RUNTIME_HOST_RESUME_TOKEN_INVALID rather than silently restarting the stream. Every page also states the head: headState is the instance's current lifecycle state as the Control Plane observes it when the page is read (a lapsed lease reads Unknown although no event records the lapse), and headSequence is the newest event's sequence; a page never carries an event past headSequence, and a resume token equal to it has read every event. A consumer that needs only the current state reads headState from one page and may resume at headSequence. Both are additive: a Control Plane that predates them omits them, and a consumer must then page until it reaches the head (a page with fewer than maximumEventsPerPage events). The token may be sent as the resumeToken query parameter, as the SDK runtime-host modules send it, or as the resumeToken member of a JSON body, as the service host sends it; the relay moves a query token into the body it forwards, keeping every other body member. A query token and a body token that differ are refused 400 RUNTIME_HOST_RESUME_TOKEN_INVALID by the relay without being forwarded, and a repeated query parameter is forwarded with its values joined by commas, which the Control Plane refuses with the same code.",
+        "parameters": [
+          {
+            "name": "resumeToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ResumeToken"
+            },
+            "description": "The last processed event sequence, exactly as a previous page returned it. Omit it, or send it empty, to read from the beginning."
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "description": "The body form of the same token. HTTP gives a GET body no defined meaning; this route reads it because the relay forwards a GET body as it does a POST body.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "One page of assignment events.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentPage"
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "413": { "$ref": "#/components/responses/PayloadTooLarge" },
+          "429": { "$ref": "#/components/responses/TooManyPendingCalls" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
+          "504": { "$ref": "#/components/responses/AnswerTimedOut" }
+        }
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "Lease": {
+        "description": "The instance's current lease and lifecycle position.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/LeaseResponse"
+            }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "The call cannot be forwarded as a bounded frame (RUNTIME_HOST_RELAY_INVALID: a body over maximumRequestBodyBytes once decoded as UTF-8), its body is not the JSON the route reads (RUNTIME_HOST_REQUEST_INVALID), or its resume token is not one the stream issued (RUNTIME_HOST_RESUME_TOKEN_INVALID).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/RelayRefusal"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The agent-stamped Pod incarnation does not fit this call: it was stamped under an earlier fleet session (RUNTIME_HOST_STALE_EPOCH), it names another workload generation of this Pod (RUNTIME_HOST_WRONG_GENERATION), or a heartbeat's sequence does not move forward (RUNTIME_HOST_STALE_SEQUENCE).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/RelayRefusal"
+            }
+          }
+        }
+      },
+      "TransitionRefused": {
+        "description": "The lifecycle refuses the transition from the instance's honest current state.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/RelayRefusal"
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "RUNTIME_HOST_INSTANCE_PENDING: the cluster agent has not yet reported this Pod incarnation, so there is no instance to answer for yet. It is retryable: repeat the identical call after retryAfterSeconds, and it succeeds once the observation arrives. A build whose compiled runtime-host gate is closed answers RUNTIME_HOST_UNAVAILABLE instead (see the gate extension).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/RelayRefusal"
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "The request body is larger than maximumRequestBodyBytes. No body."
+      },
+      "TooManyPendingCalls": {
+        "description": "maximumPendingCalls calls of this Pod are already waiting for their answers. Nothing was forwarded. No body."
+      },
+      "AnswerTimedOut": {
+        "description": "No answer arrived within answerTimeoutSeconds. The call may or may not have taken effect. No body."
+      }
+    },
+    "schemas": {
+      "HeartbeatRequest": {
+        "type": "object",
+        "required": [
+          "sequence"
+        ],
+        "properties": {
+          "sequence": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "The workload's heartbeat counter: 1 for a process's first heartbeat, then one more for each. Values below 1 are not refused, and are outside the contract."
+          }
+        }
+      },
+      "ReserveRequest": {
+        "type": "object",
+        "required": [
+          "seconds"
+        ],
+        "properties": {
+          "seconds": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "maximum": 600,
+            "description": "The requested reservation window in seconds. A value outside the bounds is clamped to them, not refused."
+          }
+        }
+      },
+      "AssignmentsRequest": {
+        "type": "object",
+        "properties": {
+          "resumeToken": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/ResumeToken" },
+              { "type": "null" }
+            ],
+            "description": "The last processed event sequence, exactly as a previous page returned it. Absent, null or empty reads from the beginning."
+          }
+        }
+      },
+      "ResumeToken": {
+        "type": "string",
+        "pattern": "^[0-9]*$",
+        "description": "Unsigned decimal digits naming an event sequence, fitting a signed 64-bit integer and not ahead of the stream's head. A page issues it without leading zeros."
+      },
+      "LeaseResponse": {
+        "type": "object",
+        "required": [
+          "instanceId",
+          "state",
+          "heartbeatSequence",
+          "leaseExpiresAt",
+          "eventSequence"
+        ],
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The instance the Control Plane resolved from the agent's stamp. Diagnostic only: no route on this surface takes it."
+          },
+          "state": {
+            "$ref": "#/components/schemas/RuntimeHostState"
+          },
+          "heartbeatSequence": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The last accepted heartbeat sequence; 0 before the first heartbeat."
+          },
+          "leaseExpiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the lease lapses without a further heartbeat. A lapsed lease reads Unknown, withdraws readiness and voids a reservation; it never implies deletion."
+          },
+          "eventSequence": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "The instance's newest assignment-event sequence; usable as a resume token."
+          }
+        }
+      },
+      "AssignmentEvent": {
+        "type": "object",
+        "required": [
+          "sequence",
+          "kind",
+          "state",
+          "allocationId",
+          "occurredAt"
+        ],
+        "properties": {
+          "sequence": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "kind": {
+            "type": "string",
+            "description": "The audit event kind, in lower case: for example registered, heartbeat, ready, reserved, allocated, allocation-released, readiness-withdrawn, lease-expired, draining, drain-complete, drain-deadline-forced or terminated."
+          },
+          "state": {
+            "$ref": "#/components/schemas/RuntimeHostState"
+          },
+          "allocationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The allocation the instance held when the event was recorded; null when it held none."
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AssignmentPage": {
+        "type": "object",
+        "required": [
+          "events",
+          "resumeToken"
+        ],
+        "properties": {
+          "events": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/AssignmentEvent"
+            }
+          },
+          "resumeToken": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "description": "Send back verbatim to continue after the last event of this page; a page with no events repeats the token it was read with."
+          },
+          "headState": {
+            "$ref": "#/components/schemas/RuntimeHostState",
+            "description": "The instance's current lifecycle state when the page was read, as the allocator observes it; it can be newer than the newest event. Absent from a Control Plane that predates it. A consumer must treat a state name it does not know as not ready."
+          },
+          "headSequence": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "The newest event's sequence when the page was read: never less than any event's sequence on the page, and a resume token equal to it has read every event. Absent from a Control Plane that predates it."
+          }
+        }
+      },
+      "RuntimeHostState": {
+        "type": "string",
+        "enum": [
+          "Starting",
+          "Healthy",
+          "Ready",
+          "Reserved",
+          "Allocated",
+          "Draining",
+          "ShutdownRequested",
+          "Terminated",
+          "Unknown"
+        ],
+        "description": "The nine-state runtime-host lifecycle. Unknown means the lease lapsed and the Control Plane makes no claim about the process; it never implies deletion."
+      },
+      "RelayRefusal": {
+        "type": "object",
+        "required": [
+          "code",
+          "detail"
+        ],
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/RelayRefusalCode"
+          },
+          "detail": {
+            "type": "string",
+            "description": "A fixed sentence naming the cause. It never quotes the request."
+          },
+          "retryAfterSeconds": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "description": "Present only with RUNTIME_HOST_INSTANCE_PENDING: how long to wait before repeating the identical call. The relay hop carries no headers, so this is the wire's Retry-After."
+          }
+        }
+      },
+      "RelayRefusalCode": {
+        "type": "string",
+        "description": "Every code this surface answers with. RUNTIME_HOST_INSTANCE_PENDING is the one retryable member. RUNTIME_HOST_WRONG_POD, RUNTIME_HOST_INSTANCE_NOT_FOUND and RUNTIME_HOST_BINDING_REJECTED belong to the instance-addressed contract and are never answered here: the instance is found by the Pod the agent stamped, so it is always that Pod's and always exists, and there is no binding envelope to reject.",
+        "enum": [
+          "RUNTIME_HOST_RELAY_INVALID",
+          "RUNTIME_HOST_RELAY_ALLOCATION_BACKEND_ONLY",
+          "RUNTIME_HOST_REQUEST_INVALID",
+          "RUNTIME_HOST_RESUME_TOKEN_INVALID",
+          "RUNTIME_HOST_STALE_EPOCH",
+          "RUNTIME_HOST_WRONG_GENERATION",
+          "RUNTIME_HOST_STALE_SEQUENCE",
+          "RUNTIME_HOST_NOT_READY",
+          "RUNTIME_HOST_READINESS_EVIDENCE_REQUIRED",
+          "RUNTIME_HOST_ALREADY_ALLOCATED",
+          "RUNTIME_HOST_INVALID_TRANSITION",
+          "RUNTIME_HOST_SHUTDOWN_IN_PROGRESS",
+          "RUNTIME_HOST_TERMINATED",
+          "RUNTIME_HOST_INSTANCE_PENDING",
+          "RUNTIME_HOST_UNAVAILABLE"
+        ]
+      }
+    }
+  }
+}

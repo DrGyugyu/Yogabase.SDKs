@@ -23,6 +23,7 @@ fi
 (cd "$repo_root/contracts" && shasum -a 256 -c yogabase-builds-v1.openapi.sha256)
 (cd "$repo_root/contracts" && shasum -a 256 -c yogabase-delivery-v1.openapi.sha256)
 (cd "$repo_root/contracts" && shasum -a 256 -c yogabase-runtime-host-v1.openapi.sha256)
+(cd "$repo_root/contracts" && shasum -a 256 -c yogabase-runtime-host-self-v1.openapi.sha256)
 (cd "$repo_root" && "$dotnet_exe" tool restore --tool-manifest "$tool_manifest")
 
 stage="$(mktemp -d "$repo_root/.regeneration.XXXXXX")"
