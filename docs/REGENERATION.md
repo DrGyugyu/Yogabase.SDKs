@@ -8,6 +8,8 @@ synchronizes only generated source roots. The application contract — which car
 delivery contract additionally generates the Java and Dart low-level protocol clients used by their
 authored delivery facades.
 
+> **Frozen 2026-10-21:** the Java, Python and Dart regeneration steps are not run while those packages are frozen (see the README): the Python, Java and Dart `generate_application` calls and the Java and Dart `generate_delivery` calls are skipped until a user asks, and their trees stay as committed. TypeScript is the only generated client still regenerated. The script and the descriptions below are unchanged and still record how all of them were made.
+
 Every document under `contracts/` is a byte-identical copy of the product repository's
 `docs/api/` file of the same name. Re-syncing one means copying the product file, regenerating its
 `.sha256` sidecar with `shasum -a 256`, and updating the digest wherever `ContractDigestTests` pins
