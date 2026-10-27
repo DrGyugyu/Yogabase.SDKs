@@ -1,66 +1,224 @@
-# Yogabase SDKs
+# Yogabase
 
 English | [한국어](README.ko.md)
 
-Client SDK previews for applications built on **Yogabase**.
+**One control plane for application developers on Kubernetes**: a managed YugabyteDB (YSQL)
+database, sign-in, functions, storage, realtime and messaging from the browser, every change
+previewed and audited, everything inside your own cluster.
 
-Yogabase is a .NET 10 Control Plane that installs into any conformant Kubernetes cluster and gives an application developer a managed database plus sign-in, Lambdas, storage, realtime, and hosted game servers. This repository is independent of the Yogabase product itself — its Helm chart, images, Control Plane, and release graph; the only thing it takes from the product is byte-identical copies of the product's published OpenAPI contracts. It contains application-facing, workload-delivery, runtime-host, and Lambda-context client libraries, a Unity package with an Editor publisher, a diagnostic sample, and their contract fixtures; it is not a Kubernetes operator, a cloud-provisioning tool, or a generic management SDK.
+This repository is the public home of Yogabase: the product overview below, and the open-source
+client SDKs (Apache-2.0) that applications use against an installation. The product itself (its
+Helm chart, images, Control Plane and operator) is closed source and is distributed as one chart
+and one image family; its AWS Marketplace listing is being prepared. The only thing this
+repository takes from the product is byte-identical copies of its published OpenAPI contracts.
 
-> **Status:** the source in this repository is public under Apache-2.0 on GitHub (https://github.com/DrGyugyu/Yogabase.SDKs). The packages are previews built from this source; none is on a registry yet (NuGet, npm, PyPI, Maven Central, pub.dev, or a UPM registry), so each is consumed from a checkout.
+> **Status, 2026-10-27.** The product is complete for its first release and its install, database,
+> Valkey, RobustMQ and console suites have passed on real clusters; the release build itself is
+> still ahead. The SDK packages are previews built from this source; none is on a registry yet
+> (NuGet, npm, PyPI, Maven Central, pub.dev or a UPM registry), so each is consumed from a checkout.
+> Two SDK languages are supported until a user asks for a third: .NET (including the Unity builds)
+> and TypeScript. The Java, Python and Dart packages are frozen (owner decision, 2026-10-21): their
+> code stays as it is, nothing is deleted, but they are no longer maintained, regenerated, tested or
+> aligned to the product's contract changes until a user asks; their rows in the Packages table keep
+> the facts last recorded.
 
-> **Status, 2026-10-21:** two SDK languages until a user asks for a third. The supported clients are .NET (including the Unity builds) and TypeScript; they remain previews. The Java, Python and Dart packages are frozen (owner decision, 2026-10-21): their code stays in this repository as it is and nothing is deleted, but until a user asks they are no longer maintained, regenerated, tested or aligned to the product's contract changes, and the parity records (`docs/PARITY_*.md`) and the `docs/REGENERATION.md` runs stop for them. Their rows in the Packages table below keep the facts last recorded.
+## What Yogabase is
 
-## What Yogabase does
+Yogabase is a Kubernetes-native control plane for application developers. You install one Control
+Plane into a cluster you already run and, from a browser and without a terminal, get a project with
+a YugabyteDB (YSQL) database, sign-in for your application's users, functions (Lambdas) built and
+released by the installation itself, object storage, realtime delivery and messaging. Operators
+manage databases and clusters through the same console and a REST API, with every mutation
+previewed, concurrency-checked, idempotent, durable and recorded.
 
-Yogabase gives a team one authoritative place to create, deploy, observe, and operate its databases and application backends on Kubernetes. Its first scope is **Yogabase Core**: a managed YugabyteDB lifecycle with **YSQL** as the supported database API, a Blazor Console, and a central Control Plane; the application platform around it adds sign-in, Lambdas, storage, realtime, and hosted game servers. Cluster provisioning is an optional binding with AWS, Azure, Google Cloud, and Oracle Cloud profiles, none of which has passed qualification yet.
+**It runs entirely in your cluster.** There is no vendor-hosted service, no telemetry endpoint and
+no data path out of your cluster other than the image pulls, the sign-in federation you configure
+and a backup destination you set up yourself. Secret material exists only as Kubernetes Secrets in
+your own clusters, never in Helm values, resource status, logs, audit records, support bundles or
+browser state.
 
-It is one Kubernetes product — one Helm chart and one coordinated image family — that installs into any conformant Kubernetes cluster, from a local k3d cluster to Amazon EKS. An AWS Marketplace listing is one optional distribution of that product, not its identity. The chart has two installation modes:
+**Pure Kubernetes.** One Helm chart and one image family install into any conformant cluster
+(Kubernetes 1.33 to 1.36, arm64 nodes): a developer's k3d cluster, kubeadm on your own machines or
+on EC2, or Amazon EKS. Yogabase needs no EKS, ECS, CloudFront or other cloud service to run; an AWS
+object store or workload identity is an optional binding, and AWS is the only cloud it binds to.
 
-| Mode | Role |
+**Operations are guarded by design.** Changes are previewed before they run, are idempotent and
+concurrency-checked, and are recorded in the audit log. By default an operation is approved by
+installation policy when it is submitted; independent (four-eyes) approval is a policy any
+installation may declare. Deletion is never inferred from missing inventory: it requires an explicit
+tombstone bound to the exact resource. Local reconciliation continues when the Control Plane is
+unreachable, and an offline member starts no destructive or provisioning work.
+
+**Sign-in is yours.** Console operators sign in with named seats or through your own OIDC provider
+(Microsoft Entra ID and Google presets); your application's users sign in to the application
+gateway with e-mail and password or an external provider. No console identity authenticates product
+APIs, databases or application users.
+
+**Members connect outbound.** Additional clusters enrol over mutually authenticated gRPC and expose
+no inbound management endpoint. Agent certificates are short-lived and rotate automatically.
+
+## What it does
+
+### Databases
+
+| | |
 |---|---|
-| `control-plane` | Runs the authoritative Control Plane, Console, REST API, fleet gateway, billing, the local actuator/agent, and its dedicated YSQL catalog (RF1 by default). The Pulumi provisioning worker renders only when provisioning is enabled, Marketplace entitlement and metering stay dormant unless an AWS Marketplace binding is configured, and the Yogabase-owned object store is optional. |
-| `member` | Runs the lightweight services installed in each managed cluster: the outbound fleet agent and the deterministic local actuator, plus the optional Yogabase-owned object store. |
+| Engine | YugabyteDB 2025.2.5.2 (the vendor's release; PostgreSQL 15 compatible), YSQL only, with TLS and client-certificate authentication; seven curated extensions |
+| Topology | replication factor 1, 3 or 5; masters equal the RF; TServers from the RF up to 700; RF1 in exactly one zone; storage class, volume count and RF immutable after creation |
+| Operations | scale-out one TServer at a time, compute resize, storage expansion (never shrinks), backup, restore into a new or empty database, backup deletion, health check, diagnostics, redacted support bundle, delete, client identity issue, revoke and rotate, extension enablement, volume reclaim: seventeen signed operations in all, each bound to the exact resource it targets |
+| Schema | Table Editor, SQL Editor and Migrations in the console run your SQL as digest-bound migrations through a dedicated schema identity; no client SDK contract carries SQL |
+| GitOps | deterministic YAML export and diff for your own repository; Yogabase never pushes |
+| Backups | to the installation's own object store (a Yogabase role, the default) or to Amazon S3 |
 
-The Control Plane is Yogabase's sole source of accepted management intent. A member never exposes an inbound management API, never decides product policy, and never becomes a peer control plane. Members connect **outbound** to the Control Plane over mutually authenticated gRPC, persist signed target-bound intent, and keep reconciling already accepted local work while the Control Plane is unavailable.
+### The application platform, per environment
+
+Each project has environments; each environment opts into the capabilities it needs in the
+console's Designer. Every module switch ships on in the chart except on-demand execution of
+untrusted C# source.
+
+| Capability | What ships |
+|---|---|
+| Application sign-in | sign-up, sign-in, sign-out, e-mail confirmation, password reset, MFA (TOTP and recovery codes), up to eight external OIDC providers, refresh-token rotation; sign-up needs an e-mail transport or confirmation switched off |
+| Data API | select, insert, upsert, update, delete on project tables, under row-level security as the signed-in user |
+| Storage | object put and get through the gateway, never a provider credential or signed URL |
+| Realtime | a SignalR hub with topics, Lambda-published events and presence |
+| Remote Config | per project and environment, served by the Control Plane |
+| Stateless Functions | REST and gRPC invoke of a registered version; 1 MiB payload |
+| Actor and Workflow Lambdas | versioned, project-local actors with reminders; immutable workflow definitions with start and cancel |
+| Dynamic Code | C# written in the console, compiled, scanned and signed by the installation's own builder, then released |
+| Sandbox | one load context per invocation, unloaded afterwards; egress limited to the project's database, gateway and Valkey |
+| Scheduler and Jobs | cron or one-shot schedules with ETag preconditions, misfire and concurrency policies; durable jobs with result and cancel |
+| Hosted self-contained services | upload an archive (a game server, say), have it inventoried, scanned and signed, then run and allocated through `/v1/servers` |
+| Valkey | standalone or primary-replica with promotion; direct project-scoped access from Lambdas, a distributed cache, the realtime backplane, presence and rate-limit stores |
+| RobustMQ messaging | MQTT publish; Kafka and AMQP publish over mutual TLS; durable queues with receive and acknowledge; durable streams; replay from an offset or a time; shared and independent consumer groups; consumer triggers that invoke Lambdas at least once; change-data capture of selected YSQL tables |
+| External consumers | Kafka and AMQP consumers against your own TLS brokers, writing to the YSQL ledger with a dead-letter queue |
+
+### The console
+
+A Blazor console with four rail groups: **Core** (projects, Get started, database topology,
+operations, and per environment Connect, Table Editor and SQL Editor), **Extended** (the Designer
+and the modules the installation offers), **Enterprise** (audit, approvals, migrations; the parts
+not built say so) and **Operate** (overview, nodes, observability, diagnostics, integrations,
+trusted publishers, installation settings, access, and per-project logs, usage and settings). A
+first-time developer follows one linear path: create a database, choose capabilities, connect a
+client, build and release. Unfinished screens are visible and disabled rather than hidden or faked.
+
+### Installation and operations
+
+- **Modes:** `control-plane` or `member`; cluster kinds `generic`, `eks` or `self-managed`.
+- **Material:** the chart's pre-install hook mints the installation's own material (catalog
+  certificates, broker TLS, application identity keys, object-store material, admission and Lambda
+  keys), create-only and immutable; you make seven Secrets of your own and receive one
+  vendor-signed attestation.
+- **Exposure:** ClusterIP, Ingress, LoadBalancer or NodePort for the Control Plane; host ports or a
+  NodePort per instance for hosted services.
+- **Members:** join outbound over mutual-TLS gRPC; the Control Plane approves a join by key
+  fingerprint; member certificates last a day and renew themselves.
+- **Assurance:** every mutation previewed, concurrency-checked, idempotent, audited; one approval
+  policy per installation; secret values never in browser state, resource status, logs, audit
+  records or support bundles; every image pinned by digest, non-root, with no runtime downloads;
+  the chart has no external chart or image dependencies.
+
+### Not in this release
+
+- **YSQL only.** YCQL is not available.
+- **No automatic scale-in, point-in-time recovery, downgrade or engine upgrade** (a new chart
+  version carries the engine it pins); no cross-cluster databases.
+- **One Control Plane instance by design.** While it is down, the console and API are unavailable
+  and no new operations start; running databases keep serving.
+- **arm64 only.** No amd64 images ship.
+- **Enterprise is a library of capabilities, not a tier.** Audit, approvals and migrations are on
+  every installation; authorizations, database assurance tiers, installation-wide backup, disaster
+  recovery, performance, workload security, maintenance and data movement are not built and say so.
+- RobustMQ's native Kafka and AMQP protocol endpoints are not offered (applications reach messaging
+  through their functions); RobustMQ runs single-node; Valkey has no backup or restore; execution
+  of untrusted C# source on demand ships off.
+- Not yet exercised on a real tenant or cluster: the external sign-in providers, the AWS IAM
+  Identity Center preset, a load balancer in front of the console, arm64 nodes on EKS.
 
 ## Where Yogabase runs
 
 ![Yogabase installs as one Kubernetes product into any conformant cluster; a cloud object store, workload identity, cluster provisioning, and AWS Marketplace are optional bindings](assets/yogabase-installation.svg)
 
-One Yogabase release — one Helm chart and one image family — installs into any conformant Kubernetes cluster, from a developer's k3d cluster to Amazon EKS. The installation is identified by the cluster it runs in, attested at enrollment: the Control Plane's own cluster enrolls itself as the first member, and further clusters install the same chart in `member` mode and connect outbound. A cloud object store, workload identity, cluster provisioning, and an AWS Marketplace entitlement are each an optional binding attached independently; none of them is the installation's identity, and installing needs none of them. Installing does need a node pool labelled and tainted `yogabase.io/workload=true` and chart values, among them the catalog's StorageClass, `controlPlane.targetId`, a Secret holding the Data Protection key-encryption key, and console sign-in through either an OIDC issuer or a Secret of seat claim tokens. The chart discovers neither a StorageClass nor node zones, so its catalog names both in values; once a cluster is enrolled, its member Agent reports the cluster's StorageClasses and node zones to the Control Plane. The AWS Marketplace listing is one optional distribution of the same chart and images, whose entitlement gate and metering stay dormant unless that binding is configured; it has not yet passed its release qualification.
+One Yogabase release, one Helm chart and one image family, installs into any conformant Kubernetes
+cluster, from a developer's k3d cluster to Amazon EKS. The installation is identified by the cluster
+it runs in, attested at enrollment: the Control Plane's own cluster enrols itself as the first
+member, and further clusters install the same chart in `member` mode and connect outbound. A cloud
+object store, workload identity, cluster provisioning and an AWS Marketplace entitlement are each an
+optional binding attached independently; none of them is the installation's identity, and installing
+needs none of them. Installing does need nodes labelled `yogabase.io/workload=true` (a matching
+`NoSchedule` taint is optional and tolerated), a StorageClass, network policy enforcement, and
+chart values among them the catalog's StorageClass and zones, `controlPlane.targetId`, a Secret
+holding the Data Protection key-encryption key, and console sign-in through either an OIDC issuer
+or a Secret of seat claim tokens. The chart discovers neither a StorageClass nor node zones, so its
+catalog names both in values; once a cluster is enrolled, its member Agent reports the cluster's
+StorageClasses and node zones to the Control Plane. The AWS Marketplace listing is one optional
+distribution of the same chart and images, whose entitlement gate and metering stay dormant unless
+that binding is configured.
 
 ## Console experience
 
 ![The Yogabase Console's Get started page for a demo project](assets/yogabase-console-get-started.png)
 
-_A real capture of the Console's Get started page, taken on 2026-09-22 at 1440 px in the light appearance from the product's own browser-test harness with demo data — a project "Arena", its default environment on an enrolled local cluster, and a database the harness marks healthy — not a customer installation or live status. A developer lands here after signing in: setup status, the environment's infrastructure design, then Data, Compose, and Deploy. The rail groups the Console into Core, Extended, Enterprise, and Operate; Enterprise and Operate start collapsed._
+_A real capture of the Console's Get started page, taken on 2026-09-22 at 1440 px in the light
+appearance from the product's own browser-test harness with demo data, not a customer installation
+or live status. The page has since been redesigned (2026-10-22) as one linear path of four steps:
+add a database, choose capabilities, connect a client, build and release. The rail groups the
+Console into Core, Extended, Enterprise and Operate; Enterprise and Operate start collapsed._
 
 ## How the architecture works
 
 ![Yogabase Control Plane and member architecture](assets/yogabase-architecture.svg)
 
-Approval follows the installation's approval policy (approved at submission by default), and the Provisioner is present only when the optional provisioning binding is enabled.
+Approval follows the installation's approval policy (approved at submission by default), and the
+Provisioner is present only when the optional provisioning binding is enabled.
 
-The local actuator is intentionally subordinate. It is the only component that writes Yogabase-owned Kubernetes workloads, but it can translate only Control Plane-signed, allowlisted intent into deterministic resources. It does not read arbitrary Secrets, execute commands in Pods, or originate management policy.
+The local actuator is intentionally subordinate. It is the only component that writes Yogabase-owned
+Kubernetes workloads, but it can translate only Control Plane-signed, allowlisted intent into
+deterministic resources. Its own role grants no Secret read; the release namespace is the trust
+boundary for the installation's keys. It does not execute commands in Pods or originate management
+policy.
 
 ### Cloud and target identity
 
-Installation identity is the Kubernetes cluster Yogabase is installed into, attested at enrollment; it is never a console dropdown or a client API parameter. A cloud object store, workload identity, or cluster provisioning is an optional binding attached independently, and a cloud provider names the vendor of such a binding, not the installation. Each member's cluster identity is attested during enrollment. Provisioning, when used, stays behind a .NET `ICloudProvisioner` boundary with Pulumi .NET programs; installing or operating Yogabase never requires it, and the product keeps one provider-neutral Control Plane and one Helm chart.
+Installation identity is the Kubernetes cluster Yogabase is installed into, attested at enrollment;
+it is never a console dropdown or a client API parameter. A cloud object store, workload identity,
+or cluster provisioning is an optional binding attached independently, and a cloud provider names
+the vendor of such a binding, not the installation. Each member's cluster identity is attested
+during enrollment. Provisioning, when used, stays behind a .NET `ICloudProvisioner` boundary with
+Pulumi .NET programs and is off in this release; installing or operating Yogabase never requires
+it, and the product keeps one provider-neutral Control Plane and one Helm chart.
 
-Console sign-in is the installation's choice of named seats or an external OIDC provider, with an optional AWS IAM Identity Center preset. A console identity never authenticates application or SDK calls.
+Console sign-in is the installation's choice of named seats or an external OIDC provider (Microsoft
+Entra ID and Google presets; an AWS IAM Identity Center preset exists but has not been exercised).
+A console identity never authenticates application or SDK calls.
 
 ### Database operations
 
-Core manages logical YugabyteDB database services on selected Kubernetes clusters. It supports YSQL-first database lifecycle, health/topology visibility, explicit RF1/RF3/RF5 topology selection, guarded scale-out, compute resize, storage expansion, allowlisted patch upgrades, safe deletion, retained PVCs, diagnostics, and redacted support bundles. The Console also offers logical encrypted backup, and restore into a new or empty target, as durable operations on each database; neither has passed live qualification yet.
+Core manages logical YugabyteDB database services on selected Kubernetes clusters. It supports
+YSQL-first database lifecycle, health and topology visibility, explicit RF1, RF3 and RF5 topology
+selection, guarded scale-out, compute resize, storage expansion, safe deletion, retained volumes,
+diagnostics and redacted support bundles. Logical encrypted backup, restore into a new or empty
+target and backup deletion are durable operations on each database; their round trip to the
+installation's own store ran as a conformance profile on a self-hosted installation on 2026-09-24.
 
 Every change is designed as a durable operation:
 
 1. Yogabase produces a preview of the exact requested change.
 2. The request is checked against the current resource revision and an idempotency key.
-3. The installation's approval policy decides whether the change waits: the shipped default approves it at submission by installation policy, and independent (four-eyes) approval is an Enterprise-tier opt-in.
-4. Accepted work is auditable, recoverable, and reports bounded observed facts rather than fabricated status.
+3. The installation's approval policy decides whether the change waits: the shipped default
+   approves it at submission by installation policy, and independent (four-eyes) approval is a
+   policy any installation may declare.
+4. Accepted work is auditable, recoverable, and reports bounded observed facts rather than
+   fabricated status.
 
-No client SDK contract carries SQL. The Console runs developer DDL and DML only from its Table Editor, SQL Editor, and Migrations page, through the `schema-runner` role as the environment's schema identity, with every write recorded as a digest-bound migration; a Lambda's own code reaches its project database server-side. Yogabase does not expose engine-internal topology as a client contract, remote shell access, `pods/exec` workflows, peer gossip, or an alternate control plane. YCQL, automatic scale-in, PITR, downgrade, and cross-cluster database deployments are outside the current Core scope.
+No client SDK contract carries SQL. The Console runs developer DDL and DML only from its Table
+Editor, SQL Editor, and Migrations page, through the `schema-runner` role as the environment's
+schema identity, with every write recorded as a digest-bound migration; a Lambda's own code reaches
+its project database server-side. Yogabase does not expose engine-internal topology as a client
+contract, remote shell access, `pods/exec` workflows, peer gossip, or an alternate control plane.
+YCQL, automatic scale-in, PITR, downgrade, engine upgrade and cross-cluster database deployments
+are outside the current scope.
 
 ### What happens during an operation
 
@@ -68,13 +226,21 @@ No client SDK contract carries SQL. The Console runs developer DDL and DML only 
 
 ### Security boundaries
 
-YSQL traffic is certificate-based and fail-closed: node-to-node and client-to-server TLS are required, and client certificate identities are explicitly allowlisted. Secret values do not belong in browser state, resource status, logs, audit records, Pulumi output, or support bundles.
+YSQL traffic is certificate-based and fail-closed: node-to-node and client-to-server TLS are
+required, and client certificate identities are explicitly allowlisted. The YCQL listener is not
+started. Secret values do not belong in browser state, resource status, logs, audit records, Pulumi
+output, or support bundles.
 
-The product keeps the public Kubernetes API intentionally small: `YogaDatabase`, `YogaDatabaseOperation`, `YogaApplicationRuntime`, `YogaValkey`, and `YogaRobustMQCluster`. These resources are not a substitute for the Control Plane; they are signed desired-state inputs and bounded local observations.
+The product keeps the public Kubernetes API intentionally small: `YogaDatabase`,
+`YogaDatabaseOperation`, `YogaApplicationRuntime`, `YogaValkey`, and `YogaRobustMQCluster`. These
+resources are not a substitute for the Control Plane; they are signed desired-state inputs and
+bounded local observations.
 
 ### Direct and GitOps use
 
-Direct operation through Yogabase is authoritative. GitOps support exports deterministic YAML and diffs for the customer's own local Git workflow; Yogabase does not push branches, create pull requests, or write to customer repositories.
+Direct operation through Yogabase is authoritative. GitOps support exports deterministic YAML and
+diffs for the customer's own local Git workflow; Yogabase does not push branches, create pull
+requests, or write to customer repositories.
 
 ## Custom build delivery and Kubernetes
 
@@ -158,16 +324,16 @@ These surfaces changed on 2026-09-17. The product implements each of the followi
 
 ## Capability truth
 
-Yogabase reports module and protocol availability from signed observations and release-locked evidence. Configuration alone is never treated as a successful deployment. A capability gate opens on passing local conformance evidence (k3d runs and in-process rehearsals); real-cloud runs are follow-up validation, not prerequisites.
+Yogabase reports module and protocol availability from signed observations and release-locked evidence. Configuration alone is never treated as a successful deployment. A capability gate opens on passing local conformance evidence (k3d runs and in-process rehearsals); real-cloud runs are follow-up validation, not prerequisites. Twenty-three of the product's 27 compiled gates are open; the four closed ones are the AWS Marketplace gates and vendor-created clusters.
 
 | Area | Current boundary |
 |---|---|
-| Core | The primary product scope: managed YugabyteDB/YSQL operations as durable operations under the installation's approval policy (approved at submission by default; four-eyes approval is an Enterprise opt-in). |
+| Core | The primary product scope: managed YugabyteDB/YSQL operations as durable operations under the installation's approval policy (approved at submission by default; independent four-eyes approval is a policy any installation may declare). |
 | Application modules | Authentication, Storage, Realtime (SignalR), and Remote Config ship enabled in the chart. Realtime requires Authentication, and Storage reports that it is waiting for an object store until one is bound. |
-| YB Lambda (formerly Extended) | Stateless Functions, Actor Lambdas, Workflow Lambdas, Dynamic Code, the sandbox, Scheduler/Jobs and consumer triggers, plus hosted self-contained services, with optional Orleans, SignalR, Redis (Valkey), Kafka and RabbitMQ/AMQP (RobustMQ) APIs. These ship enabled in the chart, and the capabilities behind compiled evidence gates (hosted services, the runtime host, consumers and consumer triggers, and the Lambda Valkey and RobustMQ APIs) are qualified on local evidence (in-process rehearsals and k3d conformance runs). A function written in the Console is compiled, scanned, and signed by the installation's own builder and then released; the separate dynamic Stateless and Actor Lambda modules, which execute customer-submitted C# on demand, stay off, and Lambdas triggered from a RobustMQ AMQP queue are out of the current scope. A Lambda-side typed data API and Entity Framework Core exist in the product since 2026-09-23; the `Yogabase.Lambda` wrapper in this repository wraps the typed data API and the caller-scoped connection, and leaves Entity Framework Core to the bundle. The Console groups YB Lambda with Authentication, Storage, Realtime, Remote Config, Valkey and RobustMQ under its Extended tier. |
+| YB Lambda (formerly Extended) | Stateless Functions, Actor Lambdas, Workflow Lambdas, Dynamic Code, the sandbox, Scheduler/Jobs and consumer triggers, plus hosted self-contained services, with optional Orleans, SignalR, Redis (Valkey), Kafka and RabbitMQ/AMQP (RobustMQ) APIs. These ship enabled in the chart, and the capabilities behind compiled evidence gates (hosted services, the runtime host, consumers and consumer triggers, and the Lambda Valkey and RobustMQ APIs) are qualified on local evidence (in-process rehearsals and k3d conformance runs). A function written in the Console is compiled, scanned, and signed by the installation's own builder and then released; the separate dynamic Stateless and Actor Lambda modules, which execute customer-submitted C# on demand, stay off. Consumer triggers from RobustMQ queues, and external Kafka and AMQP consumers against a customer's own brokers, are qualified on local evidence. A Lambda-side typed data API and Entity Framework Core exist in the product since 2026-09-23; the `Yogabase.Lambda` wrapper in this repository wraps the typed data API and the caller-scoped connection, and leaves Entity Framework Core to the bundle. The Console groups YB Lambda with Authentication, Storage, Realtime, Remote Config, Valkey and RobustMQ under its Extended tier. |
 | Valkey | Uses a Yogabase-owned C# reconciler. Lifecycle, Job-actuated promotion, and Redis protocol semantics are qualified on local conformance evidence, as is direct Lambda access over TLS under a per-project ACL identity; real-cloud runs remain follow-up validation. |
-| RobustMQ | Uses a bounded Yogabase-owned C# lifecycle port. Lifecycle and authenticated MQTT are qualified on local evidence, as are gateway-mediated Lambda publication over MQTT, Kafka and AMQP and Kafka consumer triggers. Native Kafka and AMQP client TLS, and arbitrary external Kafka or AMQP clients of the broker, remain unqualified. |
-| Enterprise | Independent (four-eyes) approval is the Enterprise-tier policy an installation opts into. The Console's Enterprise group lists Audit, Approvals, Authorizations, database SWE assurance tiers, Migrations, and Backup and locks every row on a pre-Enterprise installation, although audit records, schema migrations, and database backup operations exist on every tier; database assurance tiers are not implemented on any tier. |
+| RobustMQ | Uses a bounded Yogabase-owned C# lifecycle port. Lifecycle and authenticated MQTT are qualified on local evidence, as are gateway-mediated Lambda publication over MQTT, Kafka and AMQP, durable queues and streams, replay, consumer groups and consumer triggers. The broker's native Kafka and AMQP protocol endpoints are not offered: applications reach messaging through their functions. The broker runs single-node. |
+| Enterprise | A library of capabilities, not a tier. The Console's Enterprise group offers Audit, Approvals (showing the installation's policy) and Migrations on every installation; Authorizations, database assurance tiers and installation-wide Backup are shown as not built; disaster recovery, performance, workload security, maintenance and data movement are reported as one unavailable entry. |
 
 This README describes product architecture and boundaries, not a promise that a disabled or evidence-gated capability is currently enabled.
 

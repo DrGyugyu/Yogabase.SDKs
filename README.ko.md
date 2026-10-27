@@ -1,6 +1,8 @@
-# Yogabase SDKs
+# Yogabase
 
 한국어 | [English](README.md)
+
+> **2026-10-27:** 영문 README가 Yogabase 제품 전체를 설명하는 문서로 다시 쓰였습니다(제품 개요, 기능, 콘솔, 설치, 이번 릴리스에 포함되지 않는 것, 그리고 SDK). 이 한국어 문서는 그 이전 판을 따르며, 제품 설명은 [영문 README](README.md)를 기준으로 합니다.
 
 **Yogabase** 기반 애플리케이션을 위한 클라이언트 SDK 프리뷰입니다.
 
