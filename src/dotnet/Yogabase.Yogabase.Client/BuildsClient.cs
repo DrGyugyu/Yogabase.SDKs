@@ -251,6 +251,14 @@ public sealed class YogabaseBuildCheck
     /// </summary>
     public bool Passed { get; set; }
 
+    /// <summary>
+    /// True while <see cref="Refusals"/> are the cluster agent's report of a failed check that the
+    /// Control Plane has not yet recorded as the build's verdict; the build's
+    /// <see cref="YogabaseBuild.State"/> then still reads <c>checking</c>, so a poll keeps going
+    /// until the verdict is recorded. False when the answer does not carry the member.
+    /// </summary>
+    public bool ReportedByClusterAgent { get; set; }
+
     /// <summary>When this check was observed.</summary>
     public DateTimeOffset ObservedAt { get; set; }
 

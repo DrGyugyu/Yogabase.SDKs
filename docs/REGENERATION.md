@@ -9,6 +9,8 @@ delivery contract additionally generates the Java and Dart low-level protocol cl
 authored delivery facades.
 
 > **Frozen 2026-10-21:** the Java, Python and Dart regeneration steps are not run while those packages are frozen (see the README): the Python, Java and Dart `generate_application` calls and the Java and Dart `generate_delivery` calls are skipped until a user asks, and their trees stay as committed. TypeScript is the only generated client still regenerated. The script and the descriptions below are unchanged and still record how all of them were made.
+>
+> A re-mirror of the application document while they are frozen (the first was on 2026-11-01) therefore regenerates TypeScript alone, and the script has no per-language switch: it rewrites the frozen trees too. Run it in a throwaway `git worktree` carrying the re-mirrored contracts and copy only `languages/typescript/src` back (`git diff -- languages/typescript | git apply` does it), so the frozen trees are never touched in the checkout. Their Kiota locks keep the description hash of the earlier document; `MANIFEST.json` records that pair as `generator.descriptionHashes.applicationFrozenTrees` beside the current one (`application`, which names only the TypeScript lock), and `ContractOperationParityTests` holds each lock to the entry that names it. Thawing a tree means regenerating it, moving its lock into `application` and deleting that entry.
 
 Every document under `contracts/` is a byte-identical copy of the product repository's
 `docs/api/` file of the same name. Re-syncing one means copying the product file, regenerating its

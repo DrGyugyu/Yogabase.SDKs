@@ -898,6 +898,7 @@ export function deserializeIntoExternalIdentityStartResponse(externalIdentitySta
 // @ts-ignore
 export function deserializeIntoGameServer(gameServer: Partial<GameServer> | undefined = {}) : Record<string, (node: ParseNode) => void> {
     return {
+        "address": n => { gameServer.address = n.getStringValue(); },
         "networkPorts": n => { gameServer.networkPorts = n.getCollectionOfObjectValues<GameServerPort>(createGameServerPortFromDiscriminatorValue); },
         "serverId": n => { gameServer.serverId = n.getStringValue(); },
         "state": n => { gameServer.state = n.getStringValue(); },
@@ -1325,6 +1326,10 @@ export interface ExternalIdentityStartResponse extends Parsable {
     state?: string | null;
 }
 export interface GameServer extends Parsable {
+    /**
+     * The instance's address in the Agones shape: the same host every networkPorts entry carries, an IP literal or a DNS name. Omitted, never empty, when no member has observed an address for this instance; clients dial host:externalPort as given.
+     */
+    address?: string | null;
     /**
      * Empty when no member has observed an address for this instance; a client must not connect to such an instance.
      */
@@ -1972,6 +1977,7 @@ export function serializeExternalIdentityStartResponse(writer: SerializationWrit
 // @ts-ignore
 export function serializeGameServer(writer: SerializationWriter, gameServer: Partial<GameServer> | undefined | null = {}, isSerializingDerivedType: boolean = false) : void {
     if (!gameServer || isSerializingDerivedType) { return; }
+    writer.writeStringValue("address", gameServer.address);
     writer.writeCollectionOfObjectValues<GameServerPort>("networkPorts", gameServer.networkPorts, serializeGameServerPort);
     writer.writeStringValue("serverId", gameServer.serverId);
     writer.writeStringValue("state", gameServer.state);

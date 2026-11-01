@@ -345,6 +345,14 @@ public sealed class ContractOperationParityTests
         Assert.All(Authored.Values, tokens => Assert.Contains(tokens, token => token.Language == language));
     }
 
+    /// <summary>
+    /// Every generated tree's Kiota lock names the description hash of the contract it was generated from, and
+    /// <c>MANIFEST.json</c> pairs that hash with the contract's SHA-256. The TypeScript tree, the one application
+    /// tree that is still regenerated, must carry the hash recorded for the mirrored application contract. The
+    /// Python, Java and Dart trees are frozen: a re-mirror leaves them as committed, so their locks must carry the
+    /// hash recorded for the earlier revision they were generated from (<c>applicationFrozenTrees</c>), which must
+    /// name a revision other than the mirrored one, so that a thaw that regenerates them has to retire the entry.
+    /// </summary>
     [Fact]
     public async Task TheKiotaLocksOfEveryGeneratedTreeTieItToTheContractItWasGeneratedFrom()
     {
@@ -354,12 +362,17 @@ public sealed class ContractOperationParityTests
             TestContext.Current.CancellationToken));
         var hashes = manifest.RootElement.GetProperty("generator").GetProperty("descriptionHashes");
 
-        foreach (var (contractKey, locks) in new (string Key, string[] Locks)[]
+        foreach (var (contractKey, contractFile, locks) in new (string Key, string ContractFile, string[] Locks)[]
         {
             (
                 "application",
+                "yogabase-client-v1.openapi",
+                ["languages/typescript/src/kiota-lock.json"]
+            ),
+            (
+                "applicationFrozenTrees",
+                "yogabase-client-v1.openapi",
                 [
-                    "languages/typescript/src/kiota-lock.json",
                     "languages/python/src/yogabase_client/kiota-lock.json",
                     "languages/java/src/main/java/io/yogabase/client/kiota-lock.json",
                     "languages/dart/lib/src/kiota-lock.json",
@@ -367,6 +380,7 @@ public sealed class ContractOperationParityTests
             ),
             (
                 "delivery",
+                "yogabase-delivery-v1.openapi",
                 [
                     "languages/java/src/main/java/io/yogabase/client/delivery/kiota-lock.json",
                     "languages/dart/lib/src/delivery/kiota-lock.json",
@@ -375,14 +389,22 @@ public sealed class ContractOperationParityTests
         })
         {
             var recorded = hashes.GetProperty(contractKey);
-            var contractFile = contractKey == "application" ? "yogabase-client-v1.openapi" : "yogabase-delivery-v1.openapi";
             var sidecar = (await File.ReadAllTextAsync(
                 Path.Combine(root, "contracts", contractFile + ".sha256"),
                 TestContext.Current.CancellationToken)).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)[0];
 
             // The recorded pair says which contract the recorded Kiota hash was taken from, so a re-mirrored
-            // contract whose trees were not regenerated fails here: the lock still carries the old hash.
-            Assert.Equal(sidecar, recorded.GetProperty("contractSha256").GetString(), StringComparer.OrdinalIgnoreCase);
+            // contract whose trees were not regenerated fails here: the lock still carries the old hash. A
+            // frozen tree is the one deliberate exception, and its entry has to say which revision it is on.
+            if (contractKey == "applicationFrozenTrees")
+            {
+                Assert.NotEqual(sidecar, recorded.GetProperty("contractSha256").GetString(), StringComparer.OrdinalIgnoreCase);
+            }
+            else
+            {
+                Assert.Equal(sidecar, recorded.GetProperty("contractSha256").GetString(), StringComparer.OrdinalIgnoreCase);
+            }
+
             foreach (var lockFile in locks)
             {
                 using var document = JsonDocument.Parse(await File.ReadAllTextAsync(

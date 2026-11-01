@@ -314,7 +314,7 @@ await schedules.delete("nightly", schedule.eTag);   // If-Match (204)
   is still queued (failure code `schedule_occurrence_replaced`) and starts the new one, but skips it while one
   is running, because nothing can interrupt a Lambda that is executing. A skipped occurrence is consumed, not
   deferred. A manual run is not an occurrence, so the policy neither holds it back nor is held back by it, and
-  a one-shot has no earlier occurrence. The mirrored client contract (SHA-256 `5fcbed40…`) describes this; a build of
+  a one-shot has no earlier occurrence. The mirrored client contract (SHA-256 `ac21f55c…`) describes this; a build of
   the product from before it starts every occurrence whichever policy is chosen and accepts any id but one with
   a `/` (a 400).
 

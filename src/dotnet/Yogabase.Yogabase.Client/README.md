@@ -192,13 +192,15 @@ gateway checks it again. A refusal surfaces as `YogabaseApiException` with the g
 the client does not pretend to know whether an installation enables it — an installation without it
 answers the gateway's own refusal.
 
-`YogabaseServer` and each `YogabaseServerPort` also accept the Agones-shaped typed addresses the
-product will add: `Address`, the address a client is handed, and `Addresses`, every typed
-address observed (`Type` such as `Advertised`, `ExternalIP`, `InternalIP` or `PodIP`, and `Address`).
-Today's product sends neither — `Host` already carries the advertised address — and will add them only
-once a client that accepts them is the minimum, because this client refuses members it does not know;
-both read as `null` until then. When present they are checked: at most 16 addresses, each typed and
-non-empty, and a stated `Address` among them, or the answer is refused as `server_response_invalid`.
+`YogabaseServer` and each `YogabaseServerPort` also accept the Agones-shaped typed addresses:
+`Address`, the address a client is handed, and `Addresses`, every typed address observed (`Type` such
+as `Advertised`, `ExternalIP`, `InternalIP` or `PodIP`, and `Address`). The mirrored client document
+declares only the instance's `Address` (optional; omitted, never empty, when no member has observed an
+address for the instance); `Addresses` and the per-port pair are not in it, and `Host` already carries
+the advertised address. This client refuses members it does not know, so each of them is declared here
+and reads as `null` when the answer leaves it out. When present they are checked: at most 16
+addresses, each typed and non-empty, and a stated `Address` among them, or the answer is refused as
+`server_response_invalid`.
 
 ## Background jobs
 
@@ -414,7 +416,10 @@ A `YogabaseBuild` is exactly what the Control Plane writes: `BuildId` (a UUID), 
 re-upload takes the next attempt of the same identity), `Kind`, and a `Check` that is always
 present — `EvidenceOrigin` (`customer-supplied` or `yogabase-derived`), the inventory, scan and
 advisory-database digests, `Passed` (false until the member reports; an absent result is never a
-clean one), `ObservedAt`, `Findings` and `Refusals`. A refusal carries a stable `Code`, the
+clean one), `ReportedByClusterAgent` (true while `Refusals` are the cluster agent's report of a failed
+check that the Control Plane has not yet recorded as the verdict, so `State` still reads `checking` and
+`WaitForCheckAsync` keeps polling; false when the answer leaves it out), `ObservedAt`, `Findings` and
+`Refusals`. A refusal carries a stable `Code`, the
 `Field` it is about, and a bounded `Cause` token — never prose. A request the Control Plane refuses
 outright surfaces as `YogabaseApiException` with an upper-case code such as
 `BUILD_BUNDLE_UNRECOGNIZED`, `BUILD_TOKEN_SCOPE_REQUIRED` or `BUILD_NOT_FOUND` and the

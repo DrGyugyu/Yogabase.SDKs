@@ -32,9 +32,8 @@ public sealed class YogabaseServer
 
     /// <summary>
     /// The address a client is handed for this instance, in the Agones shape, or
-    /// <see langword="null"/> from a Control Plane that does not send it — today's does not, and adds
-    /// it only once a client that accepts it is the minimum. When <see cref="Addresses"/> is also
-    /// present it is one of them.
+    /// <see langword="null"/> when the answer leaves it out (the mirrored client document declares it as
+    /// optional, never empty). When <see cref="Addresses"/> is also present it is one of them.
     /// </summary>
     public string? Address { get; set; }
 
