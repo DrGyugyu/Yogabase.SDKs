@@ -35,7 +35,9 @@ Control Plane은 Yogabase에서 허용된 관리 의도의 유일한 출처입�
 
 ![데모 프로젝트의 Yogabase Console Get started 페이지](assets/yogabase-console-get-started.png)
 
-_Console의 Get started 페이지를 실제로 캡처한 이미지입니다. 2026-09-22에 제품 자체의 브라우저 테스트 하네스에서 1440 px 너비의 라이트 모드로, 데모 데이터(프로젝트 "Arena", 등록된 로컬 클러스터에 있는 그 기본 환경, 하네스가 정상으로 표시한 데이터베이스)를 사용해 촬영했으며, 고객 설치본이나 실시간 상태가 아닙니다. 개발자는 로그인한 뒤 이 화면에서 시작합니다. 설정 상태, 환경의 인프라 설계, 그리고 Data, Compose, Deploy 단계가 이어집니다. 왼쪽 메뉴는 Console을 Core, Extended, Enterprise, Operate로 묶으며, Enterprise와 Operate는 처음에 접혀 있습니다._
+_Console의 Get started 페이지를 실제로 캡처한 이미지입니다. 2026-09-22에 제품 자체의 브라우저 테스트 하네스에서 1440 px 너비의 라이트 모드로, 데모 데이터(프로젝트 "Arena", 등록된 로컬 클러스터에 있는 그 기본 환경, 하네스가 정상으로 표시한 데이터베이스)를 사용해 촬영했으며, 고객 설치본이나 실시간 상태가 아닙니다. 개발자는 로그인한 뒤 이 화면에서 시작합니다. 이 페이지는 이후(2026-10-22) 네 단계로 이어지는 하나의 선형 경로, 즉 데이터베이스 추가, 기능 선택, 클라이언트 연결, 빌드와 릴리스로 다시 설계되었습니다. 왼쪽 메뉴는 Console을 Core, Extended, Enterprise, Operate로 묶으며, Enterprise와 Operate는 처음에 접혀 있습니다._
+
+3단계 **Connect a client**는 게이트웨이 origin을 **Copy gateway origin**과 함께 보여 주며(공개된 사실이지 자격 증명이 아닙니다), .NET, Unity, TypeScript(Node)용으로 복사할 수 있는 스니펫을 제공합니다. publishable key는 환경의 Designer에서 애플리케이션 Authentication을 처음 켤 때 정확히 한 번만 표시되며, 그 뒤에는 Console이 SHA-256 체크섬만 보여 주고 키를 다시 보여 줄 수 없습니다. 애플리케이션이 아니라 도구를 위한 개발자 토큰은 프로젝트의 Settings 페이지에서 발급되며, 한 번만 표시되고 폐기할 수 있습니다. 함수는 Console의 Lambda 편집기에서 작성하고 배포하며(**New function**, 템플릿, **Continue to editor**, **Deploy**) id와 버전으로 호출합니다. Invocations 페이지에 호출 결과가 나열되며, 함수 로그는 Console에서 볼 수 없습니다. 스케줄은 Console에서 만들지만(**Schedules and jobs**, **New schedule…**) 지속형 job은 그렇지 않습니다. Console은 job을 나열만 하고, 애플리케이션 코드가 SDK의 Jobs API로 제출합니다. 호스팅 서버 빌드는 Console에서 업로드하고(**Upload a build**: ZIP, 이름, 버전, 실행 파일, `game=7777/udp` 같은 포트), 검사하고, 배포하고, 용량을 기록합니다. 이후 클라이언트가 SDK의 Servers API로 서버를 시작해 주소와 포트를 읽으며, Console의 Instances 페이지에서 이를 중지할 수 있습니다. 각 단계의 클라이언트 호출은 [자체 호스팅 설치에 클라이언트 연결하기](#자체-호스팅-설치에-클라이언트-연결하기)에 있습니다.
 
 ## 아키텍처 작동 방식
 
@@ -214,7 +216,7 @@ Unity Editor 컴파일 환경에서 컴파일 검사합니다. Unity 자체의 B
 
 ### 자체 호스팅 설치에 클라이언트 연결하기
 
-.NET 클라이언트의 공개 진입점은 `Yogabase.Yogabase.YogabaseClient`입니다. 공개 생성자가 없으며, 호출 측은 정적 `YogabaseClient.CreateAsync(Uri gatewayEndpoint, string publishableKey, YogabaseClientOptions? options = null, CancellationToken cancellationToken = default)` 팩토리 메서드를 통해 이를 생성합니다. `gatewayEndpoint`는 설치본의 애플리케이션 게이트웨이 origin으로, 설치본의 클라이언트 구성이 지정한 origin과 정확히 같아야 합니다. `CreateAsync`는 다른 origin을 `client_config_origin_mismatch`로 거부하기 때문입니다. `publishableKey`는 프로젝트의 publishable key입니다. 일반 `http://`는 `AllowInsecureLoopback`을 사용하는 loopback origin에만 허용됩니다.
+.NET 클라이언트의 공개 진입점은 `Yogabase.Yogabase.YogabaseClient`입니다. 공개 생성자가 없으며, 호출 측은 정적 `YogabaseClient.CreateAsync(Uri gatewayEndpoint, string publishableKey, YogabaseClientOptions? options = null, CancellationToken cancellationToken = default)` 팩토리 메서드를 통해 이를 생성합니다. `gatewayEndpoint`는 설치본의 애플리케이션 게이트웨이 origin으로, 설치본의 클라이언트 구성이 지정한 origin과 정확히 같아야 합니다. `CreateAsync`는 다른 origin을 `client_config_origin_mismatch`로 거부하기 때문입니다. Console의 Get started 페이지 3단계(Connect a client)가 이 origin을 보여 주고 **Copy gateway origin**을 제공합니다. `publishableKey`는 환경의 Designer에서 애플리케이션 Authentication을 처음 켤 때 Console이 보여 준 publishable key입니다. 일반 `http://`는 `AllowInsecureLoopback`을 사용하는 loopback origin에만 허용됩니다.
 
 ```csharp
 using Yogabase.Yogabase;
@@ -226,9 +228,48 @@ await using var yogabase = await YogabaseClient.CreateAsync(
 await yogabase.Auth.SignInWithPasswordAsync("<user-email>", "<user-password>");
 ```
 
-`<installation-host>`와 `<publishable-key>`는 플레이스홀더이며, 이 저장소는 둘 중 어느 것도 정하지 않습니다. 자체 호스팅 설치의 호스트 이름과 해당 프로젝트의 publishable key는 모두 그 설치본의 소유자가 제공합니다. 실제 publishable key는 `sy_pub_`로 시작하며, 그렇지 않은 값은 `CreateAsync`가 거부합니다.
+`<installation-host>`와 `<publishable-key>`는 플레이스홀더이며, 이 저장소는 둘 중 어느 것도 정하지 않습니다. 게이트웨이 origin은 Console의 Get started 페이지가 보여 주고 복사해 주는 공개된 사실입니다. publishable key는 환경의 Designer에서 애플리케이션 Authentication을 처음 켤 때 정확히 한 번만 표시되며, 그 뒤에는 Console이 SHA-256 체크섬만 보여 주고 키를 다시 보여 줄 수 없으므로 그 순간에 키를 클라이언트 자체의 구성에 보관하세요. 실제 publishable key는 `sy_pub_`로 시작하며, 그렇지 않은 값은 `CreateAsync`가 거부합니다.
 
-`SignInWithPasswordAsync`는 브라우저 없이 사용자를 로그인시키고 다른 모든 호출이 쓰는 토큰을 보관합니다. 사용자는 이미 존재해야 합니다. 사용자는 이메일 주소와 비밀번호로 가입하고(프로젝트의 게이트웨이는 열린 가입으로 실행됩니다), 자체 호스팅 설치가 확인을 끄지 않았다면 로그인하기 전에 주소를 확인해야 하며, 이때 이메일 전송 수단이 없으면 가입은 `503 authentication_email_unavailable`로 답합니다. 거절 목록은 [클라이언트 README](src/dotnet/Yogabase.Yogabase.Client/README.md#getting-started)에 있습니다. 아직 NuGet에 올라간 패키지가 없으므로 이 저장소의 체크아웃에서 클라이언트 프로젝트를 참조하세요. TypeScript 클라이언트도 `YogabaseSession.signInWithPassword`로 같은 방식으로 로그인하며(제공자를 통할 때는 `startExternalSignIn`과 `completeExternalSignIn`) Node에서만 동작합니다. [README](languages/typescript/README.md#getting-started)를 참고하세요.
+`SignInWithPasswordAsync`는 브라우저 없이 사용자를 로그인시키고 다른 모든 호출이 쓰는 토큰을 보관합니다. 사용자는 이미 존재해야 합니다. 사용자는 이메일 주소와 비밀번호로 가입하고(프로젝트의 게이트웨이는 열린 가입으로 실행됩니다), 자체 호스팅 설치가 확인을 끄지 않았다면 로그인하기 전에 주소를 확인해야 하며, 이때 이메일 전송 수단이 없으면 가입은 `503 authentication_email_unavailable`로 답합니다. 확인을 꺼 둔 설치에서는 `Auth.SignUpAsync(email, password)`가 즉시 동작하여 새 사용자가 바로 로그인할 수 있으며, 이미 계정이 있는 주소로 가입하면 `account_exists`(`409`)로 실패하고 그 뒤 `SignInWithPasswordAsync`는 성공합니다. 거절 목록은 [클라이언트 README](src/dotnet/Yogabase.Yogabase.Client/README.md#getting-started)에 있습니다. 아직 NuGet에 올라간 패키지가 없으므로 이 저장소의 체크아웃에서 클라이언트 프로젝트를 참조하세요. TypeScript 클라이언트도 `YogabaseSession.signInWithPassword`로 같은 방식으로 로그인하며(제공자를 통할 때는 `startExternalSignIn`과 `completeExternalSignIn`) Node에서만 동작합니다. [README](languages/typescript/README.md#getting-started)를 참고하세요.
+
+로그인한 뒤에는 같은 클라이언트로 배포된 함수를 id와 버전으로 호출하고, 지속형 job을 제출하고, 호스팅 서버를 시작합니다. Console의 Hello world 템플릿을 동기 호출하자 약 1초 만에 결과 `Completed`와 텍스트 `Hello, <payload>!`가 돌아왔습니다. job은 Console이 아니라 애플리케이션 코드에서만 제출하므로, 클라이언트가 제출하고 상태를 폴링하고 결과를 읽습니다.
+
+```csharp
+using System.Text;
+
+var invocation = await yogabase.Functions.InvokeAsync("hello-world", "1", new YogabaseInvocationRequest
+{
+    IdempotencyKey = Guid.NewGuid().ToString("N"),
+    CorrelationId = "first-call",
+    Deadline = DateTimeOffset.UtcNow.AddSeconds(20),
+    Mode = YogabaseInvocationMode.Synchronous,
+    InlinePayload = Encoding.UTF8.GetBytes("world"),
+});
+Console.WriteLine($"{invocation.Outcome}: {Encoding.UTF8.GetString(invocation.InlineResult ?? [])}");
+
+var job = await yogabase.Jobs.SubmitAsync(new YogabaseJobSubmitRequest
+{
+    JobType = "hello-world",                  // 배포된 함수의 id
+    IdempotencyKey = "first-job-1",           // 이 제출을 재시도하는 동안 같은 값을 유지
+    Payload = Encoding.UTF8.GetBytes("world"),
+    MaxAttempts = 3,
+});
+while (!job.IsTerminal)
+{
+    await Task.Delay(TimeSpan.FromSeconds(1));
+    job = await yogabase.Jobs.GetAsync(job.JobId);
+}
+if (job.Status == YogabaseJobStatus.Succeeded && job.ResultReference is not null)
+{
+    var result = await yogabase.Jobs.GetResultAsync(job.JobId);   // result.Content, result.Digest
+}
+
+var server = await yogabase.Servers.StartAsync("<service-id>");   // Console에서 업로드한 호스팅 서비스
+server = await yogabase.Servers.GetAsync(server.ServerId);
+Console.WriteLine(server.FindPort("game")?.Endpoint);             // host:port, 빌드가 그 포트를 선언하지 않으면 null
+```
+
+TypeScript 클라이언트는 `YogabaseSession`, 생성된 `yogabase.v1.projects…invoke.post`와 `yogabase.v1.servers.start.post` 빌더, 작성된 `YogabaseJobsClient`로 같은 호출에 이르며([README](languages/typescript/README.md#getting-started) 참고), Unity 빌드는 .NET 클라이언트를 그대로 담고 있습니다. 함수 로그는 Console에서 볼 수 없습니다.
 
 Python 클라이언트도 같은 방식으로 로그인합니다. `session = await sign_in_with_password("https://<installation-host>", "<publishable-key>", "<user-email>", "<user-password>")`는 Kiota 인증 공급자이자 Jobs·schedules 클라이언트의 토큰 원천인 세션을 반환하며, 거절은 같은 코드의 `YogabaseAuthError`입니다. 제공자를 통할 때는 `start_external_sign_in`과 `complete_external_sign_in`입니다. [Getting started](languages/python/README.md#getting-started)를 참고하세요. 아직 PyPI에 올라가 있지 않으며, 실제로 실행해 본 Python 3.12와 3.13만 지원합니다.
 
@@ -238,13 +279,15 @@ Java 클라이언트도 같은 방식으로 로그인합니다. `YogabaseSession
 
 Google, Microsoft, Apple로 로그인하는 일은 .NET, TypeScript, Python, Java, Dart 클라이언트 모두 애플리케이션 자체의 브라우저 단계를 둘러싼 두 번의 호출입니다. 각 제공자에 등록할 주소는 `https://<gateway>/auth/external/<provider id>/return`입니다. 게이트웨이 경로 코드를 바탕으로 쓴 fake transport 테스트로만 실행했고 실제 제공자를 상대로는 실행된 적 없으며, 거절 목록은 각 클라이언트 README의 "Signing in with a provider"에 있습니다.
 
+개발자 토큰은 다른 자격 증명입니다. 프로젝트의 Settings 페이지에서 발급되며 한 번만 표시되고 폐기할 수 있고, 도구(예: 빌드 업로드)를 위한 것이지 애플리케이션을 위한 것이 아닙니다. 애플리케이션이 지니는 것은 publishable key와 사용자 자신의 access token뿐입니다.
+
 publishable key는 Secret이 아닙니다. 이는 게이트웨이에 프로젝트를 식별시키는 값이며 클라이언트 코드에 포함해도 안전하고, 그 자체로는 아무것도 인증하지 않습니다. 이 키로 가져오는 bootstrap 문서에는 endpoint, 식별자, 기능 사실만 담깁니다. Yogabase는 클라이언트가 대신 보유할 수 있는 권한 있는 대응 키를 발급하지 않습니다. 인증이 필요한 모든 호출은 프로젝트의 OIDC authority에서 받은 사용자별 access token을 사용하므로, 클라이언트는 프로젝트 전체를 대변하는 자격 증명을 결코 포함하지 않습니다.
 
 명명된 Console 시트를 사용하는 설치본에서는 설치본의 Console인 `https://<console-host>/console-seat/claim`에서 시트를 확보합니다. Console 호스트는 설치본의 소유자가 제공하며 일반적으로 위의 애플리케이션 게이트웨이 호스트와 다르고, Console 시트는 SDK 호출을 인증하지 않습니다.
 
 ## 플랫폼 적격성
 
-생성된 REST 소스만으로 production 플랫폼 통합이 적격해지는 것은 아닙니다. `netstandard2.1` 호환성만으로 Unity 또는 AOT가 적격하다는 뜻도 아닙니다. Python 패키지는 2026-10-08(macOS arm64)과 2026-10-20(Linux x86-64)에 소스에서, 2026-10-07에 빌드한 wheel에서(외부 로그인을 추가하기 전) 테스트를 통과했고, Dart 패키지는 2026-10-08(macOS arm64)과 2026-10-20(Linux x86-64)에 분석과 독립 실행 소스 검사를 통과했습니다. .NET, TypeScript, Python, Dart의 live smoke 테스트(비밀번호 로그인, 함수 하나, Storage)는 2026-10-10에 로컬 설치를 상대로, 2026-10-12에 공개 게이트웨이 이름을 통해 통과했으며, 그 밖에는 어떤 것도 설치본을 상대로 실행된 적이 없습니다. Android, Flutter, Kotlin/JVM 런타임 통합, 애플리케이션 클라이언트의 Unity IL2CPP, 네이티브 보안 저장소, interactive cookie 처리, .NET 이외의 SignalR 통합, 실제 외부 제공자를 통한 로그인 및 live-gateway conformance는 지원을 주장하기 전에 각각 명시적인 플랫폼 증거가 필요합니다.
+생성된 REST 소스만으로 production 플랫폼 통합이 적격해지는 것은 아닙니다. `netstandard2.1` 호환성만으로 Unity 또는 AOT가 적격하다는 뜻도 아닙니다. Python 패키지는 2026-10-08(macOS arm64)과 2026-10-20(Linux x86-64)에 소스에서, 2026-10-07에 빌드한 wheel에서(외부 로그인을 추가하기 전) 테스트를 통과했고, Dart 패키지는 2026-10-08(macOS arm64)과 2026-10-20(Linux x86-64)에 분석과 독립 실행 소스 검사를 통과했습니다. .NET, TypeScript, Python, Dart의 live smoke 테스트(비밀번호 로그인, 함수 하나, Storage)는 2026-10-10에 로컬 설치를 상대로, 2026-10-12에 공개 게이트웨이 이름을 통해 통과했으며, 2026-10-27에는 .NET 클라이언트로 작성한 테스트 프로그램이 이메일 확인을 끈 실제 설치를 상대로 처음 사용하는 경로를 실행했습니다. 가입, 로그인, 배포된 Hello world 함수의 동기 호출(결과 `Completed`), 그리고 지속형 job(`Succeeded`, 결과까지 읽음)입니다. 서버 시작은 실행되지 않았습니다. 그 설치본의 빌드 검사가 켜져 있지 않았기 때문이며, `Servers.StartAsync`는 아직 설치본을 상대로 시험되지 않았습니다. 그 밖에는 어떤 것도 설치본을 상대로 실행된 적이 없습니다. Android, Flutter, Kotlin/JVM 런타임 통합, 애플리케이션 클라이언트의 Unity IL2CPP, 네이티브 보안 저장소, interactive cookie 처리, .NET 이외의 SignalR 통합, 실제 외부 제공자를 통한 로그인 및 live-gateway conformance는 지원을 주장하기 전에 각각 명시적인 플랫폼 증거가 필요합니다.
 
 runtime-host 모듈과 Unity 패키지는 체크인된 계약을 기준으로 작성되었고, 이 저장소에서는 fake transport 단위 테스트로 검증되며 이 테스트는 클라이언트의 경로, 한도, 거부 코드를 self-scoped relay 문서에 맞춰 고정하기도 합니다. Unity 패키지의 0.1.0 runtime 모듈은 실제로 실행되었습니다. Unity 6000.5.7f1로 IL2CPP Linux arm64 전용 서버에 컴파일되어 자체 호스팅 Yogabase 설치본에서 호스팅되었고, heartbeat와 Ready 호출이 Pod 로컬 relay를 통해 수락되었습니다. 처음은 인스턴스가 Ready에 도달한 2026-09-07이었고, 2026-09-16과 2026-09-17에도 다시 수락되었습니다. 같은 실행에서 query string `resumeToken`을 담은 assignment polling이 첫 페이지 이후로 넘어가지 못한다는 사실도 드러났습니다. 제품의 relay가 query string을 버렸기 때문입니다. 2026-09-17에 이루어진 제품 수정은 아직 실제 환경에서 관찰되지 않았으며, 아직 relay를 통해 빌드에 allocation이 전달된 적은 없습니다. 현재 버전인 .NET 패키지 0.2.0과 Unity 패키지 0.3.0은 시작 대기 동작, 페이지 head, relay의 본문 없는 응답에 대한 예외를 포함해 IL2CPP 빌드나 실제 relay에서 실행된 적이 없으며, 계열별 runtime-host conformance 배터리(restart, replay, duplicate, stale-epoch, double-allocation, reservation-expiry, disconnect, Pod 교체, drain/shutdown 경합, credential-confusion, secret-negative)도 실행하지 않았습니다. 두 가지 모두 적격성이 검증되지 않은 preview로 취급하세요.
 

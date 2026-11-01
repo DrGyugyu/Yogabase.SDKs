@@ -2,7 +2,8 @@
 
 Take a Unity project to a running, reachable game server on Yogabase. There is one step:
 
-**`Yogabase ▸ Publish Server`** in the Unity Editor, or `yogabase build upload` from the CLI.
+**`Yogabase ▸ Publish Server`** in the Unity Editor, `yogabase build upload` from the CLI, or **Upload a build** in
+the Yogabase console (a ZIP, a name, a version, the executable and ports such as `game=7777/udp`).
 
 That is the whole packaging story now. You do not write a service layout document, generate a
 software bill of materials, run a vulnerability scanner, obtain a signing key, or produce a detached
@@ -190,6 +191,11 @@ is `server_none_available`, `server_contended`, `server_not_found`,
 canonical id; `customData` is at most 32 entries and 4 KiB, and it reaches your server process, so
 it must never carry a credential or another player's identity.
 
+A client starts a server with `Servers.StartAsync(service)` and reads the instance's address and ports from
+its `NetworkPorts` (`FindPort("game")?.Endpoint` is the `host:port` to dial; `Servers.GetAsync(serverId)` reads it again).
+In the console, an uploaded build is checked, deployed and given recorded capacity before a client can start a
+server from it, and the console's Instances page can stop an instance.
+
 The .NET client implements this as `YogabaseClient.Servers`, and every generated client
 (TypeScript, Python, Java, Dart) carries it under `v1.servers`, because the surface is part of the
 mirrored application contract
@@ -346,8 +352,11 @@ the stripper to silently break.
   through it, and no bundle has been uploaded by it.
 - **Its two upstream surfaces are implemented.** The Control Plane build surface and the
   `/v1/servers/*` allocation surface exist in the product, and `contracts/` mirrors their published
-  documents byte for byte. What has not happened is a Unity Editor publishing through them, or a
-  game client dialing an address they returned.
+  documents byte for byte. On 2026-10-27 the console's **Upload a build** was exercised against a real installation; its
+  checks did not run there because that installation's build-check workflow was not enabled, so the
+  .NET client's `Servers.StartAsync` and `Servers.GetAsync` are still untested against an
+  installation. What has not happened either is a Unity Editor publishing through them, or a game
+  client dialing an address they returned.
 - **Per-instance addressing is new.** Each instance gets a host port and its node's address, and
   the client-facing `/v1/servers/*` surface returns `host:port`; before 2026-09-08 only the service
   as a whole was reachable, through a small pool of gateway relay listener ports. The host-port

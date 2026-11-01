@@ -87,7 +87,7 @@ untrusted C# source.
 | Actor and Workflow Lambdas | versioned, project-local actors with reminders; immutable workflow definitions with start and cancel |
 | Dynamic Code | C# written in the console, compiled, scanned and signed by the installation's own builder, then released |
 | Sandbox | one load context per invocation, unloaded afterwards; egress limited to the project's database, gateway and Valkey |
-| Scheduler and Jobs | cron or one-shot schedules with ETag preconditions, misfire and concurrency policies; durable jobs with result and cancel |
+| Scheduler and Jobs | cron or one-shot schedules with ETag preconditions, misfire and concurrency policies; durable jobs with result and cancel (schedules are created in the Console; jobs are submitted by application code through the SDK, and the Console only lists them) |
 | Hosted self-contained services | upload an archive (a game server, say), have it inventoried, scanned and signed, then run and allocated through `/v1/servers` |
 | Valkey | standalone or primary-replica with promotion; direct project-scoped access from Lambdas, a distributed cache, the realtime backplane, presence and rate-limit stores |
 | RobustMQ messaging | MQTT publish; Kafka and AMQP publish over mutual TLS; durable queues with receive and acknowledge; durable streams; replay from an offset or a time; shared and independent consumer groups; consumer triggers that invoke Lambdas at least once; change-data capture of selected YSQL tables |
@@ -165,6 +165,20 @@ appearance from the product's own browser-test harness with demo data, not a cus
 or live status. The page has since been redesigned (2026-10-22) as one linear path of four steps:
 add a database, choose capabilities, connect a client, build and release. The rail groups the
 Console into Core, Extended, Enterprise and Operate; Enterprise and Operate start collapsed._
+
+Step 3, **Connect a client**, shows the gateway origin with **Copy gateway origin** (a public fact, not a
+credential) and copyable snippets for .NET, Unity and TypeScript (Node). The publishable key is shown exactly
+once, when application Authentication is first enabled in the environment's Designer; afterwards the Console
+shows only its SHA-256 checksum and cannot show the key again. A developer token, for tooling and not for the
+application, is issued under the project's Settings page, shown once and revocable. Functions are written and
+deployed in the Console's Lambda editor (**New function**, a template, **Continue to editor**, **Deploy**) and
+invoked by id and version; the Invocations page lists their outcomes, and function logs are not available in the
+Console. Schedules are created in the Console (**Schedules and jobs**, **New schedule…**), but durable jobs are
+not: the Console only lists them, and application code submits them through the SDK's Jobs API. A hosted server
+build is uploaded in the Console (**Upload a build**: a ZIP, a name, a version, the executable and ports such as
+`game=7777/udp`), checked, deployed and given recorded capacity; a client then starts a server through the SDK's
+Servers API and reads its address and ports, and the Console's Instances page can stop it. The client calls for
+each step are under [Connecting a client to a self-hosted installation](#connecting-a-client-to-a-self-hosted-installation).
 
 ## How the architecture works
 
@@ -392,7 +406,7 @@ Run `scripts/regenerate-clients.sh` to verify all five contracts, restore pinned
 
 ### Connecting a client to a self-hosted installation
 
-The .NET client's public entry point is `Yogabase.Yogabase.YogabaseClient`. It has no public constructor; a consumer creates it through the static `YogabaseClient.CreateAsync(Uri gatewayEndpoint, string publishableKey, YogabaseClientOptions? options = null, CancellationToken cancellationToken = default)` factory. `gatewayEndpoint` is the installation's application-gateway origin — exactly the origin the installation's client configuration names, because `CreateAsync` refuses any other origin with `client_config_origin_mismatch` — and `publishableKey` is the project's publishable key. Plain `http://` is accepted only for a loopback origin with `AllowInsecureLoopback`.
+The .NET client's public entry point is `Yogabase.Yogabase.YogabaseClient`. It has no public constructor; a consumer creates it through the static `YogabaseClient.CreateAsync(Uri gatewayEndpoint, string publishableKey, YogabaseClientOptions? options = null, CancellationToken cancellationToken = default)` factory. `gatewayEndpoint` is the installation's application-gateway origin — exactly the origin the installation's client configuration names, because `CreateAsync` refuses any other origin with `client_config_origin_mismatch`; the Console's Get started page, step 3 (Connect a client), shows it and offers **Copy gateway origin** — and `publishableKey` is the publishable key the Console showed when application Authentication was first enabled in the environment's Designer. Plain `http://` is accepted only for a loopback origin with `AllowInsecureLoopback`.
 
 ```csharp
 using Yogabase.Yogabase;
@@ -404,9 +418,48 @@ await using var yogabase = await YogabaseClient.CreateAsync(
 await yogabase.Auth.SignInWithPasswordAsync("<user-email>", "<user-password>");
 ```
 
-`<installation-host>` and `<publishable-key>` are placeholders; this repository does not choose either. The hostname of a self-hosted installation and the publishable key for a given project are both supplied by that installation's owner. A real publishable key begins with `sy_pub_`, and `CreateAsync` rejects one that does not.
+`<installation-host>` and `<publishable-key>` are placeholders; this repository does not choose either. The gateway origin is a public fact that the Console's Get started page shows and copies. The publishable key is shown exactly once, when application Authentication is first enabled in the environment's Designer; afterwards the Console shows only its SHA-256 checksum and cannot show the key again, so keep the key in your client's own configuration at that moment. A real publishable key begins with `sy_pub_`, and `CreateAsync` rejects one that does not.
 
-`SignInWithPasswordAsync` signs the user in with no browser and keeps the tokens every other call uses. The user must already exist: a user signs up with an e-mail address and a password (a project's gateway runs with open sign-up) and, unless a self-hosted installation turned confirmation off, must confirm the address before signing in; with no e-mail transport a sign-up then answers `503 authentication_email_unavailable`. The [client's README](src/dotnet/Yogabase.Yogabase.Client/README.md#getting-started) lists the refusals. No package is on NuGet yet, so reference the client's project from a checkout of this repository. The TypeScript client signs in the same way, for Node only, with `YogabaseSession.signInWithPassword`, or with a provider through `startExternalSignIn` and `completeExternalSignIn`; see its [README](languages/typescript/README.md#getting-started).
+`SignInWithPasswordAsync` signs the user in with no browser and keeps the tokens every other call uses. The user must already exist: a user signs up with an e-mail address and a password (a project's gateway runs with open sign-up) and, unless a self-hosted installation turned confirmation off, must confirm the address before signing in; with no e-mail transport a sign-up then answers `503 authentication_email_unavailable`. On an installation with confirmation disabled, `Auth.SignUpAsync(email, password)` works at once and the new user can sign in straight away; signing up an address that already has an account fails with `account_exists` (`409`), and `SignInWithPasswordAsync` then succeeds. The [client's README](src/dotnet/Yogabase.Yogabase.Client/README.md#getting-started) lists the refusals. No package is on NuGet yet, so reference the client's project from a checkout of this repository. The TypeScript client signs in the same way, for Node only, with `YogabaseSession.signInWithPassword`, or with a provider through `startExternalSignIn` and `completeExternalSignIn`; see its [README](languages/typescript/README.md#getting-started).
+
+After signing in, the same client invokes a deployed function by id and version, submits a durable job and starts a hosted server. A synchronous invoke of the Console's Hello world template returned the outcome `Completed` with the text `Hello, <payload>!` in about a second; a job is submitted only from application code, never from the Console, so the client submits it, polls its status and reads its result:
+
+```csharp
+using System.Text;
+
+var invocation = await yogabase.Functions.InvokeAsync("hello-world", "1", new YogabaseInvocationRequest
+{
+    IdempotencyKey = Guid.NewGuid().ToString("N"),
+    CorrelationId = "first-call",
+    Deadline = DateTimeOffset.UtcNow.AddSeconds(20),
+    Mode = YogabaseInvocationMode.Synchronous,
+    InlinePayload = Encoding.UTF8.GetBytes("world"),
+});
+Console.WriteLine($"{invocation.Outcome}: {Encoding.UTF8.GetString(invocation.InlineResult ?? [])}");
+
+var job = await yogabase.Jobs.SubmitAsync(new YogabaseJobSubmitRequest
+{
+    JobType = "hello-world",                  // the id of a deployed function
+    IdempotencyKey = "first-job-1",           // keep it across retries of this submit
+    Payload = Encoding.UTF8.GetBytes("world"),
+    MaxAttempts = 3,
+});
+while (!job.IsTerminal)
+{
+    await Task.Delay(TimeSpan.FromSeconds(1));
+    job = await yogabase.Jobs.GetAsync(job.JobId);
+}
+if (job.Status == YogabaseJobStatus.Succeeded && job.ResultReference is not null)
+{
+    var result = await yogabase.Jobs.GetResultAsync(job.JobId);   // result.Content, result.Digest
+}
+
+var server = await yogabase.Servers.StartAsync("<service-id>");   // a hosted service uploaded in the Console
+server = await yogabase.Servers.GetAsync(server.ServerId);
+Console.WriteLine(server.FindPort("game")?.Endpoint);             // host:port; null if the build declares no such port
+```
+
+The TypeScript client reaches the same calls through `YogabaseSession`, the generated `yogabase.v1.projects…invoke.post` and `yogabase.v1.servers.start.post` builders and the authored `YogabaseJobsClient` (see its [README](languages/typescript/README.md#getting-started)), and the Unity builds carry the .NET client. Function logs are not available in the Console.
 
 The Python client signs in the same way: `session = await sign_in_with_password("https://<installation-host>", "<publishable-key>", "<user-email>", "<user-password>")` returns a session that is the Kiota authentication provider and the token source of the Jobs and schedules clients, with the same refusals as a `YogabaseAuthError`; with a provider it is `start_external_sign_in` and `complete_external_sign_in`. See its [Getting started](languages/python/README.md#getting-started). It is not on PyPI yet and supports Python 3.12 and 3.13, the two versions it has run on.
 
@@ -416,13 +469,15 @@ The Java client signs in the same way: `YogabaseSession session = YogabaseSignIn
 
 Signing in with Google, Microsoft or Apple is two calls around the application's own browser step in the .NET, TypeScript, Python, Java and Dart clients. The address to register with each provider is `https://<gateway>/auth/external/<provider id>/return`. It has run only against fake-transport tests written from the gateway's route code, never against a real provider; each client's README, under "Signing in with a provider", lists the refusals.
 
+A developer token is a different credential: it is issued under the project's Settings page, shown once and revocable, and it is for tooling (build uploads, for one), never for the application, which carries only the publishable key and a user's own access token.
+
 A publishable key is not a secret. It identifies the project to the gateway and is safe to ship in client code, and it authenticates nothing: the bootstrap document it fetches carries endpoints, identifiers, and capability facts only. Yogabase issues no privileged counterpart key that a client could hold instead. Every authenticated call carries a per-user access token obtained from the project's OIDC authority, so a client never ships a credential that speaks for the project as a whole.
 
 On an installation that uses named console seats, a seat is claimed on the installation's Console at `https://<console-host>/console-seat/claim`. The Console host is supplied by the installation's owner and is generally not the application-gateway host above, and a console seat never authenticates SDK calls.
 
 ## Platform qualification
 
-Generated REST source is not the same as a production-qualified platform integration. `netstandard2.1` compatibility alone does not qualify Unity or AOT. The Python package passed its tests from source on 2026-10-08 (macOS arm64) and 2026-10-20 (Linux x86-64) and from its built wheel on 2026-10-07 (before the external sign-in was added), and the Dart package passed analysis and its standalone source checks on 2026-10-08 (macOS arm64) and 2026-10-20 (Linux x86-64). The .NET, TypeScript, Python and Dart live smoke tests (password sign-in, a function, Storage) passed on 2026-10-10 against a local installation and on 2026-10-12 through a public gateway name; nothing else has run against an installation. Android, Flutter, Kotlin/JVM runtime integration, Unity IL2CPP of the application client, native secure storage, interactive-cookie handling, non-.NET SignalR integration, sign-in with a real external provider, and live-gateway conformance each still need explicit platform evidence before they can be claimed as supported.
+Generated REST source is not the same as a production-qualified platform integration. `netstandard2.1` compatibility alone does not qualify Unity or AOT. The Python package passed its tests from source on 2026-10-08 (macOS arm64) and 2026-10-20 (Linux x86-64) and from its built wheel on 2026-10-07 (before the external sign-in was added), and the Dart package passed analysis and its standalone source checks on 2026-10-08 (macOS arm64) and 2026-10-20 (Linux x86-64). The .NET, TypeScript, Python and Dart live smoke tests (password sign-in, a function, Storage) passed on 2026-10-10 against a local installation and on 2026-10-12 through a public gateway name. On 2026-10-27 a test program written against the .NET client exercised the first-time path against a real installation with e-mail confirmation disabled: sign-up, sign-in, a synchronous invoke of a deployed Hello world function (outcome `Completed`) and a durable job (`Succeeded`, its result read back); a server start did not run, because that installation's build checks were not enabled, so `Servers.StartAsync` is still untested against an installation. Nothing else has run against one. Android, Flutter, Kotlin/JVM runtime integration, Unity IL2CPP of the application client, native secure storage, interactive-cookie handling, non-.NET SignalR integration, sign-in with a real external provider, and live-gateway conformance each still need explicit platform evidence before they can be claimed as supported.
 
 The runtime-host module and its Unity package are authored against the checked-in contracts and covered in this repository by fake-transport unit tests, which also hold the client's routes, limits and refusal codes to the self-scoped relay document. The Unity package's 0.1.0 runtime module has run live: compiled by Unity 6000.5.7f1 into an IL2CPP Linux arm64 dedicated server and hosted on a self-hosted Yogabase installation, its heartbeat and Ready calls were accepted through the Pod-local relay, first on 2026-09-07, when the instance reached Ready, and again on 2026-09-16 and 2026-09-17. That run also showed that assignment polls carrying the query-string `resumeToken` never advanced past the first page, because the product's relay dropped the query string; the product fix made on 2026-09-17 has not yet been observed live, and no allocation has yet been delivered to a build through the relay. The current versions — the .NET package 0.2.0 and Unity package 0.3.0, including the startup wait-out, the page head and the exceptions for the relay's bodyless answers — have not run in an IL2CPP build or against a live relay, and the per-family runtime-host conformance battery (restart, replay, duplicate, stale-epoch, double-allocation, reservation-expiry, disconnect, Pod-replacement, drain/shutdown-race, credential-confusion, and secret-negative cases) has not been run. Treat both as unqualified previews.
 
