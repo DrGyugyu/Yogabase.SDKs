@@ -1466,6 +1466,12 @@
             "maxItems": 16,
             "items": { "$ref": "#/components/schemas/GameServerPort" },
             "description": "Empty when no member has observed an address for this instance; a client must not connect to such an instance."
+          },
+          "address": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 253,
+            "description": "The instance's address in the Agones shape: the same host every networkPorts entry carries, an IP literal or a DNS name. Omitted, never empty, when no member has observed an address for this instance; clients dial host:externalPort as given."
           }
         }
       },

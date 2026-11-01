@@ -199,9 +199,10 @@ public sealed class BuildsAndServersTests
         Assert.Equal("server_response_invalid", exception.Code);
     }
 
-    // The Agones-shaped typed addresses the product will add once this client is the minimum: an
-    // `address` and `addresses: [{type, address}]` on the instance and on each port. Today's
-    // product sends neither, and a client that refuses unknown members must accept both first.
+    // The Agones-shaped typed addresses: an `address` and `addresses: [{type, address}]` on the instance
+    // and on each port. The mirrored client document declares only the instance's `address` (optional, 1 to
+    // 253 characters); the typed list and the per-port pair are extras this client reads when a Control
+    // Plane sends them, and a client that refuses unknown members must accept all of them.
     private const string TypedAddressAllocation =
         "{\"serverId\":\"srv-01\",\"state\":\"Allocated\","
         + "\"address\":\"203.0.113.10\","
@@ -225,6 +226,30 @@ public sealed class BuildsAndServersTests
         Assert.Equal("203.0.113.10", game.Address);
         Assert.Equal(2, game.Addresses!.Count);
         Assert.Equal("203.0.113.10:31245", game.Endpoint);
+    }
+
+    // Exactly the shape the mirrored GameServer schema declares: the instance's own `address` beside the
+    // three required members, with no typed list and no address on a port.
+    [Fact]
+    public async Task AnAllocationCarryingOnlyTheContractsInstanceAddressReadsIt()
+    {
+        var handler = new ScriptedHandler((_, _) => Task.FromResult(Json(
+            HttpStatusCode.OK,
+            "{\"serverId\":\"srv-01\",\"state\":\"Allocated\",\"address\":\"battle-7.nodes.example.net\","
+            + "\"networkPorts\":[{\"name\":\"game\",\"internalPort\":7777,\"externalPort\":31245,\"protocol\":\"udp\","
+            + "\"host\":\"battle-7.nodes.example.net\"}]}")));
+        await using var client = await ClientAsync(handler);
+
+        var started = await client.Servers.StartAsync("battle", TestContext.Current.CancellationToken);
+        var read = await client.Servers.GetAsync("srv-01", TestContext.Current.CancellationToken);
+
+        foreach (var server in new[] { started, read })
+        {
+            Assert.Equal("battle-7.nodes.example.net", server.Address);
+            Assert.Null(server.Addresses);
+            Assert.Null(server.FindPort("game")!.Address);
+            Assert.Equal("battle-7.nodes.example.net:31245", server.FindPort("game")!.Endpoint);
+        }
     }
 
     [Fact]
@@ -829,6 +854,60 @@ public sealed class BuildsAndServersTests
         Assert.Equal("entry-absent", refusal.Cause);
     }
 
+    // The mirrored builds document's `Check.reportedByClusterAgent` is optional and boolean. The
+    // transport's JSON options refuse a member the model does not declare, so an answer carrying it
+    // would be read as `response_invalid` unless the model names it.
+    [Theory]
+    [InlineData(null)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ABuildAnswerReadsWhetherOrNotItCarriesTheClusterAgentMember(bool? reported)
+    {
+        var handler = new ScriptedHandler((_, _) =>
+            Task.FromResult(Json(HttpStatusCode.OK, CheckingWithClusterAgentMember(reported))));
+        using var builds = Builds(handler);
+
+        var build = await builds.GetAsync(ProjectId, EnvironmentId, BuildId, TestContext.Current.CancellationToken);
+
+        Assert.Equal(YogabaseBuild.StateChecking, build.State);
+        Assert.False(build.IsTerminal);
+        Assert.False(build.Check.Passed);
+        Assert.Equal(reported == true, build.Check.ReportedByClusterAgent);
+        var refusal = Assert.Single(build.Check.Refusals);
+        Assert.Equal("bundle-executable-missing", refusal.Code);
+        Assert.Equal("executable", refusal.Field);
+        Assert.Equal("entry-absent", refusal.Cause);
+    }
+
+    [Fact]
+    public async Task WaitForCheckKeepsPollingPastARefusalOnlyTheClusterAgentHasReported()
+    {
+        var calls = 0;
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            calls++;
+            return Task.FromResult(calls < 3
+                ? Json(HttpStatusCode.OK, CheckingWithClusterAgentMember(true))
+                : Json(HttpStatusCode.OK, Refused()));
+        });
+        using var builds = Builds(handler);
+        var observed = new RecordingProgress();
+
+        var build = await builds.WaitForCheckAsync(
+            ProjectId,
+            EnvironmentId,
+            BuildId,
+            FastPolling(),
+            observed,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(3, calls);
+        Assert.Equal(ExpectedPolledStates, observed.States);
+        Assert.Equal(YogabaseBuild.StateRefused, build.State);
+        Assert.True(build.IsTerminal);
+        Assert.False(build.Check.ReportedByClusterAgent);
+    }
+
     [Fact]
     public async Task WaitForCheckRetriesATransientFailure()
     {
@@ -1234,6 +1313,42 @@ public sealed class BuildsAndServersTests
             refusals = Array.Empty<object>(),
         },
     });
+
+    // A build still `checking` whose check already lists the refusals of a failed check the cluster
+    // agent reported and the Control Plane has not yet recorded as the verdict. `reported` null leaves
+    // the optional member out, as an answer that has no such report does.
+    private static string CheckingWithClusterAgentMember(bool? reported)
+    {
+        var check = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["evidenceOrigin"] = "yogabase-derived",
+            ["inventoryDigest"] = "",
+            ["scanDigest"] = "",
+            ["databaseDigest"] = "",
+            ["passed"] = false,
+            ["observedAt"] = "2026-09-09T00:00:00+00:00",
+            ["findings"] = Array.Empty<object>(),
+            ["refusals"] = new[]
+            {
+                new { code = "bundle-executable-missing", field = "executable", cause = "entry-absent" },
+            },
+        };
+        if (reported is not null)
+        {
+            check["reportedByClusterAgent"] = reported.Value;
+        }
+
+        return JsonSerializer.Serialize(new
+        {
+            buildId = BuildId,
+            digest = "sha256:aa",
+            state = "checking",
+            identity = "battle:1.4.0",
+            attempt = 1,
+            kind = "SelfContainedService",
+            check,
+        });
+    }
 
     private static string Terminal(string state) => JsonSerializer.Serialize(new
     {
