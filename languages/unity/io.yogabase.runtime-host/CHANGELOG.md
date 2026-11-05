@@ -24,6 +24,12 @@ All notable changes to this package are documented in this file.
   identical failures, and the watch keeps polling. Disposing the client ends a running watch rather
   than polling a disposed client. The existing `WatchAssignmentsAsync(pollInterval,
   cancellationToken)` call is unchanged and reports nothing.
+- A cancel that landed just after a poll failed, before the watch judged the failure, let that
+  failure escape the `await foreach`, a retryable `429` included. The watch now ends cleanly then, with
+  the failure neither thrown nor reported; a terminal refusal is still thrown, and a cancel while a
+  request is in flight is still an `OperationCanceledException`. Disposing the client in the same
+  window let the failure escape too; the watch now ends with an `ObjectDisposedException` that carries
+  it, unless it is a terminal refusal.
 - A page's `headSequence` below 1 (the contract says at least 1) reads as no sequence, as an absent
   or non-integer value does; the page's `headState` is kept.
 - A refusal's code is read from `code` alone. The fallback to a `title` member, which the relay's

@@ -235,7 +235,10 @@ reads as `UNKNOWN`.
 terminal for the assignments route (`RUNTIME_HOST_RELAY_INVALID`, `RUNTIME_HOST_REQUEST_INVALID`,
 `RUNTIME_HOST_RESUME_TOKEN_INVALID`, `RUNTIME_HOST_STALE_EPOCH`, `RUNTIME_HOST_WRONG_GENERATION`),
 retries a retryable answer or a transport fault on the next tick, and reports anything else once through
-`onFailure` while it keeps polling. A page head whose `headSequence` is below 1 reads as no sequence.
+`onFailure` while it keeps polling. Cancelling the token ends the watch: cleanly in the delay between
+polls or just after a poll failed with a retryable or reported answer, and with
+`OperationCanceledException` while a request is in flight; a terminal refusal is still thrown. A page
+head whose `headSequence` is below 1 reads as no sequence.
 
 Two environment variables matter at runtime, both injected by the Yogabase platform into the
 workload's process environment:

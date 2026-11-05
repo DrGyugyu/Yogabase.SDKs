@@ -301,9 +301,13 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
     /// previously held token is presented again on the next poll; only a non-empty token replaces
     /// it. The sequence ends cleanly when the delay between polls is canceled through
     /// <paramref name="cancellationToken"/>; canceling while a request is in flight throws
-    /// <see cref="OperationCanceledException"/>. Disposing the client ends a running watch the same
+    /// <see cref="OperationCanceledException"/>. A cancel that lands after a poll has failed, but
+    /// before the watch has judged the failure, also ends the sequence cleanly, unless the failure is
+    /// a terminal refusal (below), which is thrown. Disposing the client ends a running watch the same
     /// way: with the cancellation (or <see cref="ObjectDisposedException"/>) of the call it was in,
-    /// not with a report and another poll.
+    /// not with a report and another poll; a poll that failed for its own reason as the disposal
+    /// landed ends it with an <see cref="ObjectDisposedException"/> carrying that failure, unless the
+    /// failure is a terminal refusal.
     ///
     /// What a failed poll does follows the document's refusals for the assignments route:
     /// <list type="bullet">
@@ -347,12 +351,13 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
         while (!cancellationToken.IsCancellationRequested)
         {
             RuntimeHostAssignmentPage? page = null;
+            var canceledAfterFailure = false;
             try
             {
                 page = await WatchAssignmentsOnceAsync(resumeToken, cancellationToken).ConfigureAwait(false);
                 lastReported = null;
             }
-            catch (Exception exception) when (!cancellationToken.IsCancellationRequested && !disposed)
+            catch (Exception exception) when (!EndsTheWatchAsItIs(exception, cancellationToken))
             {
                 var refusal = exception as YogabaseRuntimeHostException;
                 if (refusal is not null && IsTerminalForAssignments(refusal))
@@ -360,7 +365,27 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
                     throw;
                 }
 
-                if (!RetriesSilently(exception))
+                if (disposed)
+                {
+                    // The client was disposed as a poll failed for a reason of its own (a 429
+                    // answered as the disposal landed, say). A disposed client is not polled again,
+                    // and the watch ends as disposal ends it everywhere else, with an
+                    // ObjectDisposedException, rather than throwing a failure it would have retried.
+                    throw new ObjectDisposedException(
+                        $"The {nameof(YogabaseRuntimeHostClient)} was disposed under a running assignment watch.",
+                        exception);
+                }
+
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    // The poll failed with something the watch would retry or report, and the
+                    // caller's token was canceled before the failure was looked at. The caller asked
+                    // the watch to end, so it ends cleanly, as it does when the cancel lands in the
+                    // delay; the failure is neither thrown nor reported. (The token is not tested in
+                    // the filter: that let a retryable 429 escape whenever the cancel landed here.)
+                    canceledAfterFailure = true;
+                }
+                else if (!RetriesSilently(exception))
                 {
                     var signature = refusal is not null
                         ? $"{(int)refusal.StatusCode} {refusal.Code}"
@@ -378,6 +403,11 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
                         }
                     }
                 }
+            }
+
+            if (canceledAfterFailure)
+            {
+                yield break;
             }
 
             if (page is not null)
@@ -501,6 +531,14 @@ public sealed class YogabaseRuntimeHostClient : IAsyncDisposable
         exception is YogabaseRuntimeHostException { IsRetryable: true }
             or HttpRequestException
             or IOException;
+
+    // What ends the watch exactly as it was thrown: the caller's own cancellation of the poll in
+    // flight, and the cancellation or ObjectDisposedException of a poll the client's disposal cut
+    // short. Any other failure is the watch's to judge, even when the token was canceled or the
+    // client disposed after it.
+    private bool EndsTheWatchAsItIs(Exception exception, CancellationToken cancellationToken) =>
+        (exception is OperationCanceledException && cancellationToken.IsCancellationRequested)
+        || (disposed && exception is OperationCanceledException or ObjectDisposedException);
 
     // Sends one request and returns its success body; a non-success answer throws as a refusal.
     // HttpClient reports its own Timeout as a cancellation that the caller's token did not ask for,
