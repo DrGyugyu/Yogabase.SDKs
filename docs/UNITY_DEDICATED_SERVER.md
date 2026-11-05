@@ -353,10 +353,11 @@ the stripper to silently break.
 - **Its two upstream surfaces are implemented.** The Control Plane build surface and the
   `/v1/servers/*` allocation surface exist in the product, and `contracts/` mirrors their published
   documents byte for byte. On 2026-10-27 the console's **Upload a build** was exercised against a real installation; its
-  checks did not run there because that installation's build-check workflow was not enabled, so the
-  .NET client's `Servers.StartAsync` and `Servers.GetAsync` are still untested against an
-  installation. What has not happened either is a Unity Editor publishing through them, or a game
-  client dialing an address they returned.
+  checks did not run there because that installation's build-check workflow was not enabled. On
+  2026-10-31 a server was started on an installation through the .NET client's
+  `Servers.StartAsync`: its address came back, and the server echoed a UDP datagram sent to it.
+  Beyond that one datagram, no game client has connected to an address they returned, and no Unity
+  Editor has published through them.
 - **Per-instance addressing is new.** Each instance gets a host port and its node's address, and
   the client-facing `/v1/servers/*` surface returns `host:port`; before 2026-09-08 only the service
   as a whole was reachable, through a small pool of gateway relay listener ports. The host-port
