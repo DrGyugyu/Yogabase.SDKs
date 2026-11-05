@@ -1163,6 +1163,42 @@ public sealed class YogabaseRuntimeHostClientTests
         Assert.Empty(reported);
     }
 
+    // The window the test above can only hit by chance, made deterministic: the client is disposed
+    // while HttpClient reads a 429 answer's body, so the poll has failed and the client is disposed
+    // before the watch looks at the failure. The watch ends as disposal ends it, with an
+    // ObjectDisposedException carrying the 429, never with the 429 itself (an answer it would only
+    // have retried), and polls nothing more. Before, the 429 escaped.
+    [Fact]
+    public async Task DisposingTheClientAsAPollFailsEndsTheWatchWithObjectDisposedRatherThanTheFailure()
+    {
+        var callCount = 0;
+        YogabaseRuntimeHostClient? owner = null;
+        var handler = new ScriptedHandler((_, _) =>
+        {
+            Interlocked.Increment(ref callCount);
+            return Task.FromResult(new HttpResponseMessage((HttpStatusCode)429)
+            {
+                Content = new DisposingContent(() => owner!),
+            });
+        });
+        await using var client = Client(handler);
+        owner = client;
+        var reported = new List<Exception>();
+        using var guard = WatchGuard();
+
+        var exception = await Assert.ThrowsAsync<ObjectDisposedException>(async () =>
+        {
+            await foreach (var _ in client.WatchAssignmentsAsync(TimeSpan.FromMilliseconds(5), reported.Add, guard.Token))
+            {
+            }
+        });
+
+        var refusal = Assert.IsType<YogabaseRuntimeHostException>(exception.InnerException);
+        Assert.Equal((HttpStatusCode)429, refusal.StatusCode);
+        Assert.Equal(1, Volatile.Read(ref callCount));
+        Assert.Empty(reported);
+    }
+
     [Fact]
     public async Task CancellingAWatchStillEndsItEvenWhileItIsRetrying()
     {
@@ -1182,6 +1218,143 @@ public sealed class YogabaseRuntimeHostClientTests
 
         Assert.True(exception is null or OperationCanceledException);
     }
+
+    // The window the test above only hits by chance, made deterministic: the handler cancels the
+    // caller's token and then answers, so the poll has failed and the token is canceled before the
+    // watch looks at the failure. Whatever the watch would have done with it -- retry it silently
+    // (429, 504) or report it (an unexplained 502) -- the caller asked it to end, so it ends cleanly:
+    // nothing thrown, nothing reported, no further poll. Before, the failure itself escaped.
+    [Theory]
+    [InlineData(429, "")]
+    [InlineData(504, "")]
+    [InlineData(502, "<html>bad gateway</html>")]
+    public async Task CancellingAWatchAsAPollFailsEndsItCleanlyWithoutThrowingOrReportingTheFailure(int status, string body)
+    {
+        var callCount = 0;
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var handler = new ScriptedHandler(async (_, _) =>
+        {
+            Interlocked.Increment(ref callCount);
+            var response = new HttpResponseMessage((HttpStatusCode)status)
+            {
+                Content = new StringContent(body, Encoding.UTF8, "text/html"),
+            };
+            // Buffered before the cancel, so HttpClient hands this answer back rather than failing
+            // its own read of the body under the canceled token.
+            await response.Content.LoadIntoBufferAsync(CancellationToken.None);
+            stop.Cancel();
+            return response;
+        });
+        await using var client = Client(handler);
+        var reported = new List<Exception>();
+
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await foreach (var _ in client.WatchAssignmentsAsync(TimeSpan.FromMilliseconds(5), reported.Add, stop.Token))
+            {
+            }
+        });
+
+        Assert.Null(exception);
+        Assert.Equal(1, Volatile.Read(ref callCount));
+        Assert.Empty(reported);
+    }
+
+    // A cancel in the same window does not hide a terminal refusal: the document's terminal answer
+    // still ends the watch by throwing, as it would have without the cancel.
+    [Fact]
+    public async Task ATerminalRefusalStillEndsTheWatchByThrowingWhenTheCancelLandsAsItArrives()
+    {
+        var callCount = 0;
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var handler = new ScriptedHandler(async (_, _) =>
+        {
+            Interlocked.Increment(ref callCount);
+            var response = Json(HttpStatusCode.Forbidden, TerminalBody("RUNTIME_HOST_STALE_EPOCH"));
+            await response.Content.LoadIntoBufferAsync(CancellationToken.None);
+            stop.Cancel();
+            return response;
+        });
+        await using var client = Client(handler);
+        var reported = new List<Exception>();
+
+        var exception = await Assert.ThrowsAsync<YogabaseRuntimeHostException>(async () =>
+        {
+            await foreach (var _ in client.WatchAssignmentsAsync(TimeSpan.FromMilliseconds(5), reported.Add, stop.Token))
+            {
+            }
+        });
+
+        Assert.Equal("RUNTIME_HOST_STALE_EPOCH", exception.Code);
+        Assert.Equal(1, Volatile.Read(ref callCount));
+        Assert.Empty(reported);
+    }
+
+    // The caller's cancel landing as the client's own request timeout fires: HttpClient's timeout
+    // has canceled the handler, and the caller's token is canceled before the failure reaches the
+    // client. The caller asked for a cancellation, so that is what it gets -- never the retryable
+    // request-timeout refusal -- from a one-shot call ...
+    [Theory]
+    [InlineData("heartbeat")]
+    [InlineData("ready")]
+    [InlineData("reserve")]
+    [InlineData("shutdown")]
+    [InlineData("assignments")]
+    public async Task ACallersCancelLandingAsTheRequestTimesOutIsACancellationNotATimeoutRefusal(string verb)
+    {
+        using var caller = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var handler = new ScriptedHandler(TimeoutThenCancel(caller));
+        await using var client = Client(handler, requestTimeout: TimeSpan.FromMilliseconds(100));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => CallAsync(client, verb, caller.Token));
+    }
+
+    // ... and from the watch, whose contract is that a cancel while a request is in flight throws
+    // OperationCanceledException rather than ending the sequence cleanly or reporting anything.
+    [Fact]
+    public async Task CancellingAWatchWhileItsPollIsInFlightThrowsOperationCanceled()
+    {
+        var callCount = 0;
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var timeoutThenCancel = TimeoutThenCancel(stop);
+        var handler = new ScriptedHandler((request, cancellationToken) =>
+        {
+            Interlocked.Increment(ref callCount);
+            return timeoutThenCancel(request, cancellationToken);
+        });
+        await using var client = Client(handler, requestTimeout: TimeSpan.FromMilliseconds(100));
+        var reported = new List<Exception>();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+        {
+            await foreach (var _ in client.WatchAssignmentsAsync(TimeSpan.FromMilliseconds(5), reported.Add, stop.Token))
+            {
+            }
+        });
+
+        Assert.Equal(1, Volatile.Read(ref callCount));
+        Assert.Empty(reported);
+    }
+
+    // A handler that waits until the request's own token fires -- the client's request timeout, as
+    // the caller's token is not yet canceled -- and then cancels the caller's token before letting
+    // the cancellation through.
+    private static Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> TimeoutThenCancel(
+        CancellationTokenSource caller) =>
+        async (_, cancellationToken) =>
+        {
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+            catch (OperationCanceledException) when (!caller.IsCancellationRequested)
+            {
+                await caller.CancelAsync();
+                throw;
+            }
+
+            throw new InvalidOperationException("The request's token never fired.");
+        };
 
     private static Task CallAsync(YogabaseRuntimeHostClient client, string verb, CancellationToken cancellationToken) =>
         verb switch
@@ -1443,5 +1616,19 @@ public sealed class YogabaseRuntimeHostClientTests
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken) => send(request, cancellationToken);
+    }
+
+    // An empty answer body whose reading disposes the client, as a disposal that lands while
+    // HttpClient buffers the answer would.
+    private sealed class DisposingContent(Func<YogabaseRuntimeHostClient> client) : HttpContent
+    {
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) =>
+            client().DisposeAsync().AsTask();
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = 0;
+            return true;
+        }
     }
 }

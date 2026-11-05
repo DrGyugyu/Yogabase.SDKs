@@ -84,8 +84,15 @@ callback) treats a failed poll as the contract does for the assignments route:
   reported once; a good page, or a different failure, makes the next one a new report. A throwing
   callback is swallowed.
 
+Cancelling the token ends the watch. It ends cleanly when the cancel lands in the delay between polls,
+or just after a poll failed with something the watch would have retried or reported (that failure is
+then neither thrown nor reported); it throws `OperationCanceledException` when the cancel lands while
+a request is in flight. A terminal refusal is thrown even when the cancel lands as it arrives.
+
 Disposing the client ends a running watch (with the cancellation or `ObjectDisposedException` of the
-call it was in) rather than polling a disposed client.
+call it was in) rather than polling a disposed client. A poll that failed for its own reason as the
+disposal landed ends it with an `ObjectDisposedException` that carries the failure, unless the failure
+is a terminal refusal.
 
 ## What this client talks to
 
